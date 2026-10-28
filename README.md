@@ -68,11 +68,12 @@ AI-Asset-Hub/
 ├─ python-core/            # 분석·검색·MCP 코어 (향후 구현)
 ├─ unity-package/          # Unity Editor 패키지 (향후 구현)
 ├─ db/                     # 스키마·마이그레이션 (향후 구현)
-└─ scripts/                # 빌드·테스트 (향후 구현)
+├─ scripts/                # 개발 실행 사전 검사
+└─ tests/                  # 개발 명령 회귀 테스트
 ```
 
 ## 현재 상태와 다음 행동
-- `R00-02`: Tauri 2 + Vue 3 + TypeScript + Vite 최소 진입 화면. 에셋 관리·분석 기능은 이후 작업 범위다.
+- `R00-02~03`: 최소 Windows 진입 화면과 `npm run dev` 개발 실행. 에셋 관리·분석 기능은 이후 작업 범위다.
 - 개발 환경과 실행 명령, 검증 상태는 [DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고한다.
 - [ROADMAP.md](docs/ROADMAP.md)에서 최초 미완료 작업을 골라 **한 번에 한 작업만** 구현한다.
 - 완료 시 앱 화면에서 실제 결과를 확인하고 자동 테스트 후 문서/변경 이력을 갱신한다.

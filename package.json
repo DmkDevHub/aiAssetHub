@@ -7,7 +7,10 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "vite",
+    "predev": "node scripts/check-dev-port.mjs",
+    "dev": "tauri dev -- --locked",
+    "dev:web": "vite",
+    "test": "node --test",
     "typecheck": "vue-tsc --noEmit && tsc --project tsconfig.node.json",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",

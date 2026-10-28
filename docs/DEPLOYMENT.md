@@ -6,19 +6,21 @@
 - Tauri 앱 안에 Vue 정적 파일 + 패키징된 Python Core Sidecar를 포함.
 - AI 모델 가중치는 크기/라이선스/하드웨어별 차이로 **설치본 기본 포함을 강제하지 않고**, 사용자 선택 다운로드/등록 방식을 적용한다.
 
-## 현재 최소 앱 개발 실행 (R00-02)
+## 현재 최소 앱 개발 실행 (R00-02~03)
 
 Windows 개발 환경에 Node.js 22.12 이상, Rust stable MSVC, Microsoft C++ Build Tools의 `Desktop development with C++` 워크로드와 Windows SDK, WebView2가 필요하다. [Tauri 공식 사전 요구사항](https://v2.tauri.app/start/prerequisites/)을 참고한다.
 
 ```bash
 npm ci
 npm run build
-npm run tauri dev
+npm run dev
 ```
 
 - `npm run build`: Vue 화면·Vite 설정 타입 검사 후 프런트엔드 프로덕션 빌드.
-- `npm run tauri dev`: Windows 데스크톱 창 실행. Cargo/MSVC 설치 후 새 터미널에서 실행한다.
-- `npm run dev`: 브라우저 전용 화면 확인용 `http://127.0.0.1:1420`. Windows 앱과의 검증 결과를 구분한다. 포트 점유 시 다른 포트로 변경하지 않고 오류를 반환한다.
+- `npm run dev`: 개발 포트 사전 검사 후 `tauri dev -- --locked`로 Windows 창과 Vite를 함께 실행. Cargo/MSVC 설치 후 새 터미널에서 실행한다. 창을 닫으면 CLI와 Vite도 종료된다.
+- `npm run dev:web`: 브라우저 전용 화면 확인용 `http://127.0.0.1:1420`. Windows 앱과의 검증 결과를 구분한다.
+- 개발 포트 점유 시 `npm run dev`는 Tauri 실행 전에 오류 코드 1로 중단한다. 사전 검사 없이 직접 `npm run tauri dev`를 실행하면 Tauri가 기존 서버에 연결했다가 오류로 종료할 수 있으므로 기본 개발 명령을 사용한다.
+- `npm test`: Node 내장 테스트 러너로 개발 포트 점유 거부·기존 서버 보존·검사 후 포트 반환을 검증한다.
 - Tauri가 `beforeDevCommand`로 Vite를 시작하므로 브라우저 확인용 서버는 먼저 종료한다.
 - 최소 앱은 `AI Asset Hub`와 `로컬 에셋 작업 공간`을 표시한다. Python·DB·AI·파일 선택 기능은 아직 연결하지 않는다.
 - `local.aiassethub.dev`는 개발용 임시 식별자다. 배포 식별자·출판사명은 DECISIONS의 미정 사항으로 유지하며 설치본 번들은 아직 비활성화했다.
