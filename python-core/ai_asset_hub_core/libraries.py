@@ -130,6 +130,12 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'COST_ESTIMATE_UNAVAILABLE': '안전한 비용 상한을 계산할 수 없습니다.',
+    'ANALYSIS_PLAN_CHANGED': '대상·모델·비용이 변경되었습니다. 다시 확인하세요.',
+    'ANALYSIS_EMPTY': '분석할 대상이 없습니다.',
+    'ANALYSIS_BUSY': '대기 또는 실행 중인 분석을 먼저 종료하세요.',
+    'FILE_MISSING': '원본 파일이 없습니다.',
+    'FILE_UNAVAILABLE': '원본 파일에 접근할 수 없습니다.',
     'ANALYSIS_TARGET_LIMIT': '한 번에 최대 1000개 에셋을 분석할 수 있습니다.',
     'MODEL_UNAVAILABLE': '모델이 비활성 또는 미확인 상태입니다.',
     'MODEL_CAPABILITY_MISMATCH': '선택한 입력 유형을 지원하지 않는 모델입니다.',

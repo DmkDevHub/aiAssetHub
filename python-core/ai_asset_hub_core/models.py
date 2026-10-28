@@ -146,7 +146,7 @@ class ModelService:
     def invalidate_selection(self, identifier):
         self.db.execute("DELETE FROM settings WHERE key='model.selection' AND json_extract(value_json,'$.id')=?",(identifier,))
 
-    def validate(self, params):
+    def validate(self, params, reserved=False):
         import hashlib
         from datetime import datetime,timezone
         from .model_policy import BudgetPolicy,money
@@ -161,14 +161,15 @@ class ModelService:
         elif row[1]=='external':
             if not policy['allowExternal'] or caps.get('authentication')!='authenticated' or self.vault.read(params['id']) is None:reason='MODEL_POLICY_DENIED'
             elif caps.get('costClass') not in ('free','paid'):reason='MODEL_POLICY_DENIED'
-            elif caps['costClass']=='paid' and (not policy['allowPaid'] or money(policy['budgetUsd'])<=money(policy['reservedUsd'])):reason='BUDGET_EXCEEDED'
-        if not reason:
+            elif caps['costClass']=='paid' and (not policy['allowPaid'] or not reserved and money(policy['budgetUsd'])<=money(policy['reservedUsd'])):reason='BUDGET_EXCEEDED'
+        if not reason and not reserved:
             try:BudgetPolicy(self.db).check(params['id'],'0')
             except LibraryError:reason='BUDGET_EXCEEDED'
         if reason:return {'compatible':False,'reason':reason,'inferenceCalled':False}
         snapshot={'registryId':params['id'],'provider':row[0],'kind':row[1],'modelId':row[2],
                   'inputModality':params['modality'],'inspection':caps,'policy':policy,'snapshotVersion':1}
-        version=hashlib.sha256(json.dumps(snapshot,sort_keys=True,separators=(',',':')).encode('utf-8')).hexdigest()
+        version_source={**snapshot,'policy':{k:v for k,v in policy.items() if k not in ('reservedUsd','requestsUsed')}}
+        version=hashlib.sha256(json.dumps(version_source,sort_keys=True,separators=(',',':')).encode('utf-8')).hexdigest()
         snapshot['profileVersion']=version
         return {'compatible':True,'snapshot':snapshot,'inferenceCalled':False}
 

@@ -3,13 +3,14 @@ import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 const props=defineProps<{selectedIds:string[];folderId:string|null}>();
 const open=ref(false),busy=ref(false),error=ref(''),mode=ref('selected'),scope=ref('folder'),model=ref('');
-const preview=ref<{targetCount:number;missingCount:number;planToken:string}|null>(null);
-watch([mode,scope,model,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;});
+const preview=ref<{targetCount:number;missingCount:number;planToken:string;estimatedUpperBoundUsd?:string;externalTransfer?:boolean;paid?:boolean}|null>(null);
+const external=ref(false),paid=ref(false),startId=ref(''),jobId=ref('');
+watch([mode,scope,model,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;startId.value='';external.value=false;paid.value=false;});
 const models=ref<{id:string;modelId:string;enabled:boolean;selected?:boolean;inspection?:{modalities?:string[]}}[]>([]);
 const trigger=ref<HTMLButtonElement>(),panel=ref<HTMLElement>();let alive=true;
 onBeforeUnmount(()=>{alive=false;});
 async function show(){
- open.value=true;preview.value=null;error.value='';model.value='';models.value=[];busy.value=true;
+ open.value=true;preview.value=null;jobId.value='';error.value='';model.value='';models.value=[];busy.value=true;
  await nextTick();panel.value?.querySelector<HTMLElement>('select')?.focus();
  if(!isTauri()){busy.value=false;error.value='데스크톱 Core 연결이 필요합니다.';return;}
  try{
@@ -36,12 +37,22 @@ function requestPlan(){
  return {mode:mode.value,scope:scope.value,library_id:library,folder_parts:parts,selected_ids:mode.value==='selected'?props.selectedIds:[],model_id:model.value};
 }
 async function review(){
- if(busy.value || !model.value)return;busy.value=true;error.value='';preview.value=null;
+ if(busy.value || !model.value)return;busy.value=true;error.value='';preview.value=null;startId.value='';external.value=false;paid.value=false;
  try{
   const result=await invoke<{ok:boolean;data:{targetCount:number;missingCount:number;planToken:string}}>('preview_analysis',{plan:requestPlan()});
   if(!result.ok || !Number.isSafeInteger(result.data?.targetCount))throw new Error();
   preview.value=result.data;
  }catch{error.value='대상을 확인하지 못했습니다. 분석 범위와 모델을 확인하세요.';}
+ finally{busy.value=false;}
+}
+async function start(){
+ if(busy.value || !preview.value?.targetCount)return;busy.value=true;error.value='';
+ try{
+  startId.value ||= crypto.randomUUID();
+  const result=await invoke<{ok:boolean;data:{jobId:string};error?:{code:string}}>('start_analysis',{request:{plan:requestPlan(),plan_token:preview.value.planToken,request_id:startId.value,confirmed:true,confirm_external:external.value,confirm_paid:paid.value}});
+  if(!result.ok || typeof result.data?.jobId!=='string'){if(result.error?.code==='ANALYSIS_PLAN_CHANGED')preview.value=null;throw new Error();}
+  jobId.value=result.data.jobId;
+ }catch{error.value='분석 요청을 저장하지 못했습니다. 대상·모델·비용을 다시 확인하세요.';}
  finally{busy.value=false;}
 }
 async function close(){open.value=false;await nextTick();trigger.value?.focus();}
@@ -64,9 +75,14 @@ function keys(event:KeyboardEvent){
    <label>분석 범위 <select v-model="scope" :disabled="busy"><option value="folder">현재 폴더 (하위 포함)</option><option value="library">현재 라이브러리</option><option value="all">전체 라이브러리</option></select></label>
    <label>모델 <select v-model="model" :disabled="busy"><option value="">모델을 선택하세요</option><option v-for="item in models" :key="item.id" :value="item.id" :disabled="!item.enabled || !item.inspection?.modalities?.includes('image')">{{ item.modelId }}{{ item.enabled?'':' (비활성)' }}</option></select></label>
    <p v-if="error" role="alert">{{ error }}</p>
-   <button type="button" :disabled="busy || !model" @click="review">대상 확인</button>
-   <p v-if="preview" role="status">대상 {{ preview.targetCount }}개 · 인덱스상 원본 누락 {{ preview.missingCount }}개</p>
-   <button type="button" disabled>분석 시작 (대상 확인 필요)</button>
+   <button type="button" :disabled="busy || !model || (mode==='selected' && props.selectedIds.length>200)" @click="review">대상 확인</button>
+   <p v-if="mode==='selected' && props.selectedIds.length>200">선택 분석은 한 번에 최대 200개입니다. 범위 분석은 최대 1000개입니다.</p>
+   <p v-if="preview" role="status">대상 {{ preview.targetCount }}개 · 원본 확인 실패 {{ preview.missingCount }}개</p>
+   <p v-if="preview">비용 상한 추정: {{ preview.estimatedUpperBoundUsd??'미확인' }} USD. 실제 청구와 다를 수 있습니다. 전송: {{ preview.externalTransfer?'선택 이미지의 최대 512px 파생 JPEG·분석 프롬프트를 외부 공급자로 전송':'이 PC의 로컬 Ollama만 사용' }}</p>
+   <label v-if="preview?.externalTransfer"><input v-model="external" type="checkbox" />이 분석의 외부 전송을 승인합니다.</label>
+   <label v-if="preview?.paid"><input v-model="paid" type="checkbox" />표시된 상한 내 유료 사용을 승인합니다.</label>
+   <button type="button" class="analysis-start" :disabled="busy || !preview?.targetCount || (preview.externalTransfer && !external) || (preview.paid && !paid)" @click="start">분석 시작</button>
+   <p v-if="jobId" role="status">분석 요청 저장됨: {{ jobId }}</p>
    <button type="button" @click="close">닫기</button>
   </section>
  </div>

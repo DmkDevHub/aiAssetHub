@@ -242,6 +242,7 @@ impl CoreProcess {
                 | "model.validate"
                 | "model.select"
                 | "analysis.preview"
+                | "analysis.start"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }
@@ -516,7 +517,7 @@ mod tests {
         let health = core.start().unwrap();
         verify_model_registry(&mut core);
         assert_eq!(
-            core.library_request("analysis.start", json!({}))
+            core.library_request("analysis.unapproved", json!({}))
                 .unwrap_err(),
             "CORE_COMMAND_NOT_ALLOWED"
         );

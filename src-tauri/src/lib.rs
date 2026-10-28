@@ -9,6 +9,36 @@ use tauri_plugin_dialog::DialogExt;
 type CoreState = Arc<Mutex<CoreProcess>>;
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
+struct AnalysisStartInput {
+    plan: AnalysisPlanInput,
+    plan_token: String,
+    request_id: String,
+    confirmed: bool,
+    confirm_external: bool,
+    confirm_paid: bool,
+}
+#[tauri::command]
+async fn start_analysis(
+    state: tauri::State<'_, CoreState>,
+    request: AnalysisStartInput,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "analysis.start",
+                serde_json::to_value(request).map_err(|_| "INVALID_PARAMS")?,
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
 struct AnalysisPlanInput {
     mode: String,
     scope: String,
@@ -519,7 +549,8 @@ pub fn run() {
             configure_model,
             validate_model,
             select_model,
-            preview_analysis
+            preview_analysis,
+            start_analysis
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

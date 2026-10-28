@@ -1719,3 +1719,19 @@ test('manual target preview sends selected mode and shows server count without s
  const preview=[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent==='대상 확인');dispatch(preview,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(calls[1][0],'preview_analysis');assert.equal(calls[1][1].plan.mode,'all');assert.match(document.querySelector('[role=dialog] [role=status]').textContent,/대상 2개/);assert.equal(calls.length,2);
 });
+
+test('analysis start is explicit after review and uses a stable idempotency ID',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+  calls.push([command,args]);
+  if(command==='list_models')return {ok:true,data:{items:[{id:'fixture-model-id',modelId:'fixture',enabled:true,selected:true,inspection:{modalities:['image']}}],next_cursor:null}};
+  if(command==='preview_analysis')return {ok:true,data:{targetCount:1,missingCount:0,planToken:'a'.repeat(64),estimatedUpperBoundUsd:'0',externalTransfer:false,paid:false}};
+  return {ok:true,data:{jobId:'fixture-real-response-id'}};
+ }};
+ dispatch(document.querySelector('.analysis-open'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const selects=document.querySelectorAll('[role=dialog] select');for(const select of [selects[0],selects[1]]){select.value='all';dispatch(select,new Event('change',{bubbles:true}));}await nextTick();
+ dispatch([...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent==='대상 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.length,2);
+ const button=document.querySelector('.analysis-start');assert.equal(button.disabled,false);dispatch(button,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[2][0],'start_analysis');assert.equal(calls[2][1].request.confirmed,true);assert.match(calls[2][1].request.request_id,/^[a-f0-9-]{36}$/);
+ assert.match(document.querySelector('[role=dialog]').textContent,/fixture-real-response-id/);
+});

@@ -62,5 +62,5 @@ def inspect_external(model_id, key=None):
     modalities=row.get('architecture',{}).get('input_modalities')
     if not isinstance(modalities,list) or not all(isinstance(m,str) for m in modalities):raise ValueError()
     return {'status':'available','modalities':[m for m in modalities if m in ('text','image','audio')],
-            'pricing':prices,'costClass':'free' if all(Decimal(p)==0 for p in prices.values()) else 'paid',
+            'contextLength':row.get('context_length') if type(row.get('context_length')) is int else None,'pricing':prices,'costClass':'free' if all(Decimal(p)==0 for p in prices.values()) else 'paid',
             'authentication':'credential_sent' if key else 'not_tested'}

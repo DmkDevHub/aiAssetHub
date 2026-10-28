@@ -73,7 +73,7 @@ class CoreTests(unittest.TestCase):
         with patch.object(self.app, "health", side_effect=AssertionError("must not run")):
             for method in ["analysis.start", "__dict__", "fixture-secret"]:
                 response = self.app.handle(self.request(method=method))
-                self.assertEqual(response["error"]["code"], "METHOD_NOT_FOUND")
+                self.assertEqual(response["error"]["code"], "INVALID_PARAMS" if method=="analysis.start" else "METHOD_NOT_FOUND")
                 self.assertFalse(response["error"]["retryable"])
                 self.assertIsNone(response["data"])
                 self.assertNotIn(method, json.dumps(response))
