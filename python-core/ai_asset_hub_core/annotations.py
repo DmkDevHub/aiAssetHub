@@ -19,7 +19,22 @@ class AnnotationService:
         self.require_asset(params['asset_id'])
         tags = [row[0] for row in self.db.execute('''SELECT t.label FROM tags t JOIN asset_tags at ON at.tag_id=t.id
             WHERE at.asset_id=? AND at.source='user' ORDER BY t.normalized_label''', (params['asset_id'],))]
-        return {'tags': tags}
+        row = self.db.execute('SELECT title_override,description_override FROM asset_user_annotations WHERE asset_id=?', (params['asset_id'],)).fetchone()
+        return {'tags': tags, 'title': row[0] or '' if row else '', 'description': row[1] or '' if row else ''}
+
+    def save(self, params):
+        if not isinstance(params, dict) or set(params) != {'asset_id', 'title', 'description'}:
+            raise LibraryError('INVALID_PARAMS')
+        self.require_asset(params['asset_id'])
+        for key, limit in (('title',128), ('description',1024)):
+            value = params[key]
+            if not isinstance(value,str) or len(value) > limit or any(unicodedata.category(c).startswith('C') and c not in '\n\t' for c in value):
+                raise LibraryError('INVALID_PARAMS')
+        self.db.execute('''INSERT INTO asset_user_annotations(asset_id,title_override,description_override,updated_at)
+            VALUES (?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(asset_id) DO UPDATE SET
+            title_override=excluded.title_override,description_override=excluded.description_override,updated_at=excluded.updated_at''',
+            (params['asset_id'],params['title'].strip() or None,params['description'].strip() or None))
+        return self.get({'asset_id': params['asset_id']})
 
     @staticmethod
     def labels(value):

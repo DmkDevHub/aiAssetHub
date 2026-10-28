@@ -7,6 +7,27 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
+#[tauri::command]
+async fn save_asset_annotation(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    title: String,
+    description: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.annotate",
+                serde_json::json!({"asset_id":asset_id,"title":title,"description":description}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
 
 #[tauri::command]
 async fn asset_annotations(
@@ -282,7 +303,8 @@ pub fn run() {
             asset_thumbnail,
             get_asset,
             asset_annotations,
-            edit_asset_tags
+            edit_asset_tags,
+            save_asset_annotation
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

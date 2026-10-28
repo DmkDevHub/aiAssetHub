@@ -90,9 +90,10 @@ class AssetService:
     def list(self, params):
         if not isinstance(params,dict) or set(params) - {'after_id'} or (params.get('after_id') is not None and not valid_id(params['after_id'])):
             raise LibraryError('INVALID_PARAMS')
-        rows = self.db.execute('''SELECT a.id,a.display_name,f.extension,a.library_root_id,f.relative_path,f.absolute_path,f.size_bytes,f.mtime_ns,f.exists_flag,json_extract(o.metadata_json,'$.scan_change')
+        rows = self.db.execute('''SELECT a.id,coalesce(u.title_override,a.display_name),f.extension,a.library_root_id,f.relative_path,f.absolute_path,f.size_bytes,f.mtime_ns,f.exists_flag,json_extract(o.metadata_json,'$.scan_change')
             FROM assets a JOIN asset_files f ON f.asset_id=a.id JOIN library_roots l ON l.id=a.library_root_id
             LEFT JOIN asset_observations o ON o.asset_file_id=f.id
+            LEFT JOIN asset_user_annotations u ON u.asset_id=a.id
             WHERE l.enabled=1 AND a.id>? ORDER BY a.id LIMIT 2''', (params.get('after_id') or '',)).fetchall()
         items = [dict(zip(('id','name','kind','libraryId','relativePath','path','size','mtimeNs','exists','scanChange'), row)) for row in rows[:1]]
         for item in items:

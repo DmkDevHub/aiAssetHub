@@ -1456,9 +1456,9 @@ test('user tags load, submit and delete through fixed Core commands', async () =
     return {ok:true,data:{tags:command==='asset_annotations'?['old']:args.add}};
   });
   assert.match(document.querySelector('.user-annotations').textContent,/old/);
-  const input=document.querySelector('.user-annotations input'); input.value='숲';
+  const input=document.querySelector('.tag-form input'); input.value='숲';
   dispatch(input,new Event('input',{bubbles:true})); await nextTick();
-  dispatch(document.querySelector('.user-annotations form'),new Event('submit',{bubbles:true,cancelable:true}));
+  dispatch(document.querySelector('.tag-form'),new Event('submit',{bubbles:true,cancelable:true}));
   await new Promise(resolve => setImmediate(resolve)); await nextTick();
   assert.deepEqual(calls[1][1].add,['숲']);
   dispatch(document.querySelector('.user-annotations li button'),new MouseEvent('click',{bubbles:true}));
@@ -1472,4 +1472,17 @@ test('user tag write failure is visible and keeps saved tags', async () => {
   await new Promise(resolve => setImmediate(resolve)); await nextTick();
   assert.match(document.querySelector('[role=alert]').textContent,/저장하지 못/);
   assert.match(document.querySelector('.user-annotations li').textContent,/saved/);
+});
+
+test('user title and description load and save explicitly', async () => {
+  const calls=[];
+  await mountAnnotations(async (command,args) => {calls.push([command,args]); return {ok:true,data:{tags:[],title:'별칭',description:'설명'}};});
+  const input=document.querySelector('.annotation-form input');
+  assert.equal(input.value,'별칭'); assert.equal(document.querySelector('textarea').value,'설명');
+  input.value='나무'; dispatch(input,new Event('input',{bubbles:true})); await nextTick();
+  assert.equal(calls.length,1);
+  dispatch(document.querySelector('.annotation-form'),new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setImmediate(resolve)); await nextTick();
+  assert.equal(calls[1][0],'save_asset_annotation'); assert.equal(calls[1][1].title,'나무');
+  assert.match(document.querySelector('.annotation-form').textContent,/저장했습니다/);
 });

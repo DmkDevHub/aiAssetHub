@@ -30,7 +30,7 @@ class AnnotationTests(unittest.TestCase):
         self.assertEqual(edit([], ['FOREST'])['tags'], ['숲'])
         self.db.close(); self.db = Database(self.base / 'db.sqlite')
         self.service = AnnotationService(self.db)
-        self.assertEqual(self.service.get({'asset_id':self.id}), {'tags':['숲']})
+        self.assertEqual(self.service.get({'asset_id':self.id})['tags'], ['숲'])
         self.assertEqual((self.source / '나무.png').read_bytes(), b'original')
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
 
@@ -39,3 +39,13 @@ class AnnotationTests(unittest.TestCase):
             with self.assertRaises(LibraryError):
                 self.service.tags({'asset_id':self.id,'add':value,'remove':[]})
         self.assertEqual(self.service.get({'asset_id':self.id})['tags'], [])
+
+    def test_user_description_title_override_and_restore_preserve_source(self):
+        self.service.save({'asset_id':self.id,'title':'별칭','description':'숲 설명'})
+        self.assertEqual(AssetService(self.db).list({})['items'][0]['name'],'별칭')
+        self.db.close(); self.db = Database(self.base / 'db.sqlite'); self.service = AnnotationService(self.db)
+        self.assertEqual(self.service.get({'asset_id':self.id})['description'],'숲 설명')
+        self.service.save({'asset_id':self.id,'title':'','description':''})
+        self.assertEqual(AssetService(self.db).list({})['items'][0]['name'],'나무.png')
+        with self.assertRaises(LibraryError): self.service.save({'asset_id':self.id,'title':'a'*129,'description':''})
+        self.assertEqual((self.source/'나무.png').read_bytes(),b'original')
