@@ -1812,3 +1812,10 @@ test('unsupported preview reports limits and cannot start an all-audio scope',as
  dispatch(document.querySelector('.analysis-open'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();const selects=document.querySelectorAll('[role=dialog] select');for(const select of [selects[0],selects[1]]){select.value='all';dispatch(select,new Event('change',{bubbles:true}));}await nextTick();dispatch([...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent==='대상 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(document.querySelector('.analysis-start').disabled,true);assert.match(document.querySelector('[role=dialog]').textContent,/미지원 2개/);assert.ok(!calls.includes('start_analysis'));
 });
+
+test('embedding profile configuration is explicit metadata only',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:true,data:{profile:{modelName:'fixture',dimension:3,version:'fixture-version'},readyCount:0}};}};
+ const form=document.querySelector('.embedding-tools form'),input=form.querySelector('input');input.value='fixture';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,0);
+ dispatch(form,new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.map(c=>c[0]),['embedding_configure','embedding_status']);assert.match(document.querySelector('.embedding-tools').textContent,/3차원/);
+});

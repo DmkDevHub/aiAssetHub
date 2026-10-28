@@ -245,6 +245,8 @@ impl CoreProcess {
                 | "analysis.start"
                 | "analysis.status"
                 | "analysis.jobs"
+                | "embedding.configure"
+                | "embedding.status"
                 | "analysis.cancel"
                 | "analysis.retry_plan"
                 | "asset.analysis"

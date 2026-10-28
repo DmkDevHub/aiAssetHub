@@ -130,6 +130,11 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'EMBEDDING_INVALID_VECTOR': '임베딩 차원 또는 벡터 값이 올바르지 않습니다.',
+    'EMBEDDING_MODEL_UNAVAILABLE': '로컬 임베딩 모델을 확인할 수 없습니다.',
+    'EMBEDDING_PROFILE_CHANGED': '임베딩 모델 또는 버전이 변경되었습니다.',
+    'EMBEDDING_NOT_READY': '현재 버전의 준비된 임베딩이 없습니다.',
+    'EMBEDDING_BUSY': '실행 중인 임베딩 작업이 있습니다.',
     'FILE_PERMISSION_DENIED': '원본 파일의 읽기 권한이 없습니다.',
     'ANALYSIS_NO_SUPPORTED_INPUT': '현재 분석 경로에서 처리할 이미지 후보가 없습니다.',
     'CORE_INTERRUPTED': 'Core 종료로 중단된 작업을 사용자가 정리했습니다.',

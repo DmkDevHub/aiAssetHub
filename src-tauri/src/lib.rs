@@ -8,6 +8,40 @@ use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
 #[tauri::command]
+async fn embedding_configure(
+    state: tauri::State<'_, CoreState>,
+    model_name: String,
+    prefix_scheme: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "embedding.configure",
+                serde_json::json!({"model_name":model_name,"prefix_scheme":prefix_scheme}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+#[tauri::command]
+async fn embedding_status(state: tauri::State<'_, CoreState>) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request("embedding.status", serde_json::json!({}))
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_analysis_history(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -657,7 +691,9 @@ pub fn run() {
             analysis_jobs,
             cancel_analysis,
             retry_analysis_plan,
-            asset_analysis_history
+            asset_analysis_history,
+            embedding_configure,
+            embedding_status
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")
