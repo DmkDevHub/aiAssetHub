@@ -10,8 +10,9 @@ from . import __version__
 
 
 class CoreApplication:
-    def __init__(self):
+    def __init__(self, database=None):
         self._started_at = time.monotonic_ns()
+        self.database = database
 
     def health(self):
         """Measure this live process without opening a database or starting jobs."""
@@ -23,7 +24,7 @@ class CoreApplication:
                 "python_version": platform.python_version(),
                 "uptime_ms": max(0, (time.monotonic_ns() - self._started_at) // 1_000_000),
             },
-            "database": {"status": "not_configured"},
+            "database": self.database.health() if self.database is not None else {"status": "not_configured"},
         }
 
     def handle(self, request):

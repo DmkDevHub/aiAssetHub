@@ -56,3 +56,11 @@
 3. 잘못된 마이그레이션 실패 시 기존 DB 및 백업 유지.
 4. 한 번의 재스캔 후 사용자 보정 태그 손실 없음.
 5. Core와 MCP의 동시 접근에서 DB 직접 경합 없음.
+
+## 현재 초기 스키마 (R02-03)
+
+- `db/migrations/001_initial.sql`과 Python `Database`가 스키마 버전 1을 소유한다. 19개 도메인 테이블과 `schema_migrations` 1개이며 초기 도메인 데이터는 모두 비어 있다. FTS/임베딩 생성·분석 작업은 시작하지 않는다.
+- 각 연결에 FK·busy timeout 3000ms를 적용하고 WAL·quick_check를 확인한다. 마이그레이션 파일은 버전 순서·개행 정규화 SHA-256으로 검증하며 알 수 없는/미래 스키마·변경된 적용 파일은 거부한다.
+- 기존 DB 업그레이드 전에 SQLite backup API로 `backups/pre-migration-UUID.sqlite`를 만들고 전체 적용을 하나의 BEGIN IMMEDIATE 트랜잭션으로 처리한다. 실패 시 롤백하고 백업을 보존한다. 손상/다른 용도의 DB를 초기화하거나 자동 교체하지 않는다.
+- 성공 결과는 완료 run에만 생성하고 UPDATE를 차단한다. 활성 결과/AI 태그/임베딩은 같은 에셋의 결과만 참조한다. 모델은 기본 disabled이며 사용자 보정은 별도 테이블이다.
+- health는 실제 연결의 스키마·SQLite 버전·journal mode를 반환하며 닫혔거나 실패한 연결은 error다. 실제 개발/운영 경로·앱 연결은 R02-04에서 적용한다.
