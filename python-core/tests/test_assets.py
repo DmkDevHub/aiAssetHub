@@ -7,6 +7,32 @@ from ai_asset_hub_core.assets import AssetService
 from ai_asset_hub_core.libraries import LibraryService
 
 class AssetTests(unittest.TestCase):
+    def test_thumbnail_is_derived_cached_and_source_stays_unchanged(self):
+        from PIL import Image
+        from ai_asset_hub_core.thumbnails import thumbnail
+        root = Path(__file__).resolve().parents[2] / '.artifacts' / 'scan-tests'
+        root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=root) as directory:
+            base = Path(directory)
+            source = base / 'images'
+            source.mkdir()
+            image = source / 'real.png'
+            Image.new('RGB',(200,120),'red').save(image)
+            before = image.read_bytes()
+            database = Database(base / 'data.sqlite')
+            try:
+                library = LibraryService(database).register({'path':str(source)})['library']['id']
+                service = AssetService(database)
+                service.scan({'library_id':library})
+                asset = service.list({})['items'][0]['id']
+                first = thumbnail(database, {'asset_id':asset})
+                self.assertEqual(first['status'],'ready')
+                self.assertEqual((first['width'],first['height']),(200,120))
+                self.assertEqual(thumbnail(database,{'asset_id':asset}), first)
+                self.assertEqual(image.read_bytes(),before)
+                self.assertEqual(len(list((base/'thumbnails').glob('*.jpg'))),1)
+            finally: database.close()
+
     def test_recursive_scan_is_explicit_stable_and_preserves_sources(self):
         root = Path(__file__).resolve().parents[2] / '.artifacts' / 'scan-tests'
         root.mkdir(parents=True, exist_ok=True)

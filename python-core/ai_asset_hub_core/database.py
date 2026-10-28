@@ -25,6 +25,7 @@ class Database:
         self.connection = None
         self.backup_path = None
         path = Path(path)
+        self.path = path
         if not path.is_absolute():
             raise DatabaseFailure('DB_PATH_INVALID')
         try:

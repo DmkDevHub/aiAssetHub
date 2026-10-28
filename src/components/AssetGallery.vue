@@ -3,6 +3,7 @@ import { libraryUi, setGalleryViewMode } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
 import { executeUiCommand } from "../stores/operations";
 import type { GalleryViewMode } from "../stores/libraryUi";
+import AssetThumbnail from './AssetThumbnail.vue';
 
 withDefaults(defineProps<{ items?: readonly AssetSummary[]; selectedId?: string | null }>(), {
   items: () => [], selectedId: null,
@@ -53,7 +54,7 @@ function moveAssetFocus(event: KeyboardEvent) {
     <ul v-else-if="libraryUi.galleryViewMode === 'grid'" class="asset-grid" aria-label="에셋 그리드" @keydown="moveAssetFocus">
       <li v-for="item in items" :key="item.id" class="asset-card" :data-asset-id="item.id"
         :class="{ 'is-selected': selectedId === item.id }">
-        <div class="asset-format-mark" aria-hidden="true">{{ item.kind }}</div>
+        <AssetThumbnail :id="item.id" :kind="item.kind" />
         <button type="button" class="asset-name asset-select" :title="item.name"
           :aria-pressed="selectedId === item.id" @click="$emit('select', item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>

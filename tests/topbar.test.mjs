@@ -1217,6 +1217,28 @@ const libraryFixture = [
   { id: '12345678-1234-4234-9234-123456789abc', name: '등록된 한글 폴더', path: 'D:\\fixture\\registered' },
   { id: '22345678-1234-4234-9234-123456789abc', name: '새 폴더', path: 'D:\\fixture\\new' },
 ];
+test('thumbnail loads only after visibility and accepts only a JPEG data URL', async () => {
+  app.unmount();
+  const previous = globalThis.IntersectionObserver;
+  let visible;
+  let calls = 0;
+  globalThis.IntersectionObserver = class { constructor(callback) { visible=callback; } observe() {} disconnect() {} };
+  globalThis.isTauri = true;
+  dom.window.__TAURI_INTERNALS__ = {invoke:async (command) => {
+    assert.equal(command,'asset_thumbnail'); calls++;
+    return {ok:true,data:{status:'ready',url:'data:image/jpeg;base64,/9j/AA=='}};
+  }};
+  try {
+    app=createApp(components.AssetThumbnail,{id:'fixture-thumbnail',kind:'PNG'});
+    app.mount('#app');
+    assert.equal(calls,0);
+    visible([{isIntersecting:true}]);
+    await new Promise((resolve)=>setImmediate(resolve));
+    await nextTick();
+    assert.equal(calls,1);
+    assert.match(document.querySelector('img').src,/^data:image\/jpeg;base64,/);
+  } finally { app.unmount(); mounted=false; globalThis.IntersectionObserver=previous; }
+});
 test('indexed folder hierarchy and filtering use whole path segments', () => {
   const items = [
     {id:'fixture-a',name:'a',kind:'TXT',libraryId:libraryFixture[0].id,relativePath:'one\\nested\\a.txt'},

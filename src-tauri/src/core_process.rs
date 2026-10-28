@@ -47,16 +47,31 @@ impl LaunchSpec {
     }
 
     pub fn development() -> Self {
-        Self {
-            program: std::env::var_os("AI_ASSET_HUB_PYTHON")
-                .unwrap_or_else(|| "python".into())
-                .into(),
-            args: vec![
+        let packages = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../.artifacts/core-build-venv/Lib/site-packages");
+        let args = if packages.is_dir() {
+            vec![
+                "-B".into(),
+                "-c".into(),
+                format!(
+                    "import sys,runpy;sys.path.insert(0,{});runpy.run_module('ai_asset_hub_core',run_name='__main__')",
+                    serde_json::to_string(&packages.to_string_lossy()).unwrap()
+                ),
+                "--serve".into(),
+            ]
+        } else {
+            vec![
                 "-B".into(),
                 "-m".into(),
                 "ai_asset_hub_core".into(),
                 "--serve".into(),
-            ],
+            ]
+        };
+        Self {
+            program: std::env::var_os("AI_ASSET_HUB_PYTHON")
+                .unwrap_or_else(|| "python".into())
+                .into(),
+            args,
             cwd: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../python-core"),
         }
     }
@@ -212,6 +227,7 @@ impl CoreProcess {
                 | "library.list"
                 | "library.scan"
                 | "asset.list"
+                | "asset.thumbnail"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }
