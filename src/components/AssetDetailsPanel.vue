@@ -52,7 +52,7 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
         </div>
         <div id="detail-panel-analysis" role="tabpanel" aria-labelledby="detail-tab-analysis"
           :hidden="activeTab !== 'analysis'" tabindex="0">
-          <AssetAnalysis v-if="asset.path" :asset-id="asset.id" :revision="asset.lastAnalysisAt" />
+          <AssetAnalysis v-if="asset.path" :asset-id="asset.id" :revision="`${asset.activeResultId}:${asset.lastAnalysisJobId}:${asset.lastAttemptState}`" />
           <p v-else class="detail-analysis">{{ asset.analysisText || '제공된 분석 결과가 없습니다.' }}</p>
         </div>
       </template>

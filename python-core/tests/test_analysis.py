@@ -189,3 +189,17 @@ class AnalysisTests(unittest.TestCase):
         status=jobs.status({'job_id':job});self.assertEqual(status['status'],'canceled');self.assertEqual(status['canceled'],2)
         self.assertEqual(len(calls),1);self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_active_results').fetchone()[0],0)
         self.assertEqual(self.db.connection.execute('SELECT status FROM analysis_runs').fetchone()[0],'canceled')
+
+    def test_history_is_paged_append_only_and_failure_preserves_active_success(self):
+        import sqlite3
+        from ai_asset_hub_core.analysis_results import AssetAnalysis
+        self.history(self.id,'completed',True)
+        self.history(self.id,'failed',timestamp='2026-10-28T00:00:01Z')
+        service=AssetAnalysis(self.db);first=service.history({'asset_id':self.id})
+        self.assertEqual(first['items'][0]['status'],'failed');self.assertIsNone(first['items'][0]['description'])
+        second=service.history({'asset_id':self.id,'after_id':first['next_cursor']})
+        self.assertEqual(second['items'][0]['description'],'fixture successful');self.assertTrue(second['items'][0]['active'])
+        self.assertEqual(service.get({'asset_id':self.id})['active']['description'],'fixture successful')
+        for sql in ("DELETE FROM analysis_results","DELETE FROM analysis_runs","UPDATE analysis_runs SET status='running'","UPDATE analysis_jobs SET model_snapshot_json='{}'"):
+            with self.assertRaises(sqlite3.IntegrityError):self.db.connection.execute(sql)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_results').fetchone()[0],1)

@@ -8,6 +8,27 @@ use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
 #[tauri::command]
+async fn asset_analysis_history(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    after_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.analysis.history",
+                serde_json::json!({"asset_id":asset_id,"after_id":after_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn cancel_analysis(
     state: tauri::State<'_, CoreState>,
     job_id: String,
@@ -635,7 +656,8 @@ pub fn run() {
             asset_analysis,
             analysis_jobs,
             cancel_analysis,
-            retry_analysis_plan
+            retry_analysis_plan,
+            asset_analysis_history
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

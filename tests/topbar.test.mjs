@@ -1785,3 +1785,15 @@ test('retry reloads old conditions for a new review without automatically starti
  dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='같은 조건으로 재검토'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  const preview=calls.find(c=>c[0]==='preview_analysis');assert.deepEqual(preview[1].plan.selected_ids,['old-selected-asset']);assert.ok(!calls.some(c=>c[0]==='start_analysis'));assert.equal(document.querySelector('.analysis-start').disabled,false);
 });
+
+test('failed attempt history is distinct from the retained active description',async()=>{
+ app.unmount();globalThis.isTauri=true;let page=0;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{
+  if(command==='asset_analysis')return {ok:true,data:{active:{description:'previous successful description',tags:['old'],provider:'fixture',modelId:'fixture-model',createdAt:'fixture'}}};
+  assert.equal(command,'asset_analysis_history');page++;
+  return {ok:true,data:{items:[{id:'run-'+page,status:page===1?'failed':'completed',createdAt:'fixture',description:page===1?null:'previous successful description',tags:[],active:page===2,errorCode:page===1?'API_TIMEOUT':null}],next_cursor:page===1?'cursor':null}};
+ }};
+ app=createApp(components.AssetAnalysis,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ for(let i=0;i<2;i++){dispatch(document.querySelector('.asset-analysis button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();}
+ assert.equal(document.querySelectorAll('.analysis-history li').length,2);assert.match(document.querySelector('.asset-analysis').textContent,/previous successful description/);assert.match(document.querySelector('.analysis-history').textContent,/API_TIMEOUT/);
+});
