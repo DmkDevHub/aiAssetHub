@@ -1638,3 +1638,16 @@ test('model registry loads actual supplied profiles and registers only on submit
   assert.equal(calls[1][0],'register_model');assert.equal(calls[1][1].modelId,'fixture-model');
   assert.match(document.querySelector('[role=status]').textContent,/프로필을 저장/);
 });
+
+test('local model inspection is a separate explicit action with measured status', async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];let inspected=false;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+   calls.push(command);if(command==='inspect_model'){inspected=true;return {ok:true};}
+   return {ok:true,data:{items:[{id:'fixture',provider:'Ollama',kind:'local',modelId:'fixture-model',modalities:['image'],enabled:false,inspection:{status:inspected?'unavailable':'unchecked'}}],next_cursor:null}};
+ }};
+ app=createApp(components.ModelsView);app.config.errorHandler=e=>errors.push(e);app.mount('#app');
+ await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls,['list_models']);
+ dispatch(document.querySelector('.model-list button'),new MouseEvent('click',{bubbles:true}));
+ await new Promise(r=>setImmediate(r));await nextTick();
+ assert.deepEqual(calls,['list_models','inspect_model','list_models']);assert.match(document.querySelector('.model-list').textContent,/unavailable/);
+});

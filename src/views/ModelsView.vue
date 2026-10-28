@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-type Model = {id:string;provider:string;kind:string;modelId:string;modalities:string[];enabled:boolean};
+type Model = {id:string;provider:string;kind:string;modelId:string;modalities:string[];enabled:boolean;inspection?:{status?:string;checkedAt?:string;modalities?:string[]}};
 const items=ref<Model[]>([]), provider=ref(''), modelId=ref(''), kind=ref('local'), modality=ref('image');
 const busy=ref(false), error=ref(''), notice=ref('');
 let alive=true;
@@ -38,6 +38,13 @@ async function register() {
   finally{if(alive)busy.value=false;}
   if(alive)await load();
 }
+async function inspect(id:string){
+ if(busy.value)return;busy.value=true;error.value='';
+ try{const result=await invoke<{ok:boolean}>('inspect_model',{id});if(!result.ok)throw new Error();}
+ catch{if(alive)error.value='모델 상태를 확인하지 못했습니다.';}
+ finally{if(alive)busy.value=false;}
+ if(alive)await load();
+}
 onMounted(load);
 </script>
 <template>
@@ -56,6 +63,9 @@ onMounted(load);
     <p v-if="!busy && !items.length">등록된 모델이 없습니다.</p>
     <ul class="model-list"><li v-for="item in items" :key="item.id">
       <strong>{{ item.modelId }}</strong> · {{ item.provider }} · {{ item.kind==='local'?'로컬':'외부' }}
+      <button v-if="item.kind==='local'" type="button" :disabled="busy" @click="inspect(item.id)">로컬 사용 가능성 검사</button>
+      <p>확인 상태: {{ item.inspection?.status ?? '미검사' }} · {{ item.inspection?.checkedAt ?? '' }}</p>
+      <p>확인된 입력: {{ item.inspection?.modalities?.join(', ') || '없음' }} · 추론 호출 없음</p>
       <p>등록 입력: {{ item.modalities.join(', ') }} · {{ item.enabled?'활성':'비활성' }}</p>
     </li></ul>
   </section>

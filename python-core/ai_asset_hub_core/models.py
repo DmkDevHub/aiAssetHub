@@ -42,8 +42,22 @@ class ModelService:
     def list(self, params):
         if not isinstance(params,dict) or set(params)-{'after_id'} or (params.get('after_id') is not None and not valid_id(params['after_id'])):
             raise LibraryError('INVALID_PARAMS')
-        rows=self.db.execute('''SELECT m.id,p.name,p.kind,m.model_id,m.modalities_json,m.enabled
+        rows=self.db.execute('''SELECT m.id,p.name,p.kind,m.model_id,m.modalities_json,m.enabled,m.capabilities_json
             FROM model_registry m JOIN model_providers p ON p.id=m.provider_id
             WHERE m.id>? ORDER BY m.id LIMIT 11''',(params.get('after_id') or '',)).fetchall()
-        items=[{'id':r[0],'provider':r[1],'kind':r[2],'modelId':r[3],'modalities':json.loads(r[4]),'enabled':bool(r[5])} for r in rows[:10]]
+        items=[{'id':r[0],'provider':r[1],'kind':r[2],'modelId':r[3],'modalities':json.loads(r[4]),'enabled':bool(r[5]),'inspection':json.loads(r[6])} for r in rows[:10]]
         return {'items':items,'next_cursor':items[-1]['id'] if len(rows)>10 else None}
+
+    def inspect(self, params):
+        if not isinstance(params,dict) or set(params)!={'id'} or not valid_id(params['id']): raise LibraryError('INVALID_PARAMS')
+        row=self.db.execute('SELECT p.name,p.kind,m.model_id FROM model_registry m JOIN model_providers p ON p.id=m.provider_id WHERE m.id=?',(params['id'],)).fetchone()
+        if not row: raise LibraryError('INVALID_PARAMS')
+        from .providers import inspect_local
+        result={'status':'unsupported_provider','modalities':[]}
+        if row[0].casefold()=='ollama' and row[1]=='local':
+            try: result=inspect_local(row[2])
+            except Exception: result={'status':'unavailable','modalities':[]}
+        from datetime import datetime, timezone
+        result.update(checkedAt=datetime.now(timezone.utc).isoformat(),inferenceCalled=False,verified=result['status']=='available')
+        self.db.execute('UPDATE model_registry SET capabilities_json=?,enabled=0 WHERE id=?',(json.dumps(result),params['id']))
+        return result

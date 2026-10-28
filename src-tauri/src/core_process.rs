@@ -236,6 +236,7 @@ impl CoreProcess {
                 | "asset.search"
                 | "model.register"
                 | "model.list"
+                | "model.inspect"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

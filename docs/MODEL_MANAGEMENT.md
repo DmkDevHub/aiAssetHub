@@ -29,3 +29,6 @@
 ## 미확정 구현 선택
 - 초기 로컬 모델 런타임과 기본 제공 모델은 실제 PC 사양과 포맷 지원에 따라 결정.
 - 외부 공급자별 인증 방식·지원 모델·요금은 구현 직전 공식 문서에서 재검증.
+
+## M05 초기 어댑터
+로컬 Ollama 메타데이터 `POST http://127.0.0.1:11434/api/show`만 명시적으로 검사한다. 생성/모델 로드/다운로드 호출은 하지 않으며 등록 입력과 실제 capabilities를 구분한다. 고정 URL·환경 프록시 배제·리다이렉트 거부·0.5초 소켓/1.5초 총 읽기 제한·2MB 응답 제한을 적용한다. 상태 확인은 모델 추론 성공을 보증하지 않는다. [Ollama 공식 API](https://docs.ollama.com/api/introduction), [메타데이터 문서](https://docs.ollama.com/api-reference/show-model-details). 메타데이터 조회에는 기존 Python 표준 HTTP 라이브러리를 사용하며 생성 SDK 선택은 실제 추론 구현 단계에 결정한다.
