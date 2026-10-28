@@ -130,6 +130,9 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'EMBEDDING_LIMIT': '임베딩 처리 범위 또는 텍스트 한도를 초과했습니다.',
+    'EMBEDDING_RESULT_CHANGED': '현재 활성 분석 결과가 변경되었거나 원본 재확인이 필요합니다.',
+    'EMBEDDING_FAILED': '로컬 임베딩 요청에 실패했습니다.',
     'EMBEDDING_INVALID_VECTOR': '임베딩 차원 또는 벡터 값이 올바르지 않습니다.',
     'EMBEDDING_MODEL_UNAVAILABLE': '로컬 임베딩 모델을 확인할 수 없습니다.',
     'EMBEDDING_PROFILE_CHANGED': '임베딩 모델 또는 버전이 변경되었습니다.',

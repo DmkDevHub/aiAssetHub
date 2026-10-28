@@ -43,4 +43,55 @@ class Embeddings:
     def status(self,params):
         if params!={}:raise LibraryError('INVALID_PARAMS')
         profile=self.profile()
-        return {'profile':profile,'readyCount':0 if not profile else self.db.execute('SELECT count(*) FROM asset_embeddings WHERE embedding_model=? AND dimension=?',(profile['version'],profile['dimension'])).fetchone()[0],'inferenceCalled':False}
+        return {'profile':profile,'readyCount':len(self.ready(profile)) if profile else 0,'inferenceCalled':False}
+
+    def documents(self):
+        rows=self.db.execute('''SELECT a.id,r.id,r.description,r.tags_json,run.input_fingerprint,a.library_root_id,f.relative_path,f.extension
+            FROM asset_active_results ar JOIN assets a ON a.id=ar.asset_id JOIN library_roots l ON l.id=a.library_root_id
+            JOIN analysis_results r ON r.id=ar.analysis_result_id JOIN analysis_runs run ON run.id=r.run_id JOIN asset_files f ON f.asset_id=a.id
+            WHERE l.enabled=1 AND f.exists_flag=1 AND f.sha256=run.input_fingerprint ORDER BY a.id LIMIT 10001''').fetchall()
+        if len(rows)>10000:raise LibraryError('EMBEDDING_LIMIT')
+        result={}
+        for r in rows:
+            text=r[2]+'\n'+' '.join(json.loads(r[3]))
+            fingerprint=hashlib.sha256(json.dumps((r[1],text,r[4]),ensure_ascii=False).encode()).hexdigest()
+            result[r[0]]={'id':r[0],'resultId':r[1],'text':text,'fingerprint':fingerprint,'libraryId':r[5],'relativePath':r[6],'kind':r[7].lstrip('.').upper()}
+        return result
+
+    def ready(self,profile):
+        documents=self.documents();result=[]
+        for identifier,result_id,dimension,blob,fingerprint in self.db.execute('SELECT asset_id,result_id,dimension,vector_blob,input_fingerprint FROM asset_embeddings WHERE embedding_model=?',(profile['version'],)):
+            doc=documents.get(identifier)
+            if not doc or doc['resultId']!=result_id or doc['fingerprint']!=fingerprint:continue
+            if dimension!=profile['dimension'] or len(blob)!=dimension*4:continue
+            try:values=vector(list(struct.unpack('<'+'f'*dimension,blob)),dimension)
+            except (ValueError,LibraryError,struct.error):continue
+            result.append((doc,values))
+        return result
+
+    def fresh(self,profile):
+        if self.profile()!=profile:raise LibraryError('EMBEDDING_PROFILE_CHANGED')
+        dimension,revision=inspect(profile['modelName'])
+        if dimension!=profile['dimension'] or revision!=profile['metadataVersion']:raise LibraryError('EMBEDDING_PROFILE_CHANGED')
+
+
+def embed(profile,text,query,cancel,register):
+    import http.client
+    if cancel.is_set():raise LibraryError('USER_CANCELED')
+    if not isinstance(text,str) or len(text.encode('utf-8'))>24000:raise LibraryError('EMBEDDING_LIMIT')
+    prefix=('task: search result | query: ' if query else 'title: none | text: ') if profile['prefixScheme']=='embeddinggemma' else ''
+    connection=http.client.HTTPConnection('127.0.0.1',11434,timeout=3);register(connection)
+    try:
+        connection.connect();connection.auto_open=0;register(connection)
+        if cancel.is_set():raise LibraryError('USER_CANCELED')
+        connection.sock.settimeout(120)
+        connection.request('POST','/api/embed',json.dumps({'model':profile['modelName'],'input':prefix+text,'truncate':False,'keep_alive':'0','options':{'num_gpu':0,'num_thread':2}}).encode(),{'Content-Type':'application/json'})
+        response=connection.getresponse();raw=response.read(2_000_001)
+        if response.status!=200 or len(raw)>2_000_000:raise LibraryError('EMBEDDING_FAILED')
+        data=json.loads(raw)
+        if data.get('model')!=profile['modelName'] or not isinstance(data.get('embeddings'),list) or len(data['embeddings'])!=1:raise LibraryError('EMBEDDING_INVALID_VECTOR')
+        if cancel.is_set():raise LibraryError('USER_CANCELED')
+        return vector(data['embeddings'][0],profile['dimension'])
+    except LibraryError:raise
+    except Exception:raise LibraryError('USER_CANCELED' if cancel.is_set() else 'EMBEDDING_FAILED') from None
+    finally:connection.close()

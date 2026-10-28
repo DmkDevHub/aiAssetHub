@@ -14,6 +14,7 @@ class CoreApplication:
         self._started_at = time.monotonic_ns()
         self.database = database
         self._analysis = None
+        self._embedding = None
 
     def start_analysis(self, params):
         from .analysis_jobs import AnalysisJobs
@@ -36,8 +37,20 @@ class CoreApplication:
         active=self._analysis.active(params.get('job_id')) if self._analysis and isinstance(params,dict) else False
         return AnalysisJobs(self.database).status(params,active)
 
+    def start_embedding(self, params):
+        from .embedding_engine import EmbeddingEngine
+        if self._embedding is None:self._embedding=EmbeddingEngine(self.database)
+        return self._embedding.start(self.database,params)
+
+    def embedding_work(self, params):
+        from .embedding_engine import work_status
+        result=work_status(self.database,params)
+        if result['status'] in ('queued','running') and not (self._embedding and self._embedding.active(params['job_id'])):result['status']='interrupted'
+        return result
+
     def close(self):
         if self._analysis:self._analysis.close()
+        if self._embedding:self._embedding.close()
 
     def health(self):
         """Measure this live process without opening a database or starting jobs."""
@@ -72,7 +85,7 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
-            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail", "asset.get", "asset.annotations", "asset.tags", "asset.annotate", "asset.tags.batch", "asset.search", "model.register", "model.list", "model.inspect", "model.credential", "model.policy", "model.validate", "model.select", "analysis.preview", "analysis.start", "analysis.status", "asset.analysis", "analysis.jobs", "analysis.cancel", "analysis.retry_plan", "asset.analysis.history", "embedding.configure", "embedding.status"}:
+            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail", "asset.get", "asset.annotations", "asset.tags", "asset.annotate", "asset.tags.batch", "asset.search", "model.register", "model.list", "model.inspect", "model.credential", "model.policy", "model.validate", "model.select", "analysis.preview", "analysis.start", "analysis.status", "asset.analysis", "analysis.jobs", "analysis.cancel", "analysis.retry_plan", "asset.analysis.history", "embedding.configure", "embedding.status", "embedding.start", "embedding.work"}:
                 return self.error(request_id, "METHOD_NOT_FOUND", "지원하지 않는 명령입니다.")
             if method=='analysis.start' and (not isinstance(request.get('params'),dict) or request['params'].get('confirmed') is not True):
                 return self.error(request_id,'INVALID_PARAMS','명시적 분석 시작 승인이 필요합니다.')
@@ -90,7 +103,7 @@ class CoreApplication:
                     from .analysis_jobs import AnalysisJobs
                     from .analysis_results import AssetAnalysis
                     from .embeddings import Embeddings
-                    action = {'embedding.configure': Embeddings(self.database).configure, 'embedding.status': Embeddings(self.database).status, 'asset.analysis.history': AssetAnalysis(self.database).history, 'analysis.cancel': self.cancel_analysis, 'analysis.retry_plan': AnalysisJobs(self.database).retry_plan, 'analysis.jobs': AnalysisJobs(self.database).list, 'analysis.start': self.start_analysis, 'analysis.status': self.analysis_status, 'asset.analysis': AssetAnalysis(self.database).get, 'analysis.preview': AnalysisPlan(self.database).preview, 'model.validate': ModelService(self.database).validate, 'model.select': ModelService(self.database).select, 'model.policy': ModelService(self.database).policy, 'model.credential': ModelService(self.database).credential, 'model.inspect': ModelService(self.database).inspect, 'model.register': ModelService(self.database).register, 'model.list': ModelService(self.database).list, 'asset.search': SearchService(self.database).search, 'asset.tags.batch': AnnotationService(self.database).batch, 'asset.annotate': AnnotationService(self.database).save, 'asset.annotations': AnnotationService(self.database).get, 'asset.tags': AnnotationService(self.database).tags, 'library.register': service.register, 'library.unregister': service.unregister,
+                    action = {'embedding.start': self.start_embedding, 'embedding.work': self.embedding_work, 'embedding.configure': Embeddings(self.database).configure, 'embedding.status': Embeddings(self.database).status, 'asset.analysis.history': AssetAnalysis(self.database).history, 'analysis.cancel': self.cancel_analysis, 'analysis.retry_plan': AnalysisJobs(self.database).retry_plan, 'analysis.jobs': AnalysisJobs(self.database).list, 'analysis.start': self.start_analysis, 'analysis.status': self.analysis_status, 'asset.analysis': AssetAnalysis(self.database).get, 'analysis.preview': AnalysisPlan(self.database).preview, 'model.validate': ModelService(self.database).validate, 'model.select': ModelService(self.database).select, 'model.policy': ModelService(self.database).policy, 'model.credential': ModelService(self.database).credential, 'model.inspect': ModelService(self.database).inspect, 'model.register': ModelService(self.database).register, 'model.list': ModelService(self.database).list, 'asset.search': SearchService(self.database).search, 'asset.tags.batch': AnnotationService(self.database).batch, 'asset.annotate': AnnotationService(self.database).save, 'asset.annotations': AnnotationService(self.database).get, 'asset.tags': AnnotationService(self.database).tags, 'library.register': service.register, 'library.unregister': service.unregister,
                               'library.list': service.list, 'library.scan': AssetService(self.database).scan,
                               'asset.list': AssetService(self.database).list, 'asset.get': AssetService(self.database).get,
                               'asset.thumbnail': lambda params: thumbnail(self.database, params)}[method]

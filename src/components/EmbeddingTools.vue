@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onBeforeUnmount, ref } from 'vue';
 import { invoke,isTauri } from '@tauri-apps/api/core';
 const props=defineProps<{selected:readonly {asset_id:string;result_id:string}[]}>();
 const model=ref(''),prefix=ref('plain'),busy=ref(false),error=ref('');
@@ -15,6 +15,19 @@ async function configure(){
  catch{error.value='모델의 임베딩 지원과 차원을 확인하지 못했습니다.';}finally{busy.value=false;}
  await read();
 }
+const work=ref<{status:string;processed:number;total:number;failed:number}|null>(null);let timer:ReturnType<typeof setInterval>|undefined,alive=true,polling=false;
+onBeforeUnmount(()=>{alive=false;if(timer)clearInterval(timer);});
+async function generate(){
+ if(busy.value || !props.selected.length || props.selected.length>100)return;busy.value=true;error.value='';
+ try{
+  const r=await invoke<{ok:boolean;data:{jobId:string}}>('embedding_start',{selected:props.selected,confirmed:true});if(!r.ok)throw new Error();
+  const poll=async()=>{if(polling)return;polling=true;try{
+   const result=await invoke<{ok:boolean;data:NonNullable<typeof work.value>}>('embedding_work',{jobId:r.data.jobId});if(!alive)return;if(!result.ok)throw new Error();work.value=result.data;
+   if(!['queued','running'].includes(result.data.status)){if(timer)clearInterval(timer);busy.value=false;await read();}
+  }catch{if(timer)clearInterval(timer);error.value='임베딩 작업 상태를 확인하지 못했습니다.';busy.value=false;}finally{polling=false;}};
+  timer=setInterval(()=>{void poll();},1000);void poll();
+ }catch{error.value='선택된 활성 결과의 임베딩을 시작하지 못했습니다.';busy.value=false;}
+}
 </script>
 <template>
  <details class="embedding-tools"><summary>의미 검색 준비</summary>
@@ -24,6 +37,9 @@ async function configure(){
   <button type="button" :disabled="busy" @click="read">임베딩 준비 상태 확인</button>
   <p v-if="status?.profile">{{ status.profile.modelName }} · {{ status.profile.dimension }}차원 · 버전 {{ status.profile.version }} · 준비 {{ status.readyCount }}개</p>
   <p v-else-if="status">임베딩 모델이 설정되지 않았습니다.</p>
+  <p>선택된 현재 성공 결과의 설명·태그만 로컬 모델로 전송합니다. 원본 파일은 전송하지 않습니다.</p>
+  <button type="button" :disabled="busy || !props.selected.length || props.selected.length>100" @click="generate">선택 결과 임베딩 생성 (최대 100개)</button>
+  <p v-if="work" role="status">{{ work.status }} · {{ work.processed }}/{{ work.total }} · 실패 {{ work.failed }}</p>
   <p>선택된 성공 결과 {{ props.selected.length }}개</p><p v-if="error" role="alert">{{ error }}</p>
  </details>
 </template>

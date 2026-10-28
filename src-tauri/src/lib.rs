@@ -7,6 +7,49 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct EmbeddingPair {
+    asset_id: String,
+    result_id: String,
+}
+#[tauri::command]
+async fn embedding_start(
+    state: tauri::State<'_, CoreState>,
+    selected: Vec<EmbeddingPair>,
+    confirmed: bool,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "embedding.start",
+                serde_json::json!({"selected":selected,"confirmed":confirmed}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+#[tauri::command]
+async fn embedding_work(
+    state: tauri::State<'_, CoreState>,
+    job_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request("embedding.work", serde_json::json!({"job_id":job_id}))
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
 #[tauri::command]
 async fn embedding_configure(
     state: tauri::State<'_, CoreState>,
@@ -693,7 +736,9 @@ pub fn run() {
             retry_analysis_plan,
             asset_analysis_history,
             embedding_configure,
-            embedding_status
+            embedding_status,
+            embedding_start,
+            embedding_work
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

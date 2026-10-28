@@ -24,3 +24,24 @@ class EmbeddingTests(unittest.TestCase):
         for bad in ([0,0,0],[1,float('nan'),0],[1,2],[True,0,1]):
             with self.assertRaises(LibraryError):vector(bad,3)
         self.assertAlmostEqual(sum(v*v for v in vector([1,2,3],3)),1)
+
+    def add_result(self):
+        import test_analysis
+        test_analysis.AnalysisTests.history(self,self.id,'completed',True)
+        self.db.connection.execute("UPDATE asset_files SET sha256='fixture'")
+        return self.db.connection.execute('SELECT id FROM analysis_results').fetchone()[0]
+
+    def test_selected_current_results_generate_versioned_vectors_without_automatic_calls(self):
+        import time
+        from ai_asset_hub_core.embedding_engine import EmbeddingEngine,work_status
+        profile=self.configure();result=self.add_result();engine=EmbeddingEngine(self.db)
+        with patch('ai_asset_hub_core.embeddings.inspect',return_value=(profile['dimension'],profile['metadataVersion'])),patch('ai_asset_hub_core.embedding_engine.embed',return_value=[1,0,0]) as call:
+            self.assertEqual(Embeddings(self.db).status({})['readyCount'],0);call.assert_not_called()
+            job=engine.start(self.db,{'selected':[{'asset_id':self.id,'result_id':result}],'confirmed':True})['jobId']
+            deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+            engine.close();self.assertEqual(call.call_count,1)
+        self.assertEqual(work_status(self.db,{'job_id':job})['status'],'completed')
+        self.assertEqual(Embeddings(self.db).status({})['readyCount'],1)
+        self.db.connection.execute('UPDATE asset_files SET sha256=NULL')
+        self.assertEqual(Embeddings(self.db).status({})['readyCount'],0)
