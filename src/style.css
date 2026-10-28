@@ -625,3 +625,7 @@ input[type="radio"] {
 .user-annotations form { display: grid; gap: 8px; margin-block: 12px; }
 .user-annotations label { display: grid; gap: 4px; }
 .user-annotations input, .user-annotations textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+
+.tag-filter { display: flex; gap: 8px; align-items: center; padding: 8px 16px; flex-wrap: wrap; }
+.bulk-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-block: 10px; }
+.asset-tags { overflow-wrap: anywhere; font-size: 12px; }

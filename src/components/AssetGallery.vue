@@ -65,6 +65,7 @@ function moveAssetFocus(event: KeyboardEvent) {
 
 <template>
   <section class="page asset-gallery" aria-labelledby="library-title">
+    <slot name="filters" />
     <header class="gallery-header">
       <div>
         <h1 id="library-title">라이브러리</h1>

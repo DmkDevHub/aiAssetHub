@@ -9,6 +9,8 @@ import { useWorkspaceLayout } from "../composables/useWorkspaceLayout";
 import LibraryManagement from '../components/LibraryManagement.vue';
 import { libraries, refreshLibraries } from '../stores/libraries';
 import { assets, refreshAssets, resetAssets } from '../stores/assets';
+import { workspace as searchState } from '../stores/workspace';
+import { keywordFilter } from '../services/assetSearch';
 import { folderNodes, filterFolder, type FolderNode } from '../services/assetFolders';
 
 onMounted(() => { void refreshLibraries().then((ok)=>{ if(ok){if(libraries.roots.length)void refreshAssets();else resetAssets();} }); });
@@ -17,7 +19,10 @@ const emptyMessage = computed(() => libraries.loading ? '등록 폴더를 불러
 
 const props = defineProps<{ items?: readonly AssetSummary[] }>();
 const availableItems = computed(() => assets.items.filter((item) => libraries.roots.some((root) => root.id===item.libraryId)));
-const items = computed(() => props.items ?? filterFolder(availableItems.value, libraryUi.selectedFolderId));
+const tag = ref('');
+const sourceItems = computed(() => props.items ?? availableItems.value);
+const tags = computed(() => [...new Set(sourceItems.value.flatMap(item => [...item.userTags ?? []]))].sort((a,b)=>a.localeCompare(b,'ko')));
+const items = computed(() => keywordFilter(filterFolder(sourceItems.value, libraryUi.selectedFolderId), searchState.searchQuery, tag.value));
 const nodes = computed(() => folderNodes(libraries.roots, availableItems.value));
 watch(nodes,(roots)=>{
   function contains(items: readonly FolderNode[]): boolean { return items.some((node)=>node.id===libraryUi.selectedFolderId || contains(node.children ?? [])); }
@@ -61,7 +66,9 @@ function moveRegion(event: KeyboardEvent) {
       :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
       <template #management><LibraryManagement /></template>
     </LibraryTreePanel>
-    <AssetGallery :items="items" :selected-id="selectedId" @select="selectedId = $event" />
+    <AssetGallery :items="items" :selected-id="selectedId" @select="selectedId = $event">
+      <template #filters><label class="tag-filter">사용자 태그 <select v-model="tag" aria-label="사용자 태그 필터"><option value="">전체 태그</option><option v-for="value in tags" :key="value" :value="value">{{ value }}</option></select></label></template>
+    </AssetGallery>
     <AssetDetailsPanel :asset="selectedAsset" />
   </div>
 </template>

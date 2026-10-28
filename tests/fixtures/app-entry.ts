@@ -21,3 +21,5 @@ export { default as AssetThumbnail } from '../../src/components/AssetThumbnail.v
 export { default as AssetMetadata } from '../../src/components/AssetMetadata.vue';
 
 export { default as AssetAnnotations } from '../../src/components/AssetAnnotations.vue';
+
+export { keywordFilter } from '../../src/services/assetSearch';

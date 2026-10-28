@@ -1506,3 +1506,23 @@ test('gallery multi-selection submits only selected asset IDs for batch tags', a
   assert.deepEqual(calls[0],['batch_asset_tags',{assetIds:['first','second'],add:['한글'],remove:[]}]);
   assert.match(document.querySelector('.bulk-tags').textContent,/2개 에셋의 사용자 태그/);
 });
+
+test('keyword matching handles Korean, case, whitespace and original filename with overrides', () => {
+  const items=[{id:'a',name:'별칭',relativePath:'나무 Forest.png',kind:'PNG',userTags:['초록 숲']},
+    {id:'b',name:'바위.png',kind:'PNG',userTags:['돌']}];
+  assert.deepEqual(components.keywordFilter(items,'  숲   FOREST ').map(i=>i.id),['a']);
+  assert.deepEqual(components.keywordFilter(items,'나무').map(i=>i.id),['a']);
+  assert.equal(components.keywordFilter(items,'없는').length,0);
+  assert.deepEqual(components.keywordFilter(items,'','돌').map(i=>i.id),['b']);
+});
+test('global query and tag selection reduce actual gallery cards', async () => {
+  await mountWorkspace([{id:'a',name:'나무.png',kind:'PNG',userTags:['숲']},{id:'b',name:'돌.png',kind:'PNG',userTags:['돌']}]);
+  components.setSearchQuery('나무'); await nextTick();
+  assert.equal(document.querySelectorAll('.asset-card').length,1);
+  assert.match(document.querySelector('.asset-card').textContent,/나무/);
+  components.setSearchQuery(''); await nextTick();
+  const select=document.querySelector('[aria-label="사용자 태그 필터"]'); select.value='돌';
+  dispatch(select,new Event('change',{bubbles:true})); await nextTick();
+  assert.equal(document.querySelectorAll('.asset-card').length,1);
+  assert.match(document.querySelector('.asset-card').textContent,/돌/);
+});
