@@ -125,3 +125,33 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(AnnotationService(self.db).get({'asset_id':self.id})['tags'],['mine'])
         self.assertFalse(asset_state(self.db.connection,self.id)['analysisStale'])
         self.assertEqual((self.source/'나무.png').read_bytes(),before)
+
+    def test_batch_queue_reports_measured_counts_and_continues_after_item_failure(self):
+        import json,time,threading
+        from unittest.mock import patch
+        from PIL import Image
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        from ai_asset_hub_core.analysis_engine import AnalysisEngine
+        for name in ('나무.png','second.png','third.png'):Image.new('RGB',(16,16),'blue').save(self.source/name)
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0];AssetService(self.db).scan({'library_id':library})
+        caps=json.loads(self.db.connection.execute('SELECT capabilities_json FROM model_registry WHERE id=?',(self.model,)).fetchone()[0]);caps['metadataVersion']='a'*64
+        self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),self.model))
+        plan=self.params();preview=AnalysisPlan(self.db).preview(plan);jobs=AnalysisJobs(self.db)
+        job=jobs.start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
+        entered=threading.Event();release=threading.Event();calls=[]
+        def inference(*args):
+            calls.append(1)
+            if len(calls)==1:entered.set();release.wait(3)
+            if len(calls)==2:raise LibraryError('API_RATE_LIMIT')
+            return {'description':'Fixture batch image','tags':['blue']},{'providerRequestAttempted':True}
+        engine=AnalysisEngine(self.db)
+        with patch('ai_asset_hub_core.providers.inspect_local',return_value={'status':'available','metadataVersion':'a'*64}),patch('ai_asset_hub_core.inference.infer',side_effect=inference):
+            engine.launch(job);self.assertTrue(entered.wait(3))
+            status=jobs.status({'job_id':job},engine.active(job));self.assertEqual(status['processed'],0);self.assertEqual(status['total'],3)
+            release.set();deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+            engine.close()
+        status=jobs.status({'job_id':job})
+        self.assertEqual((status['processed'],status['succeeded'],status['failed']),(3,2,1))
+        self.assertEqual(status['status'],'failed');self.assertEqual(status['errors'][0]['code'],'API_RATE_LIMIT')
+        self.assertEqual(len(calls),3);self.assertEqual(jobs.list({})['items'][0]['id'],job)

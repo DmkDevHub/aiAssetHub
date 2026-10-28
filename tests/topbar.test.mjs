@@ -1742,3 +1742,15 @@ test('stored AI result renders description and provenance as text without execut
  app=createApp(components.AssetAnalysis,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
  assert.match(document.querySelector('.asset-analysis').textContent,/red square/);assert.match(document.querySelector('.asset-analysis').textContent,/fixture-model/);assert.equal(document.querySelector('.asset-analysis img'),null);
 });
+
+test('job list restores measured batch progress without opening the analysis dialog',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{
+  if(command==='analysis_jobs')return {ok:true,data:{items:[{id:'fixture-batch',status:'running',total:3,createdAt:'fixture-time'}]}};
+  assert.equal(command,'analysis_status');return {ok:true,data:{status:'running',total:3,processed:2,succeeded:1,failed:1,canceled:0,needsRecovery:false,errors:[]}};
+ }};
+ dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='최근 분석 작업 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ dispatch(document.querySelector('.analysis-job-list button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(document.querySelector('[role=dialog]'),null);assert.match(document.querySelector('.asset-gallery [role=status]').textContent,/2\/3/);
+ assert.equal(components.operations.find(o=>o.id==='fixture-batch').progress.processed,2);
+});

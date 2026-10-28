@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { receiveOperation } from '../stores/operations';
 import { refreshAssets } from '../stores/assets';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 const props=defineProps<{selectedIds:string[];folderId:string|null}>();
 const open=ref(false),busy=ref(false),error=ref(''),mode=ref('selected'),scope=ref('folder'),model=ref('');
 const preview=ref<{targetCount:number;missingCount:number;planToken:string;estimatedUpperBoundUsd?:string;externalTransfer?:boolean;paid?:boolean}|null>(null);
+const jobs=ref<{id:string;status:string;total:number;createdAt:string}[]>([]);
 const external=ref(false),paid=ref(false),startId=ref(''),jobId=ref('');
 watch([mode,scope,model,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;startId.value='';external.value=false;paid.value=false;});
 const models=ref<{id:string;modelId:string;enabled:boolean;selected?:boolean;inspection?:{modalities?:string[]}}[]>([]);
 const trigger=ref<HTMLButtonElement>(),panel=ref<HTMLElement>();let alive=true;
-const progress=ref<{status:string;total:number;processed:number;succeeded:number;failed:number;canceled:number;needsRecovery:boolean}|null>(null);
+const progress=ref<{status:string;total:number;processed:number;succeeded:number;failed:number;canceled:number;needsRecovery:boolean;errors?:{assetId:string;code:string}[]}|null>(null);
 let timer:ReturnType<typeof setInterval>|undefined,polling=false,finished='';
 onMounted(()=>{timer=setInterval(()=>{if(jobId.value)void poll();},1000);});
 onBeforeUnmount(()=>{alive=false;if(timer)clearInterval(timer);});
@@ -17,13 +19,22 @@ async function poll(){
  if(polling || !jobId.value || finished===jobId.value)return;polling=true;
  try{
   const result=await invoke<{ok:boolean;data:NonNullable<typeof progress.value>}>('analysis_status',{jobId:jobId.value});
-  if(!alive)return;if(!result.ok || !Number.isSafeInteger(result.data?.processed))throw new Error();progress.value=result.data;
+  if(!alive)return;if(!result.ok || !Number.isSafeInteger(result.data?.processed) || !Number.isSafeInteger(result.data.total) || result.data.processed<0 || result.data.processed>result.data.total || result.data.succeeded+result.data.failed+result.data.canceled!==result.data.processed)throw new Error();progress.value=result.data;
+  const state=result.data.needsRecovery?'failed':result.data.status==='completed'?'succeeded':result.data.status==='failed'?'failed':result.data.status==='canceled'?'cancelled':'running';
+  receiveOperation({id:jobId.value,kind:'analysis.run',state,progress:{processed:result.data.processed,total:result.data.total},...(state==='failed'?{errorCode:result.data.needsRecovery?'CORE_UNAVAILABLE':'COMMAND_FAILED'}:{})});
   if(['completed','failed','canceled'].includes(result.data.status)){finished=jobId.value;await refreshAssets();}
  }catch{if(alive)error.value='분석 상태를 불러오지 못했습니다. 연결을 확인하세요.';}
  finally{polling=false;}
 }
+async function loadJobs(){
+ if(busy.value || !isTauri())return;busy.value=true;error.value='';
+ try{const result=await invoke<{ok:boolean;data:{items:typeof jobs.value}}>('analysis_jobs');if(!result.ok || !Array.isArray(result.data?.items))throw new Error();jobs.value=result.data.items;}
+ catch{error.value='분석 작업 목록을 불러오지 못했습니다.';}
+ finally{busy.value=false;}
+}
+function track(id:string){jobId.value=id;finished='';progress.value=null;void poll();}
 async function show(){
- open.value=true;preview.value=null;jobId.value='';error.value='';model.value='';models.value=[];busy.value=true;
+ open.value=true;preview.value=null;error.value='';model.value='';models.value=[];busy.value=true;
  await nextTick();panel.value?.querySelector<HTMLElement>('select')?.focus();
  if(!isTauri()){busy.value=false;error.value='데스크톱 Core 연결이 필요합니다.';return;}
  try{
@@ -80,6 +91,10 @@ function keys(event:KeyboardEvent){
 </script>
 <template>
  <button ref="trigger" type="button" class="analysis-open" @click="show">AI 분석</button>
+ <button type="button" :disabled="busy" @click="loadJobs">최근 분석 작업 확인</button>
+ <p v-if="error && !open" role="alert">{{ error }}</p>
+ <p v-if="progress && !open" role="status">분석 {{ progress.status }} · {{ progress.processed }}/{{ progress.total }} · 성공 {{ progress.succeeded }} · 실패 {{ progress.failed }}</p>
+ <ul v-if="jobs.length" class="analysis-job-list" aria-label="최근 20개 분석 작업"><li v-for="job in jobs" :key="job.id"><button type="button" @click="track(job.id)">{{ job.createdAt }} · {{ job.status }} · {{ job.total }}개</button></li></ul>
  <div v-if="open" class="analysis-overlay">
   <section ref="panel" role="dialog" aria-modal="true" aria-labelledby="analysis-title" class="analysis-dialog" @keydown="keys">
    <h2 id="analysis-title">수동 AI 분석</h2>
@@ -97,6 +112,7 @@ function keys(event:KeyboardEvent){
    <button type="button" class="analysis-start" :disabled="busy || !preview?.targetCount || (preview.externalTransfer && !external) || (preview.paid && !paid)" @click="start">분석 시작</button>
    <p v-if="jobId" role="status">분석 요청 저장됨: {{ jobId }}</p>
    <p v-if="progress" role="status">{{ progress.status }} · {{ progress.processed }}/{{ progress.total }} · 성공 {{ progress.succeeded }} · 실패 {{ progress.failed }} · 취소 {{ progress.canceled }}</p>
+   <ul v-if="progress?.errors?.length" aria-label="처음 10개 분석 오류"><li v-for="item in progress.errors" :key="item.assetId">{{ item.assetId }} · {{ item.code }}</li></ul>
    <button type="button" @click="close">닫기</button>
   </section>
  </div>

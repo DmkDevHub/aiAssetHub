@@ -244,6 +244,7 @@ impl CoreProcess {
                 | "analysis.preview"
                 | "analysis.start"
                 | "analysis.status"
+                | "analysis.jobs"
                 | "asset.analysis"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");

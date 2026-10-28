@@ -39,7 +39,13 @@ class AnalysisJobs:
         row=self.db.execute('SELECT status,requested_count FROM analysis_jobs WHERE id=?',(params['job_id'],)).fetchone()
         if not row:raise LibraryError('ANALYSIS_NOT_FOUND')
         counts=dict(self.db.execute('SELECT status,count(*) FROM analysis_job_items WHERE job_id=? GROUP BY status',(params['job_id'],)))
-        errors=[{'assetId':r[0],'code':r[1]} for r in self.db.execute('SELECT asset_id,error_code FROM analysis_job_items WHERE job_id=? AND error_code IS NOT NULL ORDER BY asset_id LIMIT 10',(params['job_id'],))]
+        from .libraries import ERROR_MESSAGES
+        errors=[{'assetId':r[0],'code':r[1] if r[1] in ERROR_MESSAGES else 'INTERNAL_ERROR'} for r in self.db.execute('SELECT asset_id,error_code FROM analysis_job_items WHERE job_id=? AND error_code IS NOT NULL ORDER BY asset_id LIMIT 10',(params['job_id'],))]
         return {'jobId':params['job_id'],'status':row[0],'total':row[1], 'processed':sum(counts.get(k,0) for k in ('completed','failed','canceled')),
                 'succeeded':counts.get('completed',0),'failed':counts.get('failed',0),'canceled':counts.get('canceled',0),
                 'active':active,'needsRecovery':row[0] in ('queued','running') and not active,'errors':errors}
+
+    def list(self, params):
+        if params!={}:raise LibraryError('INVALID_PARAMS')
+        rows=self.db.execute('SELECT id,status,requested_count,created_at FROM analysis_jobs ORDER BY created_at DESC,rowid DESC LIMIT 20').fetchall()
+        return {'items':[{'id':r[0],'status':r[1],'total':r[2],'createdAt':r[3]} for r in rows]}
