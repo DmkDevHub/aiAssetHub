@@ -99,7 +99,7 @@ function moveAssetFocus(event: KeyboardEvent) {
         <button type="button" class="asset-name asset-select" :title="item.name"
           :aria-pressed="selection.has(item.id)" @click="choose($event,item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>
-        <p v-if="item.searchScore!==undefined">관련도 {{ item.searchScore.toFixed(3) }} · {{ item.matchReason }}</p>
+        <p v-if="item.searchScore!==undefined">관련도 {{ item.searchScore.toFixed(3) }} · {{ item.matchReason==='hybrid'?'키워드+의미':item.matchReason==='keyword'?'키워드':'의미' }}</p>
         <p class="asset-analysis-state">{{ item.hasActiveResult ? '분석 완료' : '미분석' }}{{ item.lastAttemptState==='failed' ? ' · 마지막 시도 실패' : '' }}{{ item.analysisStale ? ' · 원본 재확인 필요' : '' }}</p>
         <p v-if="item.userTags?.length" class="asset-tags">{{ item.userTags.join(", ") }}</p>
         <p v-if="item.scanChange && item.scanChange!=='unchanged'" class="asset-kind">{{ item.scanChange==='new'?'신규':item.scanChange==='changed'?'변경':item.scanChange==='missing'?'누락':'' }}</p>

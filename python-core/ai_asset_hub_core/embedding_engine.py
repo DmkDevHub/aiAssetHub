@@ -9,7 +9,7 @@ from .libraries import LibraryError,valid_id
 
 class EmbeddingEngine(AnalysisEngine):
     def start(self,database,params):
-        if not isinstance(params,dict) or set(params)!={'selected','confirmed'} or params['confirmed'] is not True:raise LibraryError('INVALID_PARAMS')
+        if not isinstance(params,dict) or set(params)!={'selected','confirmed'} or params.get('confirmed') is not True:raise LibraryError('INVALID_PARAMS')
         pairs=params['selected']
         if not isinstance(pairs,list) or not 1<=len(pairs)<=100:raise LibraryError('INVALID_PARAMS')
         service=Embeddings(database);profile=service.profile()
@@ -22,10 +22,12 @@ class EmbeddingEngine(AnalysisEngine):
         return self.queue(database,{'kind':'generate','profile':profile,'selected':pairs,'total':len(pairs)})
 
     def query(self,database,params):
-        if not isinstance(params,dict) or set(params)!={'query','mode','confirmed'} or params['confirmed'] is not True or params['mode']!='semantic' or not isinstance(params['query'],str) or not 1<=len(params['query'].strip())<=256:raise LibraryError('INVALID_PARAMS')
+        if not isinstance(params,dict) or set(params)-{'query','mode','confirmed','criteria'} or params.get('confirmed') is not True or params.get('mode') not in ('semantic','hybrid') or not isinstance(params.get('query'),str) or not 1<=len(params['query'].strip())<=256:raise LibraryError('INVALID_PARAMS')
         service=Embeddings(database);profile=service.profile()
-        if not profile or not service.ready(profile):raise LibraryError('EMBEDDING_NOT_READY')
-        return self.queue(database,{'kind':'query','profile':profile,'query':params['query'].strip(),'mode':params['mode'],'total':1})
+        if params['mode']=='semantic' and (not profile or not service.ready(profile)):raise LibraryError('EMBEDDING_NOT_READY')
+        from .semantic_search import criteria
+        filters=criteria(params.get('criteria',{}))
+        return self.queue(database,{'criteria':filters,'kind':'query','profile':profile,'query':params['query'].strip(),'mode':params['mode'],'total':1})
 
     def queue(self,database,job):
         with self.lock:

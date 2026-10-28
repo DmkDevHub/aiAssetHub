@@ -7,12 +7,22 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
+#[derive(Default, serde::Deserialize, serde::Serialize)]
+#[serde(default, deny_unknown_fields)]
+struct SemanticCriteria {
+    library_id: Option<String>,
+    folder_parts: Vec<String>,
+    kind: String,
+    tag: String,
+    analysis: String,
+}
 #[tauri::command]
 async fn embedding_query(
     state: tauri::State<'_, CoreState>,
     query: String,
     mode: String,
     confirmed: bool,
+    criteria: Option<SemanticCriteria>,
 ) -> Result<serde_json::Value, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -21,7 +31,7 @@ async fn embedding_query(
             .map_err(|_| "CORE_UNAVAILABLE")?
             .library_request(
                 "embedding.query",
-                serde_json::json!({"query":query,"mode":mode,"confirmed":confirmed}),
+                serde_json::json!({"query":query,"mode":mode,"confirmed":confirmed,"criteria":criteria.unwrap_or_default()}),
             )
     })
     .await

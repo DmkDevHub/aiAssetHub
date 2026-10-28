@@ -1827,3 +1827,11 @@ test('semantic mode and query editing do not embed until explicit execution',asy
  dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='로컬 검색 실행'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.deepEqual(calls.map(c=>c[0]),['embedding_query','embedding_work']);assert.match(document.querySelector('.asset-card').textContent,/two/);assert.match(document.querySelector('.asset-card').textContent,/0.800/);
 });
+
+test('hybrid query sends combined filters before server ranking',async()=>{
+ await mountWorkspace([{id:'a',name:'one',kind:'PNG',userTags:['숲']}]);globalThis.isTauri=true;let criteria;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{if(command==='embedding_query'){criteria=args.criteria;return {ok:true,data:{jobId:'hybrid-job'}};}return {ok:true,data:{status:'completed',results:[{id:'a',score:.03,reason:'hybrid'}]}};}};
+ const mode=document.querySelector('[aria-label="검색 방식"]');mode.value='hybrid';dispatch(mode,new Event('change',{bubbles:true}));await nextTick();components.setSearchQuery('숲');await nextTick();
+ const type=document.querySelector('[aria-label="타입 필터"]');type.value='PNG';dispatch(type,new Event('change',{bubbles:true}));await nextTick();
+ dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='로컬 검색 실행'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(criteria.kind,'PNG');assert.match(document.querySelector('.asset-card').textContent,/키워드\+의미/);
+});

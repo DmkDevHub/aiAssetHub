@@ -62,3 +62,17 @@ class EmbeddingTests(unittest.TestCase):
         status=work_status(self.db,{'job_id':job});self.assertEqual(status['status'],'completed')
         self.assertEqual(status['results'][0]['id'],self.id);self.assertAlmostEqual(status['results'][0]['score'],.8)
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_embeddings').fetchone()[0],1)
+
+    def test_hybrid_without_vectors_is_keyword_only_and_filters_before_limit(self):
+        import time
+        from ai_asset_hub_core.embedding_engine import EmbeddingEngine,work_status
+        self.add_result();engine=EmbeddingEngine(self.db)
+        with patch('ai_asset_hub_core.semantic_search.embed',side_effect=AssertionError('no query embedding')):
+            job=engine.query(self.db,{'query':'successful','mode':'hybrid','confirmed':True,'criteria':{}})['jobId']
+            deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+            engine.close()
+        rows=work_status(self.db,{'job_id':job})['results'];self.assertEqual(rows[0]['id'],self.id);self.assertEqual(rows[0]['reason'],'keyword');self.assertIsNone(rows[0]['semanticScore'])
+        from ai_asset_hub_core.semantic_search import keywords,criteria
+        self.assertEqual(keywords(self.db,'successful',criteria({'tag':'no-such-tag'})),[])
+        with self.assertRaises(LibraryError):criteria({'folder_parts':['..']})

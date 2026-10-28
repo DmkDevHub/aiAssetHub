@@ -30,7 +30,7 @@ const tags = computed(() => [...new Set(sourceItems.value.flatMap(item => [...it
 const searchIds = ref<Set<string>|null>(null), searchError=ref(''), searching=ref(false);
 let searchGeneration=0;
 onBeforeUnmount(()=>{searchGeneration++;if(semanticTimer)clearInterval(semanticTimer);});
-watch([()=>searchState.searchQuery, sourceItems, searchMode], async ([query])=>{
+watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis, ()=>libraryUi.selectedFolderId], async ([query])=>{
   const token=++searchGeneration; semanticResults.value=null;if(semanticTimer)clearInterval(semanticTimer);searchIds.value=null; searchError.value=''; searching.value=false;
   if(searchMode.value!=='keyword' || !query.trim() || !isTauri())return;
   if(query.length>256 || query.trim().split(/\s+/).length>16){searchError.value='검색어는 256자, 16개 단어까지 입력하세요.';return;}
@@ -39,12 +39,19 @@ watch([()=>searchState.searchQuery, sourceItems, searchMode], async ([query])=>{
   catch { if(token===searchGeneration)searchError.value='전문 검색을 완료하지 못했습니다. 현재 파일명·태그 일치 결과를 표시합니다.'; }
   finally { if(token===searchGeneration)searching.value=false; }
 }, {immediate:true});
+function searchCriteria(){
+ let library:string|null=null,parts:string[]=[];
+ const selected=libraryUi.selectedFolderId;
+ if(selected?.startsWith('folder:')){const path=JSON.parse(selected.slice(7)) as string[];library=path[0]??null;parts=path.slice(1);}
+ else library=selected;
+ return {library_id:library,folder_parts:parts,kind:kind.value,tag:tag.value,analysis:analysis.value};
+}
 async function semanticSearch(){
  if(!isTauri() || searching.value || !searchState.searchQuery.trim())return;
  const token=++searchGeneration;searching.value=true;searchError.value='';semanticResults.value=null;
  if(semanticTimer)clearInterval(semanticTimer);
  try{
-  const start=await invoke<{ok:boolean;data:{jobId:string}}>('embedding_query',{query:searchState.searchQuery,mode:searchMode.value,confirmed:true});if(token!==searchGeneration)return;if(!start.ok)throw new Error();
+  const start=await invoke<{ok:boolean;data:{jobId:string}}>('embedding_query',{query:searchState.searchQuery,mode:searchMode.value,confirmed:true,criteria:searchCriteria()});if(token!==searchGeneration)return;if(!start.ok)throw new Error();
   let polling=false;
   const poll=async()=>{if(polling)return;polling=true;try{
    const r=await invoke<{ok:boolean;data:{status:string;results?:NonNullable<typeof semanticResults.value>}}>('embedding_work',{jobId:start.data.jobId});if(token!==searchGeneration)return;
@@ -108,9 +115,9 @@ function moveRegion(event: KeyboardEvent) {
       <template #management><LibraryManagement /></template>
     </LibraryTreePanel>
     <AssetGallery :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" @select="selectedId = $event">
-      <template #filters><label>검색 방식 <select v-model="searchMode" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option></select></label>
+      <template #filters><label>검색 방식 <select v-model="searchMode" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
       <button v-if="searchMode!=='keyword'" type="button" :disabled="searching || !searchState.searchQuery.trim()" @click="semanticSearch">로컬 검색 실행</button>
-      <p v-if="searchMode!=='keyword'">입력만으로 임베딩을 생성하지 않습니다. 실행 시 검색어만 로컬 모델에 전달하며, 기본순은 관련도 상위 50개입니다. 점수는 확률이 아닙니다.</p><p v-if="searchState.searchQuery.trim()">파일명·사용자 정보·현재 활성 AI 설명/태그에서 검색합니다.</p><p v-if="searching" role="status">로컬 전문 검색 중…</p><p v-if="searchError" role="alert">{{ searchError }}</p><label class="tag-filter">사용자 태그 <select v-model="tag" aria-label="사용자 태그 필터"><option value="">전체 태그</option><option v-for="value in tags" :key="value" :value="value">{{ value }}</option></select></label>
+      <p v-if="searchMode!=='keyword'">입력만으로 임베딩을 생성하지 않습니다. 준비된 벡터가 있을 때 실행한 검색어만 로컬 모델에 전달하며, 기본순은 관련도 상위 50개입니다. 점수는 확률이 아닙니다. 혼합 모드에서 준비된 벡터가 없으면 키워드 결과만 표시합니다.</p><p v-if="searchMode==='keyword' && searchState.searchQuery.trim()">파일명·사용자 정보·현재 활성 AI 설명/태그에서 검색합니다.</p><p v-if="searching" role="status">로컬 전문 검색 중…</p><p v-if="searchError" role="alert">{{ searchError }}</p><label class="tag-filter">사용자 태그 <select v-model="tag" aria-label="사용자 태그 필터"><option value="">전체 태그</option><option v-for="value in tags" :key="value" :value="value">{{ value }}</option></select></label>
       <label class="tag-filter">타입 <select v-model="kind" aria-label="타입 필터"><option value="">전체 타입</option><option v-for="value in kinds" :key="value" :value="value">{{ value }}</option></select></label>
       <label class="tag-filter">분석 상태 <select v-model="analysis" aria-label="분석 상태 필터"><option value="">전체 상태</option><option value="unanalyzed">미분석</option><option value="completed">분석 완료</option><option value="failed">마지막 시도 실패</option></select></label>
       </template>
