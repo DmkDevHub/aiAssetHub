@@ -56,3 +56,9 @@
 ## 장기 확장
 - Unity를 첫 번째 Connector로 구현하되, `TargetToolConnector` 계약(준비·실행·검증·취소)을 통해 이후 Godot/Unreal 등 확대.
 - Python과 Vue, SQLite 및 MCP는 기존 선택 유지. LangChain/LangGraph를 추가하지 않는다.
+
+## 현재 Core 진입점 구현 범위 (R02-01)
+
+- `python-core/ai_asset_hub_core`에 외부 의존성 없는 `CoreApplication`과 일회성 개발 CLI를 둔다. 명령 처리와 콘솔 진입점을 분리해 향후 인증된 Tauri 통신에서도 같은 health 유스케이스를 호출할 수 있다.
+- 현재 허용 명령은 읽기 전용 `health.get` 하나이며 자신의 PID·버전·가동 시간을 측정한다. DB·원본 에셋·네트워크·AI·MCP·Unity를 초기화하지 않는다. DB는 `not_configured`로 반환한다.
+- 이 단계는 Core 개발 프로세스 자체의 실측 검증이다. 앱에 연결 상태를 표시하거나 Sidecar를 기동하지 않는다. 실제 로컬 전송·세션 인증·프로세스 수명주기는 R02-02에서 구현하고 검증한 뒤 연결한다.

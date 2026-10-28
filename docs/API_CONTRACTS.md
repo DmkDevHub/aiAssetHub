@@ -42,6 +42,14 @@
 - MCP 서버는 위 유스케이스를 호출하되 Core DB와 도메인 규칙을 우회하지 않음.
 - 취소/타임아웃/부분 성공을 응답 스키마에 정직하게 반영.
 
+## 현재 Core health 계약 (R02-01)
+
+- `CoreApplication.handle`은 `{request_id: UUID, method: "health.get", params?: {}}`만 처리한다. 알 수 없는 필드·입력 매개변수·미지원 명령은 거부하며 동적 메서드 실행을 하지 않는다.
+- 성공 응답의 `data.core`는 `status: "ready"`, `version`, `pid`, `python_version`, `uptime_ms`다. PID·가동 시간은 현재 실행 프로세스의 실측이며 `ready`는 이 명령 처리기의 준비 상태다. 앱/Tauri·DB·모델 연결 성공을 뜻하지 않는다.
+- `data.database`는 `{status: "not_configured"}`다. DB 연결·마이그레이션 전에는 성공 상태·가짜 버전·데이터 경로를 생성하지 않는다.
+- 응답은 기존 공통 envelope를 사용한다. 잘못된 요청 ID는 원문을 반사하지 않고 `request_id: null`, 오류는 고정 `INVALID_REQUEST`/`INVALID_PARAMS`/`METHOD_NOT_FOUND`/`INTERNAL_ERROR` 문구로 반환한다. 예외 메시지·인자·환경·경로·비밀정보는 출력하지 않는다.
+- `python -B -m ai_asset_hub_core health.get`은 개발용 일회성 조회다. `--request-id UUID`를 생략하면 상관 UUID를 생성한다. 성공 0, 요청 오류 2, 내부 오류 1로 종료한다. 네트워크 서버·Tauri IPC·MCP 전송 구현이 아니며 안전한 앱 통신은 R02-02에서 연결한다.
+
 ## M01 UI 작업 이벤트 수신 계약 (R01-06)
 
 `src/stores/operations.ts`의 `receiveOperation(event)`는 UI 메모리 표시 전용이며 명령·재시도·분석을 실행하지 않는다. Core 통신 방식/DB 스키마는 변경하지 않는다.

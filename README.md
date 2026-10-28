@@ -65,7 +65,7 @@ AI-Asset-Hub/
 ├─ assets/                 # 디자인 참고 리소스만
 ├─ src/                    # Vue 화면·테마·라우터
 ├─ src-tauri/              # Tauri 셸·NSIS 설치 설정
-├─ python-core/            # 분석·검색·MCP 코어 (향후 구현)
+├─ python-core/            # Python Core 진입점·health 조회
 ├─ unity-package/          # Unity Editor 패키지 (향후 구현)
 ├─ db/                     # 스키마·마이그레이션 (향후 구현)
 ├─ scripts/                # 개발 실행 사전 검사
@@ -78,6 +78,7 @@ AI-Asset-Hub/
 - `R01-02`: 왼쪽 라이브러리 트리·폴더 선택 UI와 패널 너비 조절 구현. 현재 앱의 등록 폴더는 빈 상태이며 실폴더 연결은 M03 이후 범위다. 내부 자동화에서만 fixture 트리를 사용한다.
 - `R01-03`: 중앙 갤러리의 그리드/목록 전환·개수·빈 상태 구현. 현재 앱은 0개 에셋이며 데이터가 있는 레이아웃은 내부 fixture로 검증했다. 실제 파일·썸네일 연결은 M03 범위다.
 - `M01` 전 항목 완료: 오른쪽 선택 상세/탭/접기, 너비별 반응형 배치·F6/방향키 이동, 실제 테마/보기 명령 상태·오류 알림까지 구현. 내부 자동화 54개·타입·빌드 통과. 실제 화면 배치와 Core·파일·AI·Unity 연결은 미검증/후속 범위다.
+- `R02-01`: Python Core의 실측 `health.get` 개발 CLI 구현. DB는 미연결로 반환하며 앱 통신은 아직 연결하지 않는다. 실행·검사 방법은 [Core 안내](python-core/README.md)를 참고한다. 공통 검사는 개발용 Python 3.11 이상이 필요하다.
 - `npm run dev`로 개발 앱을 실행하고 `npm run build:installer`로 설치본을 만든다. 설치본은 `src-tauri/target/release/bundle/nsis/`에 생성된다.
 - 개발 환경과 실행 명령, 검증 상태는 [DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고한다.
 - [ROADMAP.md](docs/ROADMAP.md)에서 최초 미완료 작업을 골라 **한 번에 한 작업만** 구현한다.

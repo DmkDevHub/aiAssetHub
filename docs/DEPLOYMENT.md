@@ -8,7 +8,7 @@
 
 ## 현재 최소 앱 개발 실행 (R00-02~05)
 
-테스트는 D-019에 따라 화면을 직접 조작하지 않는 내부 자동화로 수행한다. `npm run check`는 Node 회귀·가상 DOM 컴포넌트 테스트·프런트엔드 타입 검사·빌드를 실행하며 앱 창이나 브라우저를 열지 않는다. 아래 `dev` 명령은 개발자가 앱을 실행할 때 사용하는 명령이다. 이 문서의 기존 화면 확인 기록은 정책 변경 전 이력이다.
+테스트는 D-019에 따라 화면을 직접 조작하지 않는 내부 자동화로 수행한다. `npm run check`는 Node 회귀·가상 DOM 컴포넌트·Python Core 테스트·프런트엔드 타입 검사·빌드를 실행하며 앱 창이나 브라우저를 열지 않는다. 아래 `dev` 명령은 개발자가 앱을 실행할 때 사용하는 명령이다. 이 문서의 기존 화면 확인 기록은 정책 변경 전 이력이다.
 
 Windows 개발 환경에 Node.js 22.12 이상, Rust stable MSVC, Microsoft C++ Build Tools의 `Desktop development with C++` 워크로드와 Windows SDK, WebView2가 필요하다. [Tauri 공식 사전 요구사항](https://v2.tauri.app/start/prerequisites/)을 참고한다.
 
@@ -22,7 +22,7 @@ npm run dev
 - `npm run dev`: 개발 포트 사전 검사 후 `tauri dev -- --locked`로 Windows 창과 Vite를 함께 실행. Cargo/MSVC 설치 후 새 터미널에서 실행한다. 창을 닫으면 CLI와 Vite도 종료된다.
 - `npm run dev:web`: 브라우저 전용 화면 확인용 `http://127.0.0.1:1420`. Windows 앱과의 검증 결과를 구분한다.
 - 개발 포트 점유 시 `npm run dev`는 Tauri 실행 전에 오류 코드 1로 중단한다. 사전 검사 없이 직접 `npm run tauri dev`를 실행하면 Tauri가 기존 서버에 연결했다가 오류로 종료할 수 있으므로 기본 개발 명령을 사용한다.
-- `npm test`: Node 내장 러너로 개발 포트 점유 거부·반환과 상단 바 입력·이벤트·라우팅·상태를 검사한다. 컴포넌트 테스트는 개발 전용 jsdom과 메모리 라우터를 사용한다.
+- `npm test`: Node 내장 러너로 포트·작업 공간 컴포넌트 회귀를 검사한 뒤 `npm run test:core`로 Python 표준 unittest를 실행한다. 컴포넌트는 jsdom·메모리 라우터를 사용하며 Python은 3.11 이상이 필요하다. 기본 `python` 대신 쓸 실행 파일은 `AI_ASSET_HUB_PYTHON`으로 지정한다.
 - Tauri가 `beforeDevCommand`로 Vite를 시작하므로 브라우저 확인용 서버는 먼저 종료한다.
 - 최소 앱은 다크 테마로 라이브러리 화면을 연다. `화면 설정`에서 다크/라이트를 선택하면 화면 이동 후에도 테마가 유지된다. 테마는 메모리 상태이므로 새로고침·재실행 시 다크로 돌아간다. Python·DB·AI·파일 선택 기능은 아직 연결하지 않는다.
 - `local.aiassethub.dev`는 개발용 임시 식별자다. 배포 식별자·출판사명은 DECISIONS의 미정 사항으로 유지한다. 현재 NSIS 번들은 최소 셸의 개발 설치본이다.
@@ -35,6 +35,18 @@ npm run tauri build -- --debug --no-bundle -- --locked
 ```
 
 2026-10-28 위 실행 파일을 Vite 서버 없이 실행해 제목·한국어 문구 표시와 정상 종료를 확인했다. 검사 범위와 결과는 [TEST_PLAN.md](TEST_PLAN.md)의 R00-02 기록을 참고한다.
+
+## 현재 Python Core 개발 조회 (R02-01)
+
+Python 표준 라이브러리만 사용한다. 프로젝트 루트에서 `npm run test:core`로 내부 테스트를 실행한다. 직접 `health.get`을 호출하려면:
+
+```powershell
+Push-Location python-core
+python -B -m ai_asset_hub_core health.get
+Pop-Location
+```
+
+한 줄 JSON 응답 후 종료하는 개발용 조회다. PID·버전·가동 시간은 해당 프로세스 실측이며 DB는 `not_configured`다. 현재 앱/Tauri/설치본이 Core와 연결되었다는 뜻이 아니다. 통신·인증·시작/종료는 R02-02, DB는 R02-03, Sidecar 패키징은 R02-05에서 연결한다. 상세는 [Core 안내](../python-core/README.md)를 참고한다.
 
 ## 이후 Core 통합 개발 실행 (미구현 예시)
 ```bash

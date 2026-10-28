@@ -3,6 +3,9 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 .artifacts/
+__pycache__/
+*.py[cod]
+.venv/
 *.tsbuildinfo
 *.log
 .env
