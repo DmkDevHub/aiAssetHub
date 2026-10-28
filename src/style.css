@@ -305,6 +305,144 @@ h1 {
   line-height: 1.4;
 }
 
+.asset-gallery {
+  min-width: 0;
+}
+
+.gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.gallery-count {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.gallery-view-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.gallery-view-controls button {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gallery-view-controls button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--active);
+  border-color: var(--accent);
+}
+
+.gallery-empty {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-height: 240px;
+  text-align: center;
+}
+
+.gallery-empty-mark {
+  color: var(--muted);
+  font-size: 36px;
+}
+
+.gallery-empty h2 {
+  margin: 16px 0 8px;
+  font-size: 17px;
+}
+
+.gallery-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.asset-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.asset-format-mark {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+  background: var(--background);
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.asset-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-card .asset-name {
+  margin: 12px 12px 6px;
+  font-size: 14px;
+}
+
+.asset-kind {
+  margin: 0 12px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.asset-list-container {
+  overflow-x: auto;
+}
+
+.asset-list {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.asset-list th,
+.asset-list td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.asset-list th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.asset-list th:last-child {
+  width: 30%;
+}
+
 .page-description {
   margin-top: 8px;
   color: var(--muted);

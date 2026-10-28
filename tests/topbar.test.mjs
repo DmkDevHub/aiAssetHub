@@ -33,6 +33,7 @@ for (const key of ["XMLHttpRequest", "WebSocket"]) {
 let components;
 let createApp;
 let h;
+let ref;
 let nextTick;
 let createMemoryHistory;
 let app;
@@ -62,7 +63,7 @@ before(async () => {
       rolldownOptions: { external: ["vue", "vue-router"] },
     },
   });
-  ({ createApp, h, nextTick } = await import("vue"));
+  ({ createApp, h, ref, nextTick } = await import("vue"));
   ({ createMemoryHistory } = await import("vue-router"));
   components = await import(pathToFileURL(`${outDir}/app.mjs`).href);
 });
@@ -78,6 +79,7 @@ beforeEach(async (t) => {
   components.setTheme("dark");
   components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
   components.selectLibraryFolder(null);
+  components.setGalleryViewMode("grid");
   document.body.innerHTML = '<div id="app"></div>';
   router = components.createAppRouter(createMemoryHistory());
   await router.push("/library");
@@ -426,4 +428,121 @@ test("route unmount stops dragging and preserves the accepted width for the libr
   await activateLink(".breadcrumbs a");
   assert.equal(separator().getAttribute("aria-valuenow"), "280");
   assert.equal(treeItems().length, 1);
+});
+
+const galleryFixture = [
+  { id: "fixture-gallery-tree", name: "나무.png", kind: "PNG" },
+  { id: "fixture-gallery-stone", name: "돌 모델.fbx", kind: "FBX" },
+];
+const galleryButton = (name) => [...document.querySelectorAll('.gallery-view-controls button')]
+  .find((button) => button.textContent === name);
+
+async function mountGallery(items) {
+  app.unmount();
+  mounted = false;
+  const data = ref(items);
+  app = createApp({ render: () => h(components.AssetGallery, { items: data.value }) });
+  app.config.errorHandler = (error) => errors.push(error);
+  app.config.warnHandler = (message) => errors.push(new Error(message));
+  app.mount("#app");
+  mounted = true;
+  await nextTick();
+  return data;
+}
+
+async function changeGalleryMode(name) {
+  dispatch(galleryButton(name), new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  await nextTick();
+}
+
+test("production gallery is empty with no fixture assets or pretend preview", () => {
+  assert.equal(document.querySelector('.gallery-count').textContent, "0개 에셋");
+  assert.match(document.querySelector('.gallery-empty[role="status"]').textContent, /표시할 에셋이 없습니다/);
+  assert.equal(document.querySelector(".asset-grid"), null);
+  assert.equal(document.querySelector(".asset-list"), null);
+  assert.equal(document.querySelector("[data-asset-id]"), null);
+  assert.equal(document.querySelector(".asset-gallery img"), null);
+  assert.equal(galleryButton("그리드").getAttribute("aria-pressed"), "true");
+});
+
+test("view controls work in the empty state and reject an invalid view mode", async () => {
+  await changeGalleryMode("목록");
+  assert.equal(components.libraryUi.galleryViewMode, "list");
+  assert.equal(galleryButton("목록").getAttribute("aria-pressed"), "true");
+  assert.equal(galleryButton("그리드").getAttribute("aria-pressed"), "false");
+  assert.equal(document.querySelector(".asset-list"), null);
+  assert.equal(document.querySelector('.gallery-count').textContent, "0개 에셋");
+  components.setGalleryViewMode("invalid-mode");
+  assert.equal(components.libraryUi.galleryViewMode, "list");
+  await changeGalleryMode("그리드");
+  assert.ok(document.querySelector(".gallery-empty"));
+  assert.equal(components.libraryUi.galleryViewMode, "grid");
+});
+
+test("grid cards render only supplied asset names, formats and IDs in order", async () => {
+  await mountGallery(galleryFixture);
+  const cards = [...document.querySelectorAll('.asset-grid > li')];
+  assert.deepEqual(cards.map((card) => card.dataset.assetId), galleryFixture.map((item) => item.id));
+  assert.deepEqual(cards.map((card) => card.querySelector('.asset-name').textContent), ["나무.png", "돌 모델.fbx"]);
+  assert.deepEqual(cards.map((card) => card.querySelector('.asset-kind').textContent), ["PNG", "FBX"]);
+  assert.equal(document.querySelector('.gallery-count').textContent, "2개 에셋");
+  assert.equal(document.querySelector(".gallery-empty"), null);
+  assert.equal(document.querySelector("img"), null);
+});
+
+test("list table and grid share the same data without changing asset order", async () => {
+  await mountGallery(galleryFixture);
+  await changeGalleryMode("목록");
+  assert.equal(document.querySelector('.asset-list').getAttribute("aria-label"), "에셋 목록");
+  assert.deepEqual([...document.querySelectorAll('th[scope="col"]')].map((cell) => cell.textContent), ["에셋명", "유형"]);
+  assert.deepEqual([...document.querySelectorAll('tbody tr')].map((row) => [...row.cells].map((cell) => cell.textContent)),
+    [["나무.png", "PNG"], ["돌 모델.fbx", "FBX"]]);
+  assert.equal(document.querySelector('.asset-grid'), null);
+  await changeGalleryMode("그리드");
+  assert.equal(document.querySelector('.asset-list'), null);
+  assert.deepEqual([...document.querySelectorAll('.asset-card')].map((card) => card.dataset.assetId), galleryFixture.map((item) => item.id));
+});
+
+test("incoming gallery data updates counts and returns to the correct empty state", async () => {
+  const data = await mountGallery(galleryFixture);
+  await changeGalleryMode("목록");
+  data.value = [galleryFixture[1]];
+  await nextTick();
+  assert.equal(document.querySelector('.gallery-count').textContent, "1개 에셋");
+  assert.equal(document.querySelectorAll('tbody tr').length, 1);
+  data.value = [];
+  await nextTick();
+  assert.equal(document.querySelector('.asset-list'), null);
+  assert.ok(document.querySelector('.gallery-empty'));
+  assert.equal(document.querySelector('.gallery-count').textContent, "0개 에셋");
+  assert.equal(galleryButton("목록").getAttribute("aria-pressed"), "true");
+});
+
+test("gallery view persists across routes alongside query and panel width", async () => {
+  await inputText("미분석 검색어");
+  await key(separator(), "ArrowRight");
+  await changeGalleryMode("목록");
+  await activateLink('[aria-label="주 메뉴"] a');
+  assert.equal(document.querySelector('.asset-gallery'), null);
+  await activateLink('.breadcrumbs a');
+  assert.equal(galleryButton("목록").getAttribute("aria-pressed"), "true");
+  assert.equal(searchInput().value, "미분석 검색어");
+  assert.equal(separator().getAttribute("aria-valuenow"), "256");
+  assert.equal(document.querySelector('.gallery-count').textContent, "0개 에셋");
+  assert.doesNotMatch(document.querySelector('.gallery-empty').textContent, /검색 결과/);
+});
+
+test("long and markup-like asset metadata stays literal in both layouts", async () => {
+  const name = '<img src=x onerror="alert(1)">' + "긴 파일명".repeat(30);
+  const kind = '<script>alert(1)</script>';
+  const id = 'fixture-asset-"/id';
+  await mountGallery([{ id, name, kind }]);
+  assert.equal(document.querySelector('.asset-name').textContent, name);
+  assert.equal(document.querySelector('.asset-name').title, name);
+  assert.equal(document.querySelector('[data-asset-id]').dataset.assetId, id);
+  assert.equal(document.querySelector('.asset-kind').textContent, kind);
+  await changeGalleryMode("목록");
+  assert.equal(document.querySelector('.asset-name').title, name);
+  assert.equal(document.querySelector('tbody tr').cells[1].textContent, kind);
+  assert.equal(document.querySelectorAll('img, script').length, 0);
 });
