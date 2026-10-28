@@ -1,9 +1,38 @@
 mod core_process;
+mod folder_picker;
 use core_process::{CoreProcess, LaunchSpec};
+use folder_picker::{FolderPicker, PickedFolder};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
+
+#[tauri::command]
+async fn select_library_folder(
+    window: tauri::WebviewWindow,
+    picker: tauri::State<'_, FolderPicker>,
+) -> Result<Option<PickedFolder>, String> {
+    if window.label() != "main" {
+        return Err("FOLDER_PICK_FAILED".into());
+    }
+    let picker = picker.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        picker.choose(|| {
+            window
+                .dialog()
+                .file()
+                .set_parent(&window)
+                .set_title("라이브러리 폴더 선택")
+                .blocking_pick_folder()
+                .map(|path| path.into_path().map_err(|_| "FOLDER_LOCAL_ONLY"))
+                .transpose()
+        })
+    })
+    .await
+    .map_err(|_| "FOLDER_PICK_FAILED".to_owned())?
+    .map_err(str::to_owned)
+}
 
 /// Deployment automation only; never builds a window or touches the user's AppData.
 pub fn verify_packaged_core(data: std::path::PathBuf) -> Result<serde_json::Value, String> {
@@ -50,6 +79,8 @@ async fn core_reconnect(state: tauri::State<'_, CoreState>) -> Result<serde_json
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .manage(FolderPicker::default())
         .setup(|app| {
             let (directory, environment) = core_process::data_location(
                 cfg!(debug_assertions),
@@ -70,7 +101,11 @@ pub fn run() {
             app.manage(Arc::new(Mutex::new(core)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![core_health, core_reconnect])
+        .invoke_handler(tauri::generate_handler![
+            core_health,
+            core_reconnect,
+            select_library_folder
+        ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")
         .run(|app, event| {

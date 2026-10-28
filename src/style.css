@@ -305,6 +305,13 @@ body {
   line-height: 1.6;
 }
 
+.folder-selection { margin: 0 8px 16px; font-size: 13px; line-height: 1.6; }
+.folder-selection button { padding: 8px 10px; color: var(--text); background: transparent; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; }
+.folder-selection button:disabled { cursor: wait; opacity: 0.65; }
+.folder-selection p { margin: 8px 0; }
+.picked-folder-label { color: var(--muted); }
+.picked-folder-path { overflow-wrap: anywhere; user-select: text; }
+
 .library-splitter {
   position: relative;
   cursor: col-resize;

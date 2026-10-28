@@ -13,3 +13,5 @@ export { workspaceLayout } from "../../src/composables/useWorkspaceLayout";
 export { operations, receiveOperation, dismissOperationAlert, clearFinishedOperations,
   executeUiCommand, MAX_OPERATIONS } from "../../src/stores/operations";
 export { default as CoreConnection } from "../../src/components/CoreConnection.vue";
+export { default as FolderSelection } from "../../src/components/FolderSelection.vue";
+export { folderDraft, setPickedFolderPath } from "../../src/stores/folderDraft";

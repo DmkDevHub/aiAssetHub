@@ -97,6 +97,7 @@ beforeEach(async (t) => {
   components.selectLibraryFolder(null);
   components.setGalleryViewMode("grid");
   components.setDetailsCollapsed(false);
+  components.setPickedFolderPath(null);
   for (const operation of components.operations) {
     if (operation.state === 'running') components.receiveOperation({ id: operation.id, kind: operation.kind, state: 'cancelled' });
     if (operation.state === 'failed') components.dismissOperationAlert(operation.id);
@@ -1083,4 +1084,129 @@ test('heartbeat and manual checks cannot overlap and are disposed on unmount', a
   t.mock.timers.tick(20000);
   assert.equal(calls, 1);
   assert.equal(document.querySelector('.core-connection'), null);
+});
+
+async function mountFolderSelection(invoke) {
+  app.unmount();
+  dom.window.__TAURI_INTERNALS__ = { invoke };
+  globalThis.isTauri = true;
+  app = createApp(components.FolderSelection);
+  app.config.errorHandler = (error) => errors.push(error);
+  app.mount('#app');
+  mounted = true;
+  await nextTick();
+}
+
+async function clickFolderPicker() {
+  await clickElement('.pick-folder');
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+}
+
+test('folder picker is unavailable in browser mode and never opens on mount', async () => {
+  assert.equal(document.querySelector('.pick-folder'), null);
+  const commands = [];
+  await mountFolderSelection(async (command) => { commands.push(command); return null; });
+  assert.ok(document.querySelector('.pick-folder'));
+  assert.deepEqual(commands, []);
+  assert.equal(components.folderDraft.path, null);
+});
+
+test('folder selection invokes only the fixed picker command and retains its supplied path', async () => {
+  const commands = [];
+  const path = 'C:\\fixture\\한글 에셋 폴더';
+  await mountFolderSelection(async (command, args) => { commands.push([command, args]); return { path }; });
+  await clickFolderPicker();
+  assert.deepEqual(commands, [['select_library_folder', {}]]);
+  assert.equal(components.folderDraft.path, path);
+  assert.equal(document.querySelector('.picked-folder-path').textContent, path);
+  assert.match(document.querySelector('[role="status"]').textContent, /폴더를 선택했습니다/);
+  assert.equal(components.operations.length, 0);
+});
+
+test('cancelling the picker preserves the previous choice without an error', async () => {
+  components.setPickedFolderPath('D:\\fixture\\previous');
+  await mountFolderSelection(async () => null);
+  await clickFolderPicker();
+  assert.equal(components.folderDraft.path, 'D:\\fixture\\previous');
+  assert.match(document.querySelector('[role="status"]').textContent, /취소했습니다/);
+  assert.equal(document.querySelector('[role="alert"]'), null);
+});
+
+test('folder policy errors and raw exceptions use safe messages and keep the previous choice', async () => {
+  components.setPickedFolderPath('D:\\fixture\\previous');
+  for (const code of ['FOLDER_ROOT_NOT_ALLOWED', 'FOLDER_LOCAL_ONLY', 'FOLDER_UNAVAILABLE', new Error('fixture-secret-api-path')]) {
+    await mountFolderSelection(async () => { throw code; });
+    await clickFolderPicker();
+    assert.ok(document.querySelector('[role="alert"]'));
+    assert.equal(document.body.textContent.includes('fixture-secret-api-path'), false);
+    assert.equal(components.folderDraft.path, 'D:\\fixture\\previous');
+    if (code === 'FOLDER_ROOT_NOT_ALLOWED') assert.match(document.querySelector('[role="alert"]').textContent, /드라이브 전체 대신/);
+    if (code === 'FOLDER_LOCAL_ONLY') assert.match(document.querySelector('[role="alert"]').textContent, /네트워크 위치/);
+  }
+});
+
+test('folder picking suppresses duplicate requests and ignores late results after unmount', async () => {
+  let resolve;
+  let calls = 0;
+  await mountFolderSelection(() => { calls++; return new Promise((done) => { resolve = done; }); });
+  await clickElement('.pick-folder');
+  assert.equal(document.querySelector('.pick-folder').disabled, true);
+  await clickElement('.pick-folder');
+  assert.equal(calls, 1);
+  app.unmount();
+  mounted = false;
+  resolve({ path: 'C:\\fixture\\late' });
+  await new Promise((done) => setImmediate(done));
+  assert.equal(components.folderDraft.path, null);
+});
+
+test('selection path is literal text and clearing is a local action', async () => {
+  let calls = 0;
+  const path = 'C:\\fixture\\<img src=x onerror="alert(1)">';
+  await mountFolderSelection(async () => { calls++; return { path }; });
+  await clickFolderPicker();
+  assert.equal(document.querySelector('.picked-folder-path').textContent, path);
+  assert.equal(document.querySelectorAll('img, script').length, 0);
+  await clickElement('.clear-folder-selection');
+  assert.equal(components.folderDraft.path, null);
+  assert.equal(document.querySelector('.picked-folder-path'), null);
+  assert.equal(calls, 1);
+});
+
+test('invalid picker responses cannot replace a valid selection', async () => {
+  components.setPickedFolderPath('D:\\fixture\\previous');
+  for (const result of [{}, { path: 1 }, { path: 'relative-path' }, { path: 'file:///C:/fixture' }, { path: 'C:\\fixture\0bad' }]) {
+    await mountFolderSelection(async () => result);
+    await clickFolderPicker();
+    assert.ok(document.querySelector('[role="alert"]'));
+    assert.equal(components.folderDraft.path, 'D:\\fixture\\previous');
+  }
+});
+
+test('actual workspace keeps an unregistered choice across routes without contacting Core on pick', async () => {
+  app.unmount();
+  const commands = [];
+  globalThis.isTauri = true;
+  dom.window.__TAURI_INTERNALS__ = { invoke: async (command) => {
+    commands.push(command);
+    if (command === 'core_health') return fixtureHealth();
+    if (command === 'select_library_folder') return { path: 'D:\\fixture\\selected' };
+    return rejectTransport();
+  } };
+  app = createApp(components.App);
+  app.config.errorHandler = (error) => errors.push(error);
+  app.use(router);
+  app.mount('#app');
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+  commands.length = 0;
+  await clickFolderPicker();
+  assert.deepEqual(commands, ['select_library_folder']);
+  assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
+  assert.equal(document.querySelector('.gallery-count').textContent, '0개 에셋');
+  await activateLink('[aria-label="주 메뉴"] a');
+  await activateLink('.breadcrumbs a');
+  assert.equal(document.querySelector('.picked-folder-path').textContent, 'D:\\fixture\\selected');
+  assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
 });

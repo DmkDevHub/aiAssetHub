@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, nextTick, onBeforeUnmount, ref, watch, type ComponentPublicInstance, type VNode } from "vue";
 import { LIBRARY_PANEL_WIDTH, libraryUi, setLibraryPanelWidth } from "../stores/libraryUi";
+import FolderSelection from './FolderSelection.vue';
 
 export interface LibraryFolderNode {
   id: string;
@@ -179,6 +180,7 @@ watch(() => props.resizable, (enabled) => { if (!enabled) stopResize(); });
 <template>
   <aside id="library-navigation" class="library-panel" aria-labelledby="library-panel-title">
     <h2 id="library-panel-title">라이브러리</h2>
+    <FolderSelection />
     <ul class="library-tree" role="tree" aria-label="라이브러리 폴더">
       <li :ref="(element) => registerElement(null, element)" role="treeitem" aria-label="전체 에셋"
         :aria-selected="selectedId === null" :tabindex="focusedId === null ? 0 : -1"
