@@ -1676,3 +1676,12 @@ test('credential input is masked, sent only on save and cleared after failure',a
  dispatch(document.querySelector('.model-credential form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(calls[0][0],'model_credential');assert.equal(calls[0][1].key,'fixture-private-key');assert.equal(input.value,'');assert.doesNotMatch(document.body.textContent,/fixture-private-key/);
 });
+
+test('paid model policy defaults off and transmits explicit approvals only on save',async()=>{
+ app.unmount();globalThis.isTauri=true;let sent;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{assert.equal(command,'configure_model');sent=args.policy;return {ok:false,error:{code:'MODEL_POLICY_DENIED'}};}};
+ app=createApp(components.ModelPolicy,{id:'fixture',enabled:false});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();
+ const checks=[...document.querySelectorAll('.model-policy input[type=checkbox]')];assert.ok(checks.every(c=>!c.checked));assert.equal(sent,undefined);
+ dispatch(document.querySelector('.model-policy'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(sent.allow_paid,false);assert.equal(sent.allow_external,false);assert.equal(sent.enabled,false);assert.match(document.querySelector('[role=status]').textContent,/모델 상태/);
+});

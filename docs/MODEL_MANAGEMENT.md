@@ -35,3 +35,6 @@
 
 ## 외부 메타데이터 검사
 OpenRouter의 고정 `GET https://openrouter.ai/api/v1/models` 카탈로그에서 입력한 정확한 모델 ID를 찾는다. 외부 전송 동의가 필요한 별도 버튼이며 에셋/프롬프트/생성 요청은 보내지 않는다. [공식 모델 API](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties)의 입력 유형·pricing을 검사하고 모든 명시된 가격이 0인 경우만 무료로 판정한다. 키 없는 카탈로그 조회는 authentication=not_tested로 표시한다. 메타데이터 요청 시도와 추론 호출 여부를 구분하며 네트워크 실패를 숨기지 않는다.
+
+## 활성화·예산 정책 (R05-05)
+프로필은 기본 OFF이며 상태 확인 24시간 이내·실측 입력 기능이 있어야 활성화한다. 외부는 저장 키와 별도 인증 성공·전송 승인, 유료는 추가 유료 승인·양수 USD 예산이 필요하다. 미확인 가격은 활성화하지 않는다. 설정 재저장으로 예약 비용/호출 누적을 초기화할 수 없다. Python BudgetPolicy는 Decimal USD 상한과 누적 호출 한도를 검사하고 BEGIN IMMEDIATE 트랜잭션으로 예약한다. 실제 분석 엔진은 실행 전에 이 가드를 통과해야 하며 비용 추정이 불명확하면 실행을 거부해야 한다. 현재 M05는 모델 관리만 구현하며 예약/추론을 UI에서 실행하지 않는다. 예약은 상한을 보수적으로 소진한 수치이며 실제 청구액이 아니다.

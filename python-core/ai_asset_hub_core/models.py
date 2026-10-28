@@ -52,7 +52,9 @@ class ModelService:
             FROM model_registry m JOIN model_providers p ON p.id=m.provider_id
             WHERE m.id>? ORDER BY m.id LIMIT 11''',(params.get('after_id') or '',)).fetchall()
         items=[{'id':r[0],'provider':r[1],'kind':r[2],'modelId':r[3],'modalities':json.loads(r[4]),'enabled':bool(r[5]),'inspection':json.loads(r[6])} for r in rows[:10]]
+        from .model_policy import BudgetPolicy
         for item in items:
+            item['policy']=BudgetPolicy(self.db).read(item['id'])
             try:item['hasCredential']=self.vault.read(item['id']) is not None
             except OSError:item['hasCredential']=False
         bounded=[];size=0
@@ -107,3 +109,30 @@ class ModelService:
             except Exception:caps['authentication']='failed'
         self.db.execute('UPDATE model_registry SET capabilities_json=?,enabled=0 WHERE id=?',(json.dumps(caps),params['id']))
         return {'status':caps['authentication'] if action=='test' else 'saved' if action=='save' else 'deleted','inferenceCalled':False}
+
+    def policy(self, params):
+        from .model_policy import BudgetPolicy, money
+        if not isinstance(params,dict) or set(params)!={'id','enabled','allow_external','allow_paid','budget_usd','max_requests'} or not valid_id(params['id']):raise LibraryError('INVALID_PARAMS')
+        if any(type(params[k]) is not bool for k in ('enabled','allow_external','allow_paid')) or type(params['max_requests']) is not int or not 1<=params['max_requests']<=10000:raise LibraryError('INVALID_PARAMS')
+        budget=money(params['budget_usd'])
+        row=self.db.execute('SELECT p.kind,m.capabilities_json FROM model_registry m JOIN model_providers p ON p.id=m.provider_id WHERE m.id=?',(params['id'],)).fetchone()
+        if not row:raise LibraryError('INVALID_PARAMS')
+        caps=json.loads(row[1]);manager=BudgetPolicy(self.db);policy=manager.read(params['id'])
+        if budget<money(policy['reservedUsd']) or params['max_requests']<policy['requestsUsed']:raise LibraryError('BUDGET_EXCEEDED')
+        if params['enabled']:
+            from datetime import datetime, timezone
+            try:age=(datetime.now(timezone.utc)-datetime.fromisoformat(caps['checkedAt'])).total_seconds()
+            except (KeyError,ValueError,TypeError):age=1000000
+            if caps.get('verified') is not True or not caps.get('modalities') or not 0<=age<=86400:raise LibraryError('MODEL_POLICY_DENIED')
+            if row[0]=='external':
+                if not params['allow_external'] or caps.get('authentication')!='authenticated' or self.vault.read(params['id']) is None:raise LibraryError('MODEL_POLICY_DENIED')
+                if caps.get('costClass') not in ('free','paid'):raise LibraryError('MODEL_POLICY_DENIED')
+                if caps['costClass']=='paid' and (not params['allow_paid'] or budget<=0):raise LibraryError('MODEL_POLICY_DENIED')
+        policy.update(allowExternal=params['allow_external'],allowPaid=params['allow_paid'],budgetUsd=str(budget),maxRequests=params['max_requests'])
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            manager.write(params['id'],policy)
+            self.db.execute('UPDATE model_registry SET enabled=? WHERE id=?',(int(params['enabled']),params['id']))
+            self.db.execute('COMMIT')
+        except Exception:self.db.execute('ROLLBACK');raise
+        return {'enabled':params['enabled'],'policy':policy}

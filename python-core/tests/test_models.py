@@ -111,3 +111,37 @@ class ModelTests(unittest.TestCase):
             self.service.credential({'id':identifier,'action':'delete'})
             self.assertIsNone(self.service.vault.read(identifier))
         finally:self.service.vault.delete(identifier)
+
+    def test_paid_activation_requires_verified_auth_and_both_consents(self):
+        import json
+        from datetime import datetime,timezone
+        from unittest.mock import patch
+        profile=self.profile();profile.update(provider_name='OpenRouter',kind='external')
+        identifier=self.service.register(profile)['id']
+        params=dict(id=identifier,enabled=True,allow_external=False,allow_paid=False,budget_usd='5',max_requests=100)
+        with self.assertRaises(LibraryError):self.service.policy(params)
+        caps={'verified':True,'status':'available','modalities':['image'],'costClass':'paid','authentication':'authenticated','checkedAt':datetime.now(timezone.utc).isoformat()}
+        self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),identifier))
+        with patch('ai_asset_hub_core.credentials.Vault.read',return_value='fixture-key'):
+            with self.assertRaises(LibraryError):self.service.policy(params)
+            params['allow_external']=True
+            with self.assertRaises(LibraryError):self.service.policy(params)
+            params['allow_paid']=True;params['budget_usd']='0'
+            with self.assertRaises(LibraryError):self.service.policy(params)
+            params['budget_usd']='5';self.assertTrue(self.service.policy(params)['enabled'])
+        params['enabled']=False;self.assertFalse(self.service.policy(params)['enabled'])
+
+    def test_budget_hard_limit_is_decimal_atomic_and_cannot_reset_usage(self):
+        from ai_asset_hub_core.model_policy import BudgetPolicy
+        identifier=self.service.register(self.profile())['id']
+        config=dict(id=identifier,enabled=False,allow_external=False,allow_paid=False,budget_usd='0.3',max_requests=2)
+        self.service.policy(config);budget=BudgetPolicy(self.db.connection)
+        budget.check(identifier,'0.1',reserve=True);budget.check(identifier,'0.2',reserve=True)
+        with self.assertRaises(LibraryError):budget.check(identifier,'0',reserve=True)
+        self.assertEqual(budget.read(identifier)['reservedUsd'],'0.3')
+        config['budget_usd']='0.2'
+        with self.assertRaises(LibraryError):self.service.policy(config)
+        config['budget_usd']='1';self.service.policy(config)
+        self.assertEqual(budget.read(identifier)['requestsUsed'],2)
+        for value in ('NaN','Infinity','-1'):
+            with self.assertRaises(LibraryError):budget.check(identifier,value)

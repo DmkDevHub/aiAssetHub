@@ -7,6 +7,36 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct ModelPolicyInput {
+    id: String,
+    enabled: bool,
+    allow_external: bool,
+    allow_paid: bool,
+    budget_usd: String,
+    max_requests: u32,
+}
+#[tauri::command]
+async fn configure_model(
+    state: tauri::State<'_, CoreState>,
+    policy: ModelPolicyInput,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "model.policy",
+                serde_json::to_value(policy).map_err(|_| "INVALID_PARAMS")?,
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
 #[tauri::command]
 async fn model_credential(
     state: tauri::State<'_, CoreState>,
@@ -414,7 +444,8 @@ pub fn run() {
             list_models,
             register_model,
             inspect_model,
-            model_credential
+            model_credential,
+            configure_model
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

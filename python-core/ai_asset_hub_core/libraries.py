@@ -130,6 +130,8 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'MODEL_POLICY_DENIED': '모델 상태·인증·외부 전송 및 유료 사용 승인을 확인하세요.',
+    'BUDGET_EXCEEDED': '예산 또는 호출 한도를 초과합니다.',
     'INVALID_PARAMS': '폴더 요청 형식이 올바르지 않습니다.',
     'LIBRARY_LOCAL_FOLDER_REQUIRED': '로컬 드라이브의 하위 폴더를 선택해야 합니다.',
     'LIBRARY_FOLDER_UNAVAILABLE': '폴더를 확인할 수 없습니다.',

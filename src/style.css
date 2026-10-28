@@ -633,3 +633,5 @@ input[type="radio"] {
 .model-registration { display: grid; gap: 12px; max-width: 540px; margin-block: 20px; }
 .model-registration label { display: grid; gap: 4px; }
 .model-list li { padding-block: 12px; overflow-wrap: anywhere; }
+
+.model-policy { display: grid; gap: 8px; max-width: 620px; padding-block: 12px; }

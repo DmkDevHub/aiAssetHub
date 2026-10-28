@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import ModelPolicy from '../components/ModelPolicy.vue';
 import ModelCredential from '../components/ModelCredential.vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-type Model = {id:string;provider:string;kind:string;modelId:string;modalities:string[];enabled:boolean;hasCredential?:boolean;inspection?:{status?:string;checkedAt?:string;modalities?:string[];costClass?:string;metadataRequestAttempted?:boolean;authentication?:string}};
+type Model = {id:string;provider:string;kind:string;modelId:string;modalities:string[];enabled:boolean;policy?:{allowExternal:boolean;allowPaid:boolean;budgetUsd:string;maxRequests:number;reservedUsd:string;requestsUsed:number};hasCredential?:boolean;inspection?:{status?:string;checkedAt?:string;modalities?:string[];costClass?:string;metadataRequestAttempted?:boolean;authentication?:string}};
 const items=ref<Model[]>([]), provider=ref(''), modelId=ref(''), kind=ref('local'), modality=ref('image');
 const externalConsent=ref(false);
 const busy=ref(false), error=ref(''), notice=ref('');
@@ -71,6 +72,7 @@ onMounted(load);
       <p>확인된 입력: {{ item.inspection?.modalities?.join(', ') || '없음' }} · 추론 호출 없음</p>
       <p v-if="item.kind==='external'">비용 분류: {{ item.inspection?.costClass ?? '미확인' }} · 메타데이터 요청 시도: {{ item.inspection?.metadataRequestAttempted ? '시도함' : '시도 안 함' }} · 인증: {{ item.inspection?.authentication ?? '미확인' }}</p>
       <ModelCredential v-if="item.provider.toLowerCase()==='openrouter' && item.kind==='external'" :id="item.id" :has-credential="item.hasCredential" :allow-external="externalConsent" @changed="load" />
+      <ModelPolicy :id="item.id" :enabled="item.enabled" :policy="item.policy" @changed="load" />
       <p>등록 입력: {{ item.modalities.join(', ') }} · {{ item.enabled?'활성':'비활성' }}</p>
     </li></ul>
   </section>
