@@ -31,3 +31,5 @@ export {default as ModelsView} from '../../src/views/ModelsView.vue';
 export {default as ModelCredential} from '../../src/components/ModelCredential.vue';
 
 export {default as ModelPolicy} from '../../src/components/ModelPolicy.vue';
+
+export {default as AssetAnalysis} from '../../src/components/AssetAnalysis.vue';

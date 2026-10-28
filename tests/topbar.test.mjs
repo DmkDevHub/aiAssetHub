@@ -1735,3 +1735,10 @@ test('analysis start is explicit after review and uses a stable idempotency ID',
  assert.equal(calls[2][0],'start_analysis');assert.equal(calls[2][1].request.confirmed,true);assert.match(calls[2][1].request.request_id,/^[a-f0-9-]{36}$/);
  assert.match(document.querySelector('[role=dialog]').textContent,/fixture-real-response-id/);
 });
+
+test('stored AI result renders description and provenance as text without executing content',async()=>{
+ app.unmount();globalThis.isTauri=true;
+ dom.window.__TAURI_INTERNALS__={invoke:async command=>{assert.equal(command,'asset_analysis');return {ok:true,data:{active:{description:'<img src=x onerror=alert(1)> red square',tags:['red'],provider:'Ollama',modelId:'fixture-model',createdAt:'fixture-time'}}};}};
+ app=createApp(components.AssetAnalysis,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.match(document.querySelector('.asset-analysis').textContent,/red square/);assert.match(document.querySelector('.asset-analysis').textContent,/fixture-model/);assert.equal(document.querySelector('.asset-analysis img'),null);
+});

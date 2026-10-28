@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from "vue";
 import { libraryUi, setDetailsCollapsed } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
+import AssetAnalysis from './AssetAnalysis.vue';
 import AssetAnnotations from './AssetAnnotations.vue';
 import AssetMetadata from './AssetMetadata.vue';
 
@@ -51,7 +52,8 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
         </div>
         <div id="detail-panel-analysis" role="tabpanel" aria-labelledby="detail-tab-analysis"
           :hidden="activeTab !== 'analysis'" tabindex="0">
-          <p class="detail-analysis">{{ asset.analysisText || '제공된 분석 결과가 없습니다.' }}</p>
+          <AssetAnalysis v-if="asset.path" :asset-id="asset.id" :revision="asset.lastAnalysisAt" />
+          <p v-else class="detail-analysis">{{ asset.analysisText || '제공된 분석 결과가 없습니다.' }}</p>
         </div>
       </template>
     </aside>

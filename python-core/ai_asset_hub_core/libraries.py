@@ -130,6 +130,18 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'UNSUPPORTED_FORMAT': '현재 분석 경로에서 지원하지 않는 파일 형식입니다.',
+    'INPUT_TOO_LARGE': '분석 입력 크기 또는 픽셀 한도를 초과했습니다.',
+    'INVALID_IMAGE': '이미지를 해석할 수 없습니다.',
+    'FILE_CHANGED': '확인 이후 원본이 변경되었습니다.',
+    'MODEL_CHANGED': '확인 이후 모델 또는 가격이 변경되었습니다.',
+    'API_TIMEOUT': '모델 응답 시간이 초과되었습니다.',
+    'API_RATE_LIMIT': '공급자 호출 한도에 도달했습니다.',
+    'API_AUTHENTICATION': '공급자 인증을 확인하세요.',
+    'API_FAILED': '모델 호출에 실패했습니다.',
+    'INVALID_MODEL_OUTPUT': '모델 응답 형식이 올바르지 않습니다.',
+    'USER_CANCELED': '사용자가 분석을 취소했습니다.',
+    'ANALYSIS_NOT_FOUND': '분석 작업을 찾을 수 없습니다.',
     'COST_ESTIMATE_UNAVAILABLE': '안전한 비용 상한을 계산할 수 없습니다.',
     'ANALYSIS_PLAN_CHANGED': '대상·모델·비용이 변경되었습니다. 다시 확인하세요.',
     'ANALYSIS_EMPTY': '분석할 대상이 없습니다.',

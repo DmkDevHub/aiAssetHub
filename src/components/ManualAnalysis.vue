@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { refreshAssets } from '../stores/assets';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 const props=defineProps<{selectedIds:string[];folderId:string|null}>();
 const open=ref(false),busy=ref(false),error=ref(''),mode=ref('selected'),scope=ref('folder'),model=ref('');
@@ -8,7 +9,19 @@ const external=ref(false),paid=ref(false),startId=ref(''),jobId=ref('');
 watch([mode,scope,model,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;startId.value='';external.value=false;paid.value=false;});
 const models=ref<{id:string;modelId:string;enabled:boolean;selected?:boolean;inspection?:{modalities?:string[]}}[]>([]);
 const trigger=ref<HTMLButtonElement>(),panel=ref<HTMLElement>();let alive=true;
-onBeforeUnmount(()=>{alive=false;});
+const progress=ref<{status:string;total:number;processed:number;succeeded:number;failed:number;canceled:number;needsRecovery:boolean}|null>(null);
+let timer:ReturnType<typeof setInterval>|undefined,polling=false,finished='';
+onMounted(()=>{timer=setInterval(()=>{if(jobId.value)void poll();},1000);});
+onBeforeUnmount(()=>{alive=false;if(timer)clearInterval(timer);});
+async function poll(){
+ if(polling || !jobId.value || finished===jobId.value)return;polling=true;
+ try{
+  const result=await invoke<{ok:boolean;data:NonNullable<typeof progress.value>}>('analysis_status',{jobId:jobId.value});
+  if(!alive)return;if(!result.ok || !Number.isSafeInteger(result.data?.processed))throw new Error();progress.value=result.data;
+  if(['completed','failed','canceled'].includes(result.data.status)){finished=jobId.value;await refreshAssets();}
+ }catch{if(alive)error.value='분석 상태를 불러오지 못했습니다. 연결을 확인하세요.';}
+ finally{polling=false;}
+}
 async function show(){
  open.value=true;preview.value=null;jobId.value='';error.value='';model.value='';models.value=[];busy.value=true;
  await nextTick();panel.value?.querySelector<HTMLElement>('select')?.focus();
@@ -51,7 +64,7 @@ async function start(){
   startId.value ||= crypto.randomUUID();
   const result=await invoke<{ok:boolean;data:{jobId:string};error?:{code:string}}>('start_analysis',{request:{plan:requestPlan(),plan_token:preview.value.planToken,request_id:startId.value,confirmed:true,confirm_external:external.value,confirm_paid:paid.value}});
   if(!result.ok || typeof result.data?.jobId!=='string'){if(result.error?.code==='ANALYSIS_PLAN_CHANGED')preview.value=null;throw new Error();}
-  jobId.value=result.data.jobId;
+  jobId.value=result.data.jobId;progress.value=null;finished='';void poll();
  }catch{error.value='분석 요청을 저장하지 못했습니다. 대상·모델·비용을 다시 확인하세요.';}
  finally{busy.value=false;}
 }
@@ -83,6 +96,7 @@ function keys(event:KeyboardEvent){
    <label v-if="preview?.paid"><input v-model="paid" type="checkbox" />표시된 상한 내 유료 사용을 승인합니다.</label>
    <button type="button" class="analysis-start" :disabled="busy || !preview?.targetCount || (preview.externalTransfer && !external) || (preview.paid && !paid)" @click="start">분석 시작</button>
    <p v-if="jobId" role="status">분석 요청 저장됨: {{ jobId }}</p>
+   <p v-if="progress" role="status">{{ progress.status }} · {{ progress.processed }}/{{ progress.total }} · 성공 {{ progress.succeeded }} · 실패 {{ progress.failed }} · 취소 {{ progress.canceled }}</p>
    <button type="button" @click="close">닫기</button>
   </section>
  </div>

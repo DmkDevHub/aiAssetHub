@@ -243,6 +243,8 @@ impl CoreProcess {
                 | "model.select"
                 | "analysis.preview"
                 | "analysis.start"
+                | "analysis.status"
+                | "asset.analysis"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

@@ -97,3 +97,31 @@ class AnalysisTests(unittest.TestCase):
             self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
             request['confirm_paid']=True
             self.assertTrue(AnalysisJobs(self.db).start(request)['jobId'])
+
+    def test_worker_persists_a_real_decoded_image_result_and_keeps_user_metadata(self):
+        import json,time
+        from unittest.mock import patch
+        from PIL import Image
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        from ai_asset_hub_core.analysis_engine import AnalysisEngine
+        from ai_asset_hub_core.annotations import AnnotationService
+        from ai_asset_hub_core.analysis_results import AssetAnalysis
+        from ai_asset_hub_core.analysis_state import asset_state
+        Image.new('RGB',(64,64),'red').save(self.source/'나무.png');before=(self.source/'나무.png').read_bytes()
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0];AssetService(self.db).scan({'library_id':library})
+        caps=json.loads(self.db.connection.execute('SELECT capabilities_json FROM model_registry WHERE id=?',(self.model,)).fetchone()[0]);caps['metadataVersion']='a'*64
+        self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),self.model))
+        AnnotationService(self.db).tags({'asset_id':self.id,'add':['mine'],'remove':[]})
+        plan=self.params();preview=AnalysisPlan(self.db).preview(plan)
+        job=AnalysisJobs(self.db).start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
+        engine=AnalysisEngine(self.db)
+        with patch('ai_asset_hub_core.providers.inspect_local',return_value={'status':'available','metadataVersion':'a'*64}),patch('ai_asset_hub_core.inference.infer',return_value=({'description':'Fixture red image','tags':['red']},{'providerRequestAttempted':True})):
+            engine.launch(job)
+            deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+            engine.close()
+        self.assertEqual(AnalysisJobs(self.db).status({'job_id':job})['succeeded'],1)
+        self.assertEqual(AssetAnalysis(self.db).get({'asset_id':self.id})['active']['description'],'Fixture red image')
+        self.assertEqual(AnnotationService(self.db).get({'asset_id':self.id})['tags'],['mine'])
+        self.assertFalse(asset_state(self.db.connection,self.id)['analysisStale'])
+        self.assertEqual((self.source/'나무.png').read_bytes(),before)

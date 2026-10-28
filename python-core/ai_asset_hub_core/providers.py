@@ -39,7 +39,7 @@ def inspect_local(model_id):
     if 'vision' in caps: modalities.append('image')
     if 'audio' in caps: modalities.append('audio')
     import hashlib
-    return {'status':'available','modalities':modalities,'metadataVersion':hashlib.sha256(json.dumps(data,sort_keys=True).encode('utf-8')).hexdigest()}
+    return {'status':'available','modalities':modalities,'supportsThinking':'thinking' in caps,'metadataVersion':hashlib.sha256(json.dumps(data,sort_keys=True).encode('utf-8')).hexdigest()}
 
 
 def inspect_external(model_id, key=None):

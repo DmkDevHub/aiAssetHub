@@ -13,6 +13,24 @@ class CoreApplication:
     def __init__(self, database=None):
         self._started_at = time.monotonic_ns()
         self.database = database
+        self._analysis = None
+
+    def start_analysis(self, params):
+        from .analysis_jobs import AnalysisJobs
+        result=AnalysisJobs(self.database).start(params)
+        if not result['reused']:
+            from .analysis_engine import AnalysisEngine
+            if self._analysis is None:self._analysis=AnalysisEngine(self.database)
+            self._analysis.launch(result['jobId'])
+        return result
+
+    def analysis_status(self, params):
+        from .analysis_jobs import AnalysisJobs
+        active=self._analysis.active(params.get('job_id')) if self._analysis and isinstance(params,dict) else False
+        return AnalysisJobs(self.database).status(params,active)
+
+    def close(self):
+        if self._analysis:self._analysis.close()
 
     def health(self):
         """Measure this live process without opening a database or starting jobs."""
@@ -47,7 +65,7 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
-            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail", "asset.get", "asset.annotations", "asset.tags", "asset.annotate", "asset.tags.batch", "asset.search", "model.register", "model.list", "model.inspect", "model.credential", "model.policy", "model.validate", "model.select", "analysis.preview", "analysis.start"}:
+            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail", "asset.get", "asset.annotations", "asset.tags", "asset.annotate", "asset.tags.batch", "asset.search", "model.register", "model.list", "model.inspect", "model.credential", "model.policy", "model.validate", "model.select", "analysis.preview", "analysis.start", "analysis.status", "asset.analysis"}:
                 return self.error(request_id, "METHOD_NOT_FOUND", "지원하지 않는 명령입니다.")
             if method=='analysis.start' and (not isinstance(request.get('params'),dict) or request['params'].get('confirmed') is not True):
                 return self.error(request_id,'INVALID_PARAMS','명시적 분석 시작 승인이 필요합니다.')
@@ -63,7 +81,8 @@ class CoreApplication:
                     from .models import ModelService
                     from .analysis_plan import AnalysisPlan
                     from .analysis_jobs import AnalysisJobs
-                    action = {'analysis.start': AnalysisJobs(self.database).start, 'analysis.preview': AnalysisPlan(self.database).preview, 'model.validate': ModelService(self.database).validate, 'model.select': ModelService(self.database).select, 'model.policy': ModelService(self.database).policy, 'model.credential': ModelService(self.database).credential, 'model.inspect': ModelService(self.database).inspect, 'model.register': ModelService(self.database).register, 'model.list': ModelService(self.database).list, 'asset.search': SearchService(self.database).search, 'asset.tags.batch': AnnotationService(self.database).batch, 'asset.annotate': AnnotationService(self.database).save, 'asset.annotations': AnnotationService(self.database).get, 'asset.tags': AnnotationService(self.database).tags, 'library.register': service.register, 'library.unregister': service.unregister,
+                    from .analysis_results import AssetAnalysis
+                    action = {'analysis.start': self.start_analysis, 'analysis.status': self.analysis_status, 'asset.analysis': AssetAnalysis(self.database).get, 'analysis.preview': AnalysisPlan(self.database).preview, 'model.validate': ModelService(self.database).validate, 'model.select': ModelService(self.database).select, 'model.policy': ModelService(self.database).policy, 'model.credential': ModelService(self.database).credential, 'model.inspect': ModelService(self.database).inspect, 'model.register': ModelService(self.database).register, 'model.list': ModelService(self.database).list, 'asset.search': SearchService(self.database).search, 'asset.tags.batch': AnnotationService(self.database).batch, 'asset.annotate': AnnotationService(self.database).save, 'asset.annotations': AnnotationService(self.database).get, 'asset.tags': AnnotationService(self.database).tags, 'library.register': service.register, 'library.unregister': service.unregister,
                               'library.list': service.list, 'library.scan': AssetService(self.database).scan,
                               'asset.list': AssetService(self.database).list, 'asset.get': AssetService(self.database).get,
                               'asset.thumbnail': lambda params: thumbnail(self.database, params)}[method]

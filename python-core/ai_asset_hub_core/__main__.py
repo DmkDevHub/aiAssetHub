@@ -47,6 +47,7 @@ def main(argv=None):
             except (BrokenPipeError, OSError):
                 return 1
             finally:
+                application.close()
                 if runtime:
                     runtime.close()
         response = application.handle({
