@@ -78,7 +78,7 @@ class ModelTests(unittest.TestCase):
         identifier=self.service.register(profile)['id']
         with patch('ai_asset_hub_core.providers.metadata') as request:
             self.assertEqual(self.service.inspect({'id':identifier})['status'],'external_consent_required');request.assert_not_called()
-        data={'data':[{'id':profile['model_id'],'architecture':{'input_modalities':['image','text']},'pricing':{'prompt':'0','completion':'0'}}]}
+        data={'data':[{'id':profile['model_id'],'architecture':{'input_modalities':['image','text'],'output_modalities':['text']},'pricing':{'prompt':'0','completion':'0'}}]}
         with patch('ai_asset_hub_core.providers.metadata',return_value=data) as request:
             result=self.service.inspect({'id':identifier,'allow_external':True})
             self.assertEqual(result['costClass'],'free');self.assertFalse(result['inferenceCalled'])
@@ -145,3 +145,26 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(budget.read(identifier)['requestsUsed'],2)
         for value in ('NaN','Infinity','-1'):
             with self.assertRaises(LibraryError):budget.check(identifier,value)
+
+    def test_model_selection_rechecks_input_snapshots_and_invalidates_on_policy_change(self):
+        import json
+        from datetime import datetime,timezone
+        profile=self.profile();profile['provider_name']='Ollama';identifier=self.service.register(profile)['id']
+        caps={'verified':True,'modalities':['text'],'checkedAt':datetime.now(timezone.utc).isoformat(),'metadataVersion':'fixture-measured-hash'}
+        self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),identifier))
+        policy=dict(id=identifier,enabled=True,allow_external=False,allow_paid=False,budget_usd='0',max_requests=5)
+        self.service.policy(policy)
+        self.assertEqual(self.service.validate({'id':identifier,'modality':'image'})['reason'],'MODEL_CAPABILITY_MISMATCH')
+        with self.assertRaises(LibraryError):self.service.select({'id':identifier,'modality':'image'})
+        first=self.service.validate({'id':identifier,'modality':'text'})
+        self.service.select({'id':identifier,'modality':'text'})
+        self.assertTrue(self.service.list({})['items'][0]['selected'])
+        self.assertNotIn('key',first['snapshot'])
+        old=json.dumps(first['snapshot'],sort_keys=True)
+        policy['max_requests']=6;self.service.policy(policy)
+        self.assertFalse(self.service.list({})['items'][0]['selected'])
+        second=self.service.validate({'id':identifier,'modality':'text'})
+        self.assertNotEqual(first['snapshot']['profileVersion'],second['snapshot']['profileVersion'])
+        self.assertEqual(json.dumps(first['snapshot'],sort_keys=True),old)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_embeddings').fetchone()[0],0)

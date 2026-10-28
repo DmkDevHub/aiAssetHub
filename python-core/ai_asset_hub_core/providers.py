@@ -38,7 +38,8 @@ def inspect_local(model_id):
     if 'completion' in caps: modalities.append('text')
     if 'vision' in caps: modalities.append('image')
     if 'audio' in caps: modalities.append('audio')
-    return {'status':'available','modalities':modalities}
+    import hashlib
+    return {'status':'available','modalities':modalities,'metadataVersion':hashlib.sha256(json.dumps(data,sort_keys=True).encode('utf-8')).hexdigest()}
 
 
 def inspect_external(model_id, key=None):
@@ -48,6 +49,8 @@ def inspect_external(model_id, key=None):
     if not isinstance(models,list): raise ValueError()
     row=next((r for r in models if isinstance(r,dict) and r.get('id')==model_id),None)
     if row is None:return {'status':'model_not_found','modalities':[]}
+    outputs=row.get('architecture',{}).get('output_modalities')
+    if not isinstance(outputs,list) or 'text' not in outputs:return {'status':'unsupported_output','modalities':[]}
     pricing=row.get('pricing')
     if not isinstance(pricing,dict) or len(pricing)>16 or not {'prompt','completion'}<=set(pricing):raise ValueError()
     prices={}

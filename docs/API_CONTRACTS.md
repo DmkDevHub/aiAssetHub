@@ -104,3 +104,17 @@
 
 ## R04-06 분석 상태 조회
 `asset.list`는 `hasActiveResult`(boolean), `lastAttemptState`(마지막 run 상태 또는 null), `lastAnalysisAt`(활성 결과 생성 시각 또는 null)을 반환한다. 시도 순서는 created_at·rowid 역순이며 실패한 재분석은 활성 성공 결과를 교체하지 않는다. 필터/정렬은 이 실제 DB 값과 파일 수정 시각을 사용한다.
+
+## M05 고정 모델 명령
+모든 명령은 Tauri 고정 wrapper와 Python allowlist를 통과한다. 모델/공급자는 실제 SQLite UUID와 입력한 모델 ID를 저장하며 등록·목록·정책·선택으로 네트워크나 분석 작업을 생성하지 않는다.
+| Tauri | Core | 입력/출력 |
+|---|---|---|
+| register_model | model.register | providerName→provider_name,kind,modelId→model_id,modalities / id,created |
+| list_models | model.list | afterId→after_id / items,next_cursor (최대 10개·12KB 페이지) |
+| inspect_model | model.inspect | id,allowExternal→allow_external / status,modalities,checkedAt,verified,inferenceCalled,metadataRequestAttempted 등 |
+| model_credential | model.credential | id,action(save/delete/test),key?,allowExternal→allow_external / 고정 status,inferenceCalled |
+| configure_model | model.policy | policy:{id,enabled,allow_external,allow_paid,budget_usd,max_requests} / enabled,policy |
+| validate_model | model.validate | id,modality / compatible,reason 또는 비밀 없는 snapshot,inferenceCalled |
+| select_model | model.select | id,modality / selected,profileVersion,inferenceCalled |
+
+목록에 hasCredential(bool), inspection, policy, selected를 포함하며 키/원문 응답/예외를 반환하지 않는다. API 키는 ASCII 1~1024자·공백/제어문자 금지. 모델 ID 160자·공급자 80자, 등록 유형은 text/image/audio. 잘못된 입력은 INVALID_PARAMS, 조건 미충족은 MODEL_POLICY_DENIED/MODEL_UNAVAILABLE/MODEL_CAPABILITY_MISMATCH/BUDGET_EXCEEDED 고정 오류다. 아직 분석 실행 API는 제공하지 않는다.

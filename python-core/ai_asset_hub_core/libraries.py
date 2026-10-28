@@ -130,6 +130,8 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'MODEL_UNAVAILABLE': '모델이 비활성 또는 미확인 상태입니다.',
+    'MODEL_CAPABILITY_MISMATCH': '선택한 입력 유형을 지원하지 않는 모델입니다.',
     'MODEL_POLICY_DENIED': '모델 상태·인증·외부 전송 및 유료 사용 승인을 확인하세요.',
     'BUDGET_EXCEEDED': '예산 또는 호출 한도를 초과합니다.',
     'INVALID_PARAMS': '폴더 요청 형식이 올바르지 않습니다.',

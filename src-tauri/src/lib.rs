@@ -7,6 +7,47 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
+#[tauri::command]
+async fn validate_model(
+    state: tauri::State<'_, CoreState>,
+    id: String,
+    modality: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "model.validate",
+                serde_json::json!({"id":id,"modality":modality}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+#[tauri::command]
+async fn select_model(
+    state: tauri::State<'_, CoreState>,
+    id: String,
+    modality: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "model.select",
+                serde_json::json!({"id":id,"modality":modality}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 struct ModelPolicyInput {
@@ -445,7 +486,9 @@ pub fn run() {
             register_model,
             inspect_model,
             model_credential,
-            configure_model
+            configure_model,
+            validate_model,
+            select_model
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

@@ -273,3 +273,13 @@ Node 98개·Python 57개·타입/빌드 통과. 실제 Windows 테스트 전용 
 
 ## R05-05 내부 검증
 Node 99개·Python 59개·타입/빌드 통과. 유료 기본 OFF·미인증/미승인/0예산 활성화 거부, 정확한 0.1+0.2 예약·한도 초과 롤백·정책 재저장 시 예약 누적 유지 검증. Rust 12개 통과. 실제 생성/과금 호출은 하지 않았다. 예약 가드는 후속 분석 엔진이 호출할 내부 기반이며 현재 모델 관리 화면에서는 예약이나 분석을 생성하지 않는다.
+
+## R05-06 / M05 최종 내부 검증
+- `npm run check`: Node 100개·Python 60개 통과, 타입 검사와 프로덕션 빌드 성공. 입력 비호환 버튼 차단/서버 재검증, 스냅샷 버전 변경·이전 값 불변·선택 해제·분석 작업/임베딩 미생성 확인.
+- Rust 12개(패키지 전용 1개 제외) 및 `cargo clippy --all-targets --locked -- -D warnings` 통과. 실제 파이프에서 Registry 등록/목록·실제 UUID·비활성 기본값·미확인 모델 선택 차단까지 검증.
+- Windows 테스트 전용 자격 증명 저장/읽기/삭제 실측, 정적 비밀 패턴 검사 통과. 모델 관리의 성공/가격/인증 데이터는 명시된 fixture를 사용했으며 실제 사용자 키·생성 API·유료 모델·원본 에셋을 호출/변경하지 않았다.
+- 실제 Ollama 모델 추론/실사용 공급자 인증·깨끗한 PC·대규모 모델 목록 성능 및 실제 화면 배치는 미검증. 실제 AI 분석과 과금 정산은 M06 이후 범위다.
+
+
+- 최종 Rust `--include-ignored` 13개 통과: 새 PyInstaller Core에서도 Registry UUID·기본 OFF·비호환 선택 차단을 실측했다. `npm run build:installer` 및 `scripts/verify-installer.ps1` 통과: 임시 전용 설치본의 DB v2·Core 실제 PID 종료·Sidecar 해시·조용한 제거/기존 설치 보존 확인, GUI 미실행.
+- 설치 파일 13544949 bytes, SHA256 `61f157a587a5c26b9271cbeac4e4957f99b79fd39274d4ae4742af8e8ecbbbff`. 기존 NSIS Korean choowHowToInstall 문자열 경고 1개 유지.

@@ -3,9 +3,9 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 import ModelPolicy from '../components/ModelPolicy.vue';
 import ModelCredential from '../components/ModelCredential.vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-type Model = {id:string;provider:string;kind:string;modelId:string;modalities:string[];enabled:boolean;policy?:{allowExternal:boolean;allowPaid:boolean;budgetUsd:string;maxRequests:number;reservedUsd:string;requestsUsed:number};hasCredential?:boolean;inspection?:{status?:string;checkedAt?:string;modalities?:string[];costClass?:string;metadataRequestAttempted?:boolean;authentication?:string}};
+type Model = {id:string;provider:string;kind:string;modelId:string;modalities:string[];enabled:boolean;selected?:boolean;policy?:{allowExternal:boolean;allowPaid:boolean;budgetUsd:string;maxRequests:number;reservedUsd:string;requestsUsed:number};hasCredential?:boolean;inspection?:{status?:string;checkedAt?:string;modalities?:string[];costClass?:string;metadataRequestAttempted?:boolean;authentication?:string}};
 const items=ref<Model[]>([]), provider=ref(''), modelId=ref(''), kind=ref('local'), modality=ref('image');
-const externalConsent=ref(false);
+const externalConsent=ref(false), selectionModality=ref('image');
 const busy=ref(false), error=ref(''), notice=ref('');
 let alive=true;
 onBeforeUnmount(()=>{alive=false;});
@@ -48,6 +48,17 @@ async function inspect(id:string){
  finally{if(alive)busy.value=false;}
  if(alive)await load();
 }
+async function choose(id:string,select:boolean){
+ if(busy.value)return;busy.value=true;error.value='';notice.value='';
+ try{
+  const result=await invoke<{ok:boolean;data:{compatible?:boolean;reason?:string;selected?:boolean};error?:{code:string}}>(select?'select_model':'validate_model',{id,modality:selectionModality.value});
+  if(!alive)return;
+  if(!result.ok){error.value='모델 선택을 거부했습니다. 상태·입력 지원·사용 정책을 확인하세요.';return;}
+  notice.value=select?'모델을 선택했습니다. 분석은 실행하지 않았습니다.':result.data.compatible?'선택 입력을 지원하며 현재 사용 정책을 충족합니다.':'사용할 수 없습니다: '+(result.data.reason??'MODEL_UNAVAILABLE');
+ }catch{if(alive)error.value='모델 입력 지원을 확인하지 못했습니다.';}
+ finally{if(alive)busy.value=false;}
+ if(alive)await load();
+}
 onMounted(load);
 </script>
 <template>
@@ -65,6 +76,7 @@ onMounted(load);
     <button type="button" :disabled="busy" @click="load">목록 새로고침</button>
     <p v-if="!busy && !items.length">등록된 모델이 없습니다.</p>
     <label><input v-model="externalConsent" type="checkbox" />외부 연결 검사 허용: OpenRouter로 모델 카탈로그 요청(IP·저장된 자격 증명)을 전송합니다. 에셋·프롬프트·생성 요청은 전송하지 않습니다.</label>
+    <label>분석용 입력 유형 <select v-model="selectionModality"><option value="image">이미지</option><option value="text">텍스트</option><option value="audio">오디오</option></select></label>
     <ul class="model-list"><li v-for="item in items" :key="item.id">
       <strong>{{ item.modelId }}</strong> · {{ item.provider }} · {{ item.kind==='local'?'로컬':'외부' }}
       <button v-if="item.kind==='local' || item.provider.toLowerCase()==='openrouter'" type="button" :disabled="busy" @click="inspect(item.id)">{{ item.kind==='local'?'로컬 사용 가능성 검사':'외부 연결 검사' }}</button>
@@ -73,6 +85,9 @@ onMounted(load);
       <p v-if="item.kind==='external'">비용 분류: {{ item.inspection?.costClass ?? '미확인' }} · 메타데이터 요청 시도: {{ item.inspection?.metadataRequestAttempted ? '시도함' : '시도 안 함' }} · 인증: {{ item.inspection?.authentication ?? '미확인' }}</p>
       <ModelCredential v-if="item.provider.toLowerCase()==='openrouter' && item.kind==='external'" :id="item.id" :has-credential="item.hasCredential" :allow-external="externalConsent" @changed="load" />
       <ModelPolicy :id="item.id" :enabled="item.enabled" :policy="item.policy" @changed="load" />
+      <button type="button" :disabled="busy" @click="choose(item.id,false)">입력 지원 검사</button>
+      <button type="button" :disabled="busy || !item.enabled || !item.inspection?.modalities?.includes(selectionModality)" @click="choose(item.id,true)">이 모델 선택</button>
+      <p v-if="item.selected">현재 선택된 모델</p>
       <p>등록 입력: {{ item.modalities.join(', ') }} · {{ item.enabled?'활성':'비활성' }}</p>
     </li></ul>
   </section>

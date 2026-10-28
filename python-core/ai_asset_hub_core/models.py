@@ -52,8 +52,11 @@ class ModelService:
             FROM model_registry m JOIN model_providers p ON p.id=m.provider_id
             WHERE m.id>? ORDER BY m.id LIMIT 11''',(params.get('after_id') or '',)).fetchall()
         items=[{'id':r[0],'provider':r[1],'kind':r[2],'modelId':r[3],'modalities':json.loads(r[4]),'enabled':bool(r[5]),'inspection':json.loads(r[6])} for r in rows[:10]]
+        selection=self.db.execute("SELECT value_json FROM settings WHERE key='model.selection'").fetchone()
+        selected=json.loads(selection[0]).get('id') if selection else None
         from .model_policy import BudgetPolicy
         for item in items:
+            item['selected']=item['id']==selected and item['enabled']
             item['policy']=BudgetPolicy(self.db).read(item['id'])
             try:item['hasCredential']=self.vault.read(item['id']) is not None
             except OSError:item['hasCredential']=False
@@ -83,6 +86,7 @@ class ModelService:
         from datetime import datetime, timezone
         result.update(checkedAt=datetime.now(timezone.utc).isoformat(),inferenceCalled=False,verified=result['status']=='available')
         self.db.execute('UPDATE model_registry SET capabilities_json=?,enabled=0 WHERE id=?',(json.dumps(result),params['id']))
+        self.invalidate_selection(params['id'])
         return result
 
     def credential(self, params):
@@ -108,6 +112,7 @@ class ModelService:
                 caps['authentication']='authenticated'
             except Exception:caps['authentication']='failed'
         self.db.execute('UPDATE model_registry SET capabilities_json=?,enabled=0 WHERE id=?',(json.dumps(caps),params['id']))
+        self.invalidate_selection(params['id'])
         return {'status':caps['authentication'] if action=='test' else 'saved' if action=='save' else 'deleted','inferenceCalled':False}
 
     def policy(self, params):
@@ -132,7 +137,43 @@ class ModelService:
         self.db.execute('BEGIN IMMEDIATE')
         try:
             manager.write(params['id'],policy)
+            self.invalidate_selection(params['id'])
             self.db.execute('UPDATE model_registry SET enabled=? WHERE id=?',(int(params['enabled']),params['id']))
             self.db.execute('COMMIT')
         except Exception:self.db.execute('ROLLBACK');raise
         return {'enabled':params['enabled'],'policy':policy}
+
+    def invalidate_selection(self, identifier):
+        self.db.execute("DELETE FROM settings WHERE key='model.selection' AND json_extract(value_json,'$.id')=?",(identifier,))
+
+    def validate(self, params):
+        import hashlib
+        from datetime import datetime,timezone
+        from .model_policy import BudgetPolicy,money
+        if not isinstance(params,dict) or set(params)!={'id','modality'} or not valid_id(params['id']) or params['modality'] not in ('text','image','audio'):raise LibraryError('INVALID_PARAMS')
+        row=self.db.execute('SELECT p.name,p.kind,m.model_id,m.enabled,m.capabilities_json FROM model_registry m JOIN model_providers p ON p.id=m.provider_id WHERE m.id=?',(params['id'],)).fetchone()
+        if not row:raise LibraryError('INVALID_PARAMS')
+        caps=json.loads(row[4]);reason=None;policy=BudgetPolicy(self.db).read(params['id'])
+        try:age=(datetime.now(timezone.utc)-datetime.fromisoformat(caps['checkedAt'])).total_seconds()
+        except (KeyError,ValueError,TypeError):age=1000000
+        if not row[3] or caps.get('verified') is not True or not 0<=age<=86400:reason='MODEL_UNAVAILABLE'
+        elif params['modality'] not in caps.get('modalities',[]):reason='MODEL_CAPABILITY_MISMATCH'
+        elif row[1]=='external':
+            if not policy['allowExternal'] or caps.get('authentication')!='authenticated' or self.vault.read(params['id']) is None:reason='MODEL_POLICY_DENIED'
+            elif caps.get('costClass') not in ('free','paid'):reason='MODEL_POLICY_DENIED'
+            elif caps['costClass']=='paid' and (not policy['allowPaid'] or money(policy['budgetUsd'])<=money(policy['reservedUsd'])):reason='BUDGET_EXCEEDED'
+        if not reason:
+            try:BudgetPolicy(self.db).check(params['id'],'0')
+            except LibraryError:reason='BUDGET_EXCEEDED'
+        if reason:return {'compatible':False,'reason':reason,'inferenceCalled':False}
+        snapshot={'registryId':params['id'],'provider':row[0],'kind':row[1],'modelId':row[2],
+                  'inputModality':params['modality'],'inspection':caps,'policy':policy,'snapshotVersion':1}
+        version=hashlib.sha256(json.dumps(snapshot,sort_keys=True,separators=(',',':')).encode('utf-8')).hexdigest()
+        snapshot['profileVersion']=version
+        return {'compatible':True,'snapshot':snapshot,'inferenceCalled':False}
+
+    def select(self, params):
+        result=self.validate(params)
+        if not result['compatible']:raise LibraryError(result['reason'])
+        self.db.execute("INSERT INTO settings VALUES ('model.selection',?,strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",(json.dumps({'id':params['id'],'modality':params['modality'],'snapshot':result['snapshot']}),))
+        return {'selected':True,'profileVersion':result['snapshot']['profileVersion'],'inferenceCalled':False}

@@ -1685,3 +1685,15 @@ test('paid model policy defaults off and transmits explicit approvals only on sa
  dispatch(document.querySelector('.model-policy'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(sent.allow_paid,false);assert.equal(sent.allow_external,false);assert.equal(sent.enabled,false);assert.match(document.querySelector('[role=status]').textContent,/모델 상태/);
 });
+
+test('incompatible model cannot be selected and compatible input uses server validation',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+  calls.push([command,args]);if(command==='validate_model')return {ok:true,data:{compatible:false,reason:'MODEL_CAPABILITY_MISMATCH'}};
+  return {ok:true,data:{items:[{id:'fixture',provider:'Ollama',kind:'local',modelId:'text-only',modalities:['image'],enabled:true,inspection:{modalities:['text']}}],next_cursor:null}};
+ }};
+ app=createApp(components.ModelsView);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ const select=[...document.querySelectorAll('.model-list button')].find(b=>b.textContent==='이 모델 선택');assert.equal(select.disabled,true);
+ const validate=[...document.querySelectorAll('.model-list button')].find(b=>b.textContent==='입력 지원 검사');dispatch(validate,new MouseEvent('click',{bubbles:true}));
+ await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.querySelector('[role=status]').textContent,/MODEL_CAPABILITY_MISMATCH/);assert.equal(calls[1][1].modality,'image');
+});

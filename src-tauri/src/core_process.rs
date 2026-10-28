@@ -239,6 +239,8 @@ impl CoreProcess {
                 | "model.inspect"
                 | "model.credential"
                 | "model.policy"
+                | "model.validate"
+                | "model.select"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }
@@ -303,6 +305,24 @@ impl CoreProcess {
 mod tests {
     use super::*;
 
+    fn verify_model_registry(core: &mut CoreProcess) {
+        let registered=core.library_request("model.register",json!({"provider_name":"Ollama","kind":"local","model_id":"fixture-model:wire-test","modalities":["image"]})).unwrap();
+        assert_eq!(registered["ok"], true);
+        let identifier = registered["data"]["id"].as_str().unwrap();
+        assert!(uuid::Uuid::parse_str(identifier).is_ok());
+        let listed = core.library_request("model.list", json!({})).unwrap();
+        assert_eq!(listed["data"]["items"][0]["id"], identifier);
+        assert_eq!(listed["data"]["items"][0]["enabled"], false);
+        let validated = core
+            .library_request(
+                "model.validate",
+                json!({"id":identifier,"modality":"image"}),
+            )
+            .unwrap();
+        assert_eq!(validated["data"]["compatible"], false);
+        assert_eq!(validated["data"]["reason"], "MODEL_UNAVAILABLE");
+    }
+
     #[test]
     fn real_pipe_health_reuses_process_and_stops_on_eof() {
         let mut core = CoreProcess::new(LaunchSpec::development());
@@ -340,6 +360,7 @@ mod tests {
         let first = core.start().unwrap();
         assert_eq!(first["data"]["database"]["status"], "ready");
         assert_eq!(first["data"]["database"]["schema_version"], 2);
+        verify_model_registry(&mut core);
         let source = data
             .parent()
             .unwrap()
@@ -492,6 +513,7 @@ mod tests {
         let mut core =
             CoreProcess::new(LaunchSpec::development().with_data(root.join("data"), "development"));
         let health = core.start().unwrap();
+        verify_model_registry(&mut core);
         assert_eq!(
             core.library_request("analysis.start", json!({}))
                 .unwrap_err(),
