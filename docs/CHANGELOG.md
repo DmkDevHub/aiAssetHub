@@ -76,6 +76,10 @@
 - 변경: 빌드 전용 고정 PyInstaller 환경·폴더형 CPython/SQLite/마이그레이션 번들·Tauri externalBin/resources, release의 고정 설치 경로 실행과 전용 --verify-core 자동 검사 추가.
 - 검증: Node 57개·Python 28개·Rust 3개+패키지 전용 1개·타입·빌드, NSIS 생성·분리된 무인 설치/제거·설치 파일 Core/DB/WAL/종료 통과. 기존 설치 보존. 실제 GUI·깨끗한 PC·서명은 미검증.
 
+### 2026-10-28 — [R02-06] Core 종료 감지·오류 안내·수동 복구 (M02 완료)
+- 변경: health 감시·엄격한 응답 검증·종료/응답 지연/DB 오류 안내·원인 보존·명시적 재연결·요청/타이머 정리 추가. 실패 후 자동 재시작·분석 재개 없음.
+- 검증: Node 61개·Python 29개·Rust 6개+패키지 전용 1개, 타입·빌드·Clippy 통과. 실제 Core 강제 종료 후 잠금/데이터 보존·정지/불량 응답 수거·최종 NSIS 무인 설치/제거/무화면 health 통과. M02 전 항목 완료, GUI·깨끗한 PC·서명은 미검증.
+
 ## 이후 작업 기록 템플릿
 ```markdown
 ### YYYY-MM-DD — [R00-00] 작업명

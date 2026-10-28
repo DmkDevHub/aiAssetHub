@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -76,8 +77,32 @@ class RuntimeTests(unittest.TestCase):
         for _ in range(2):
             result = subprocess.run([sys.executable, '-B', '-m', 'ai_asset_hub_core', 'health.get',
                 '--data-dir', str(directory), '--environment', 'development'], cwd=CORE,
-                capture_output=True, text=True, encoding='utf-8', timeout=10)
+                capture_output=True, text=True, encoding='utf-8', timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)['data']['database']['status'], 'ready')
         reopened = self.runtime(directory)
         self.assertEqual(reopened.database.connection.execute('SELECT value_json FROM settings').fetchone()[0], '456')
+
+    def test_killed_core_releases_lease_without_resuming_or_creating_analysis(self):
+        directory = self.root / 'crash'
+        runtime = self.runtime(directory)
+        runtime.database.connection.execute("INSERT INTO settings VALUES ('fixture','789','fixture')")
+        runtime.close()
+        child = subprocess.Popen([sys.executable, '-B', '-m', 'ai_asset_hub_core', '--serve',
+            '--data-dir', str(directory), '--environment', 'development'], cwd=CORE,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8',
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+        try:
+            child.stdin.write(json.dumps({'request_id': '12345678-1234-4234-9234-123456789abc', 'method': 'health.get'}) + '\n')
+            child.stdin.flush()
+            response = json.loads(child.stdout.readline())
+            self.assertEqual(response['data']['database']['status'], 'ready')
+            self.assertEqual(self.runtime(directory).database.health()['error_code'], 'DATA_IN_USE')
+        finally:
+            child.kill()
+            child.communicate(timeout=10)
+        reopened = self.runtime(directory)
+        self.assertEqual(reopened.database.health()['status'], 'ready')
+        self.assertEqual(reopened.database.connection.execute('SELECT value_json FROM settings').fetchone()[0], '789')
+        self.assertEqual(reopened.database.connection.execute('SELECT COUNT(*) FROM analysis_jobs').fetchone()[0], 0)

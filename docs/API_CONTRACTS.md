@@ -50,6 +50,13 @@
 - 응답은 기존 공통 envelope를 사용한다. 잘못된 요청 ID는 원문을 반사하지 않고 `request_id: null`, 오류는 고정 `INVALID_REQUEST`/`INVALID_PARAMS`/`METHOD_NOT_FOUND`/`INTERNAL_ERROR` 문구로 반환한다. 예외 메시지·인자·환경·경로·비밀정보는 출력하지 않는다.
 - `python -B -m ai_asset_hub_core health.get`은 개발용 일회성 조회다. `--request-id UUID`를 생략하면 상관 UUID를 생성한다. 성공 0, 요청 오류 2, 내부 오류 1로 종료한다. 네트워크 서버·Tauri IPC·MCP 전송 구현이 아니며 안전한 앱 통신은 R02-02에서 연결한다.
 
+### 데스크톱 health 확장 (M02)
+
+- Tauri 시작 인자 `--serve --data-dir <백엔드 경로> --environment development|production`는 비공개 파이프 서비스와 DB를 초기화한다. 초기화 실패는 Core를 준비된 DB로 위장하지 않고 `database.status: error`와 고정 error_code로 반환한다.
+- 연결된 DB의 health는 `status: ready`, `schema_version`, `sqlite_version`, `journal_mode: wal`이다. 경로 없이 실행한 CLI만 `not_configured`다. DB가 준비되었다는 것은 라이브러리 수집/AI/모델이 준비되었다는 뜻이 아니다.
+- Vue는 `core_health`/`core_reconnect`만 호출한다. Tauri는 실행 중 자식의 UUID/PID/제품 버전을 대조한 후 응답하며 실패하면 안전한 CORE_* 코드만 반환한다. UI도 envelope·PID/가동 시간·DB 스키마 형식을 검증한다.
+- 5초 health 관찰은 읽기 전용이며 실패 시 자동 재시작하지 않는다. 수동 재연결도 Core/DB 준비만 수행하며 분석 작업을 생성·재개하지 않는다.
+
 ## M01 UI 작업 이벤트 수신 계약 (R01-06)
 
 `src/stores/operations.ts`의 `receiveOperation(event)`는 UI 메모리 표시 전용이며 명령·재시도·분석을 실행하지 않는다. Core 통신 방식/DB 스키마는 변경하지 않는다.

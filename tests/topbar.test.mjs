@@ -83,7 +83,7 @@ before(async () => {
 
 beforeEach(async (t) => {
   // Browser events arrive in later tasks; advance Date deterministically for Vue's event guard.
-  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  t.mock.timers.enable({ apis: ["Date", "setInterval"], now: Date.now() });
   advanceEventClock = () => t.mock.timers.tick(1);
   mounted = false;
   transportCalls = 0;
@@ -999,11 +999,16 @@ test('browser mode does not pretend to connect to Core', () => {
   assert.equal(document.querySelector('.core-connection'), null);
 });
 
+function fixtureHealth(database = { status: 'not_configured' }) {
+  return { request_id: '12345678-1234-4234-9234-123456789abc', ok: true, error: null,
+    timestamp: '2026-10-28T00:00:00Z', data: { core: { status: 'ready', version: 'fixture-0.5', pid: 123, uptime_ms: 10 }, database } };
+}
+
 test('desktop connection displays only the supplied successful health response', async () => {
   const commands = [];
   await mountConnection(async (command) => {
     commands.push(command);
-    return { ok: true, data: { core: { status: 'ready', version: 'fixture-0.5' }, database: { status: 'not_configured' } } };
+    return fixtureHealth();
   });
   assert.match(document.querySelector('.core-connection').textContent, /Core 연결됨 · fixture-0.5 · DB 미연결/);
   await clickElement('.core-connection button');
@@ -1016,7 +1021,7 @@ test('desktop failure is redacted and explicit reconnect requests a fresh sessio
   await mountConnection(async (command) => {
     commands.push(command);
     if (command === 'core_health') throw new Error('fixture-private-key-path');
-    return { ok: true, data: { core: { status: 'ready', version: 'fixture-0.5' }, database: { status: 'not_configured' } } };
+    return fixtureHealth();
   });
   assert.equal(document.querySelector('.core-connection button').textContent.trim(), '다시 연결');
   assert.equal(document.body.textContent.includes('fixture-private-key-path'), false);
@@ -1025,4 +1030,57 @@ test('desktop failure is redacted and explicit reconnect requests a fresh sessio
   await nextTick();
   assert.deepEqual(commands, ['core_health', 'core_reconnect']);
   assert.match(document.querySelector('.core-connection').textContent, /Core 연결됨/);
+});
+
+test('heartbeat detects Core exit and never automatically reconnects or starts analysis', async (t) => {
+  const commands = [];
+  await mountConnection(async (command) => {
+    commands.push(command);
+    if (commands.length > 1) throw 'CORE_EXITED';
+    return fixtureHealth();
+  });
+  t.mock.timers.tick(5000);
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+  assert.match(document.querySelector('.core-connection [role="alert"]').textContent, /Core가 종료되었습니다/);
+  assert.match(document.querySelector('.core-connection [role="status"]').textContent, /연결 끊김/);
+  t.mock.timers.tick(20000);
+  await nextTick();
+  assert.deepEqual(commands, ['core_health', 'core_health']);
+  assert.equal(components.operations.length, 0);
+});
+
+test('DB errors preserve Core health but provide an explicit safe recovery action', async () => {
+  await mountConnection(async () => fixtureHealth({ status: 'error', error_code: 'DATA_IN_USE' }));
+  assert.match(document.querySelector('.core-connection [role="status"]').textContent, /Core 연결됨.*DB 연결 오류/);
+  assert.match(document.querySelector('.core-connection [role="alert"]').textContent, /다른 Core가 이 데이터를 사용/);
+  assert.equal(document.querySelector('.core-connection button').textContent.trim(), '다시 연결');
+});
+
+test('incomplete or invalid health cannot be presented as connected', async () => {
+  for (const invalid of [null, { ok: true }, { ...fixtureHealth(), error: { message: 'fixture-private' } },
+    fixtureHealth({ status: 'ready', schema_version: 0, sqlite_version: 'fixture', journal_mode: 'wal' })]) {
+    await mountConnection(async () => invalid);
+    assert.match(document.querySelector('.core-connection [role="status"]').textContent, /연결 끊김/);
+    assert.match(document.querySelector('.core-connection [role="alert"]').textContent, /Core 응답을 확인할 수 없습니다/);
+    assert.equal(document.body.textContent.includes('fixture-private'), false);
+  }
+});
+
+test('heartbeat and manual checks cannot overlap and are disposed on unmount', async (t) => {
+  let resolve;
+  let calls = 0;
+  await mountConnection(() => { calls++; return new Promise((done) => { resolve = done; }); });
+  assert.equal(document.querySelector('.core-connection button').disabled, true);
+  t.mock.timers.tick(10000);
+  await clickElement('.core-connection button');
+  assert.equal(calls, 1);
+  app.unmount();
+  mounted = false;
+  resolve(fixtureHealth());
+  await new Promise((done) => setImmediate(done));
+  await nextTick();
+  t.mock.timers.tick(20000);
+  assert.equal(calls, 1);
+  assert.equal(document.querySelector('.core-connection'), null);
 });

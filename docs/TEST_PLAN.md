@@ -195,3 +195,12 @@
 - 초기 제거 검사의 NSIS 후속 프로세스 대기 누락을 보정하고 최종 무인 설치/제거 절차가 통과했다. NSIS 공식 템플릿의 한국어 `choowHowToInstall` 번역 경고 1개는 남으며 실제 GUI는 검증하지 않았다.
 - 깨끗한 PC·WebView2 신규 설치·실제 GUI·정식 배포 서명/업그레이드는 미검증이다. 원본·AI·유료 모델·Unity 작업은 실행하지 않았다.
 - Rust Clippy의 중첩 조건 경고 2개를 정리한 후 `cargo clippy --lib --locked -- -D warnings` 통과·fmt 적용.
+
+## R02-06 / M02 최종 검증 (2026-10-28)
+
+- `npm run check`: Node 61개·Python 29개, 타입 검사·프로덕션 빌드 통과. `cargo test --lib --locked`: 6개 통과·패키지 전용 1개 ignored, 해당 1개는 별도의 `-- --ignored` 실행에서 통과. 합계 중복 없는 테스트 97개다. `cargo clippy --all-targets --locked -- -D warnings`·fmt 통과.
+- Rust는 실제 Core 강제 종료→원인 유지/암묵 재시작 없음→명시 재연결/새 PID/DB ready, 응답 정지→100ms 테스트 제한/수거, 잘못된 JSON/상관 ID/초과 크기 프레임→안전한 오류/수거를 확인했다. 기본 제품 응답 제한은 3초이며 테스트의 100ms는 격리 fixture다.
+- Python은 설정을 저장한 DB로 실제 Core를 띄운 뒤 강제 종료해 OS 잠금 해제·WAL 재오픈·커밋 데이터 보존·분석 작업 0개를 확인했다.
+- DOM fixture에서는 5초 감시의 종료 감지·실패 후 자동 재연결 없음·DB 오류/잠금 안내·불완전 health 거부·원문 비노출·동시 요청 방지·해제 후 타이머/늦은 응답 정리를 검증했다. 실제 프로세스와 UI fixture는 별도 증거다.
+- 최종 `npm run build:installer` 성공. 설치본 9,292,156바이트, SHA-256 `cbe483921a88455f2bcd32177729bae87e4cb74ea69b6ecfb889e5a08dbc02c2`. 분리된 제품/등록 이름의 같은 payload로 무인 설치·실제 설치 파일 `--verify-core`·Python 없는 PATH/잘못된 Python 환경·DB/WAL/종료·검증 설치 제거·기존 설치 등록 보존을 재확인했다.
+- 실제 화면/브라우저를 열거나 조작하지 않았다. 현재 PC에는 개발 도구가 있으므로 깨끗한 PC의 WebView2/시스템 DLL·실제 GUI·정식 서명/업그레이드는 미검증이다. NSIS 템플릿 한국어 경고는 R02-05 기록과 같다. 실제 에셋·AI·MCP·Unity 작업은 수행하지 않았으며 M03 이후 범위다.

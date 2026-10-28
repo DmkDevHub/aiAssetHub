@@ -24,7 +24,7 @@ npm run dev
 - 개발 포트 점유 시 `npm run dev`는 Tauri 실행 전에 오류 코드 1로 중단한다. 사전 검사 없이 직접 `npm run tauri dev`를 실행하면 Tauri가 기존 서버에 연결했다가 오류로 종료할 수 있으므로 기본 개발 명령을 사용한다.
 - `npm test`: Node 내장 러너로 포트·작업 공간 컴포넌트 회귀를 검사한 뒤 `npm run test:core`로 Python 표준 unittest를 실행한다. 컴포넌트는 jsdom·메모리 라우터를 사용하며 Python은 3.11 이상이 필요하다. 기본 `python` 대신 쓸 실행 파일은 `AI_ASSET_HUB_PYTHON`으로 지정한다.
 - Tauri가 `beforeDevCommand`로 Vite를 시작하므로 브라우저 확인용 서버는 먼저 종료한다.
-- 최소 앱은 다크 테마로 라이브러리 화면을 연다. `화면 설정`에서 다크/라이트를 선택하면 화면 이동 후에도 테마가 유지된다. 테마는 메모리 상태이므로 새로고침·재실행 시 다크로 돌아간다. Python·DB·AI·파일 선택 기능은 아직 연결하지 않는다.
+- 앱은 다크 테마로 라이브러리 화면을 연다. `화면 설정`에서 다크/라이트를 선택하면 화면 이동 후에도 테마가 유지된다. 테마는 메모리 상태이므로 새로고침·재실행 시 다크로 돌아간다. 현재 Core·DB는 M02에서 연결했으며 AI·파일 선택은 후속 범위다.
 - `local.aiassethub.dev`는 개발용 임시 식별자다. 배포 식별자·출판사명은 DECISIONS의 미정 사항으로 유지한다. 현재 NSIS 번들은 최소 셸의 개발 설치본이다.
 - Windows 실행 파일의 아이콘은 공식 Tauri 템플릿 기본값을 개발용으로 사용한다. 제품 아이콘은 아직 정하지 않았다.
 
@@ -48,13 +48,13 @@ Pop-Location
 
 한 줄 JSON 응답 후 종료하는 개발용 조회다. PID·버전·가동 시간은 해당 프로세스 실측이며 DB는 `not_configured`다. 현재 앱/Tauri/설치본이 Core와 연결되었다는 뜻이 아니다. 통신·인증·시작/종료는 R02-02, DB는 R02-03, Sidecar 패키징은 R02-05에서 연결한다. 상세는 [Core 안내](../python-core/README.md)를 참고한다.
 
-## 이후 Core 통합 개발 실행 (미구현 예시)
+## 현재 Core 통합 개발 실행
 ```bash
-npm install
-npm run tauri dev
+npm ci
+npm run dev
 ```
-- 개발 시에는 Python 가상 환경/Core 모듈을 별도로 실행하거나 개발 스크립트로 함께 구동한다.
-- 개발 DB는 프로젝트 `db/` 또는 별도 개발 데이터 경로; 실제 운영 DB와 공유 금지.
+- Tauri가 개발 Python Core를 비공개 파이프로 시작하고 종료한다. Core를 별도로 띄워 같은 DB를 공유하지 않는다.
+- 개발 DB는 `.artifacts/data/development`이며 운영 AppData DB와 공유하지 않는다.
 
 ## 최소 셸 NSIS 개발 설치본 (R00-05)
 
@@ -63,7 +63,7 @@ npm run build:installer
 ```
 
 - 프런트엔드 검사·빌드 후 Cargo 잠금 파일 기준으로 Windows x64 release 앱과 NSIS `*-setup.exe`를 생성한다. 결과 폴더는 `src-tauri/target/release/bundle/nsis/`다.
-- 설치 언어는 한국어, 범위는 현재 Windows 사용자(`currentUser`)다. Python Core·DB·AI 기능은 아직 포함하지 않는다.
+- 설치 언어는 한국어, 범위는 현재 Windows 사용자(`currentUser`)다. R00-05 당시에는 Core·DB를 포함하지 않았으며 현재 빌드는 아래 R02-05의 Core/SQLite 번들을 포함한다. AI 기능은 후속 범위다.
 - WebView2가 없을 때는 공식 다운로드 bootstrapper 방식으로 설치하므로 인터넷 연결이 필요하다. WebView2가 있는 환경에서는 기존 런타임을 사용한다.
 - 개발 식별자와 Tauri 기본 아이콘을 사용한 미서명 설치본이다. 제품 식별자·출판사·서명·업데이트는 공개 배포 전에 결정해야 한다.
 
@@ -71,7 +71,7 @@ npm run build:installer
 
 설치된 실행 파일을 개발 서버 없이, PATH를 Windows System32로 제한해 실행한 뒤 라이브러리·화면 설정·테마 변경·뒤로 가기·정상 종료를 확인했다. 개발 도구가 설치된 현재 PC에서의 검증이며 깨끗한 PC, WebView2 신규 설치 및 설치 마법사 수동 클릭 검증은 미실행이다. 이번 설치본 해시는 TEST_PLAN의 R00-05 기록을 참고한다.
 
-## 이후 Python Core 통합 빌드 순서 (미구현)
+## Core 통합 빌드 구조
 1. Windows x64 타깃용 Python 의존성 설치·버전 고정.
 2. PyInstaller 등으로 Python Core를 `.exe`로 패키징하고 직접 smoke test.
 3. Sidecar 바이너리를 Tauri v2가 요구하는 target triple/`externalBin` 설정에 맞춰 배치.
@@ -82,7 +82,7 @@ npm run build:installer
 ```bash
 npm run tauri build
 ```
-> 위 명령은 Tauri 번들 예시일 뿐 Python Sidecar를 자동 패키징하지 않는다. `scripts/package-core` 같은 **선행 빌드 스크립트**를 구현해야 한다.
+> 현재 `beforeBuildCommand`는 `npm run build && npm run package:core`다. `scripts/package-core.mjs`가 고정 빌드 도구·Sidecar·마이그레이션을 준비하고 이후 Tauri가 번들한다. 깨끗한 PC/전체 제품 흐름은 아직 검증하지 않았다.
 
 ## 설치 경로 정책
 ```text
@@ -133,3 +133,5 @@ npm run tauri build
 - `ai-asset-hub.exe --verify-core <새 절대 경로/core-verification-고유값>`은 창 없이 같은 Core 관리자로 실제 설치된 Sidecar·DB를 검증하고 종료한다. 기존 경로나 사용자 AppData는 검증 대상으로 받지 않는다. 일반 앱 시작 코드는 별도로 창을 생성한다.
 - `scripts/verify-installer.ps1`는 생성된 NSIS의 제품/등록 이름만 분리해 동일 파일을 프로젝트 내부 새 위치에 무인 설치(`/S /NS`, 앱 실행 `/R` 없음)한다. Sidecar 해시·스키마·WAL·Python 없는 PATH·Core 종료를 검증하고 해당 검증 설치만 제거한다. 기존 AIAssetHubDev 설치·등록은 유지한다.
 - R02-05 기본 설치본: 9,289,722바이트, SHA-256 `5177964f68361be44bf90baaa91856725b195db33ddc3be911939a7e3b235249`. 이후 변경 재빌드 시 해시는 달라진다. 미서명 개발본이며 깨끗한 PC/WebView2 신규 설치·GUI·정식 업그레이드는 미검증이다.
+
+M02 최종 R02-06 설치본은 같은 경로의 `AI Asset Hub_0.5.0_x64-setup.exe`, 9,292,156바이트이며 SHA-256은 `cbe483921a88455f2bcd32177729bae87e4cb74ea69b6ecfb889e5a08dbc02c2`다. 동일한 무화면 설치 검증을 통과했다. 기존 AIAssetHubDev 설치는 자동 업그레이드하지 않았다. GUI·깨끗한 PC·정식 서명 검증 한계는 그대로다.

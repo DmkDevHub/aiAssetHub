@@ -78,7 +78,8 @@ AI-Asset-Hub/
 - `R01-02`: 왼쪽 라이브러리 트리·폴더 선택 UI와 패널 너비 조절 구현. 현재 앱의 등록 폴더는 빈 상태이며 실폴더 연결은 M03 이후 범위다. 내부 자동화에서만 fixture 트리를 사용한다.
 - `R01-03`: 중앙 갤러리의 그리드/목록 전환·개수·빈 상태 구현. 현재 앱은 0개 에셋이며 데이터가 있는 레이아웃은 내부 fixture로 검증했다. 실제 파일·썸네일 연결은 M03 범위다.
 - `M01` 전 항목 완료: 오른쪽 선택 상세/탭/접기, 너비별 반응형 배치·F6/방향키 이동, 실제 테마/보기 명령 상태·오류 알림까지 구현. 내부 자동화 54개·타입·빌드 통과. 실제 화면 배치와 Core·파일·AI·Unity 연결은 미검증/후속 범위다.
-- `R02-01`: Python Core의 실측 `health.get` 개발 CLI 구현. DB는 미연결로 반환하며 앱 통신은 아직 연결하지 않는다. 실행·검사 방법은 [Core 안내](python-core/README.md)를 참고한다. 공통 검사는 개발용 Python 3.11 이상이 필요하다.
+- `R02-01`: Python Core의 실측 `health.get` 개발 CLI 구현. 데이터 경로 없이 직접 조회하면 DB 미연결로 반환한다. 데스크톱의 실제 연결은 아래 M02에 포함한다. 실행·검사 방법은 [Core 안내](python-core/README.md)를 참고한다. 공통 검사는 개발용 Python 3.11 이상이 필요하다.
+- `M02`: 데스크톱 비공개 Core 통신·실측 연결 상태, SQLite 스키마/백업/개발·운영 분리, Python 동봉 NSIS, 종료 감지/명시적 재연결 구현. 현재 범위는 엔진·DB 기반이며 실파일 수집·AI·MCP·Unity는 후속 범위다. 기존 `AIAssetHubDev` 설치는 보존하며 최신 설치본은 아래 빌드 결과를 사용한다.
 - `npm run dev`로 개발 앱을 실행하고 `npm run build:installer`로 설치본을 만든다. 설치본은 `src-tauri/target/release/bundle/nsis/`에 생성된다.
 - 개발 환경과 실행 명령, 검증 상태는 [DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고한다.
 - [ROADMAP.md](docs/ROADMAP.md)에서 최초 미완료 작업을 골라 **한 번에 한 작업만** 구현한다.

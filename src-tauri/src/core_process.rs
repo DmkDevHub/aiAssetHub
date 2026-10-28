@@ -98,6 +98,8 @@ impl Drop for Session {
 pub struct CoreProcess {
     spec: LaunchSpec,
     session: Option<Session>,
+    last_error: Option<&'static str>,
+    timeout: Duration,
 }
 
 impl CoreProcess {
@@ -105,11 +107,23 @@ impl CoreProcess {
         Self {
             spec,
             session: None,
+            last_error: None,
+            timeout: TIMEOUT,
         }
     }
 
     pub fn start(&mut self) -> Result<Value, &'static str> {
+        let result = self.launch();
+        if let Err(code) = result {
+            self.last_error = Some(code);
+            self.stop();
+        }
+        result
+    }
+
+    fn launch(&mut self) -> Result<Value, &'static str> {
         self.stop();
+        self.last_error = None;
         let mut command = Command::new(&self.spec.program);
         command
             .args(&self.spec.args)
@@ -167,14 +181,20 @@ impl CoreProcess {
 
     pub fn health(&mut self) -> Result<Value, &'static str> {
         let result = self.exchange_health();
-        if result.is_err() {
+        if let Err(code) = result {
+            self.last_error = Some(code);
             self.stop();
+        } else {
+            self.last_error = None;
         }
         result
     }
 
     fn exchange_health(&mut self) -> Result<Value, &'static str> {
-        let session = self.session.as_mut().ok_or("CORE_UNAVAILABLE")?;
+        let session = self
+            .session
+            .as_mut()
+            .ok_or(self.last_error.unwrap_or("CORE_UNAVAILABLE"))?;
         if session
             .child
             .try_wait()
@@ -192,7 +212,7 @@ impl CoreProcess {
         stdin.flush().map_err(|_| "CORE_UNAVAILABLE")?;
         let bytes = session
             .responses
-            .recv_timeout(TIMEOUT)
+            .recv_timeout(self.timeout)
             .map_err(|_| "CORE_TIMEOUT")?
             .map_err(|_| "CORE_PROTOCOL_ERROR")?;
         let response: Value = serde_json::from_slice(&bytes).map_err(|_| "CORE_PROTOCOL_ERROR")?;
@@ -238,6 +258,7 @@ mod tests {
         let mut core = CoreProcess::new(spec);
         assert_eq!(core.start().unwrap_err(), "CORE_START_FAILED");
         assert!(core.session.is_none());
+        assert_eq!(core.health().unwrap_err(), "CORE_START_FAILED");
     }
 
     #[test]
@@ -277,5 +298,59 @@ mod tests {
         core.stop();
         assert!(prod.join("asset_hub.sqlite").is_file());
         assert_eq!(core.start().unwrap()["data"]["database"]["status"], "ready");
+    }
+
+    #[test]
+    fn crashed_core_releases_database_and_requires_explicit_restart() {
+        let data = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../.artifacts/crash-tests")
+            .join(uuid::Uuid::new_v4().to_string());
+        let mut core = CoreProcess::new(LaunchSpec::development().with_data(data, "development"));
+        let before = core.start().unwrap();
+        let session = core.session.as_mut().unwrap();
+        session.child.kill().unwrap();
+        session.child.wait().unwrap();
+        assert_eq!(core.health().unwrap_err(), "CORE_EXITED");
+        assert!(core.session.is_none());
+        assert_eq!(core.health().unwrap_err(), "CORE_EXITED");
+        let after = core.start().unwrap();
+        assert_ne!(before["data"]["core"]["pid"], after["data"]["core"]["pid"]);
+        assert_eq!(after["data"]["database"]["status"], "ready");
+    }
+
+    #[test]
+    fn timeout_kills_and_reaps_a_stalled_child_without_leaking_arguments() {
+        let mut spec = LaunchSpec::development();
+        spec.args = vec![
+            "-B".into(),
+            "-c".into(),
+            "import time; time.sleep(10) # fixture-private-key".into(),
+        ];
+        let mut core = CoreProcess::new(spec);
+        core.timeout = Duration::from_millis(100);
+        let start = std::time::Instant::now();
+        assert_eq!(core.start().unwrap_err(), "CORE_TIMEOUT");
+        assert!(start.elapsed() < Duration::from_secs(2));
+        assert!(core.session.is_none());
+        assert_eq!(core.health().unwrap_err(), "CORE_TIMEOUT");
+    }
+
+    #[test]
+    fn invalid_or_mismatched_frames_are_rejected_and_session_is_reaped() {
+        for body in [
+            "print('fixture-private-invalid-json', flush=True)",
+            "print('{\"request_id\":\"wrong\",\"ok\":true}', flush=True)",
+            "print('x' * 20000, flush=True)",
+        ] {
+            let mut spec = LaunchSpec::development();
+            spec.args = vec![
+                "-B".into(),
+                "-c".into(),
+                format!("import sys,time; sys.stdin.readline(); {body}; time.sleep(10)"),
+            ];
+            let mut core = CoreProcess::new(spec);
+            assert_eq!(core.start().unwrap_err(), "CORE_PROTOCOL_ERROR");
+            assert!(core.session.is_none());
+        }
     }
 }
