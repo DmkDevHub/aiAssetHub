@@ -4,10 +4,13 @@ import struct
 from uuid import uuid4
 from .analysis_engine import AnalysisEngine
 from .embeddings import Embeddings,embed,vector
-from .libraries import LibraryError,valid_id
+from .libraries import LibraryError,valid_id,ERROR_MESSAGES
 
 
 class EmbeddingEngine(AnalysisEngine):
+    def __init__(self,database):
+        super().__init__(database);self.pending={}
+
     def start(self,database,params):
         if not isinstance(params,dict) or set(params)!={'selected','confirmed'} or params.get('confirmed') is not True:raise LibraryError('INVALID_PARAMS')
         pairs=params['selected']
@@ -29,10 +32,20 @@ class EmbeddingEngine(AnalysisEngine):
         filters=criteria(params.get('criteria',{}))
         return self.queue(database,{'criteria':filters,'kind':'query','profile':profile,'query':params['query'].strip(),'mode':params['mode'],'total':1})
 
+    def rebuild(self,database,params):
+        if not isinstance(params,dict) or set(params)!={'confirmed'} or params['confirmed'] is not True:raise LibraryError('INVALID_PARAMS')
+        service=Embeddings(database);profile=service.profile()
+        if not profile:raise LibraryError('EMBEDDING_NOT_READY')
+        docs=service.documents()
+        if len(docs)>1000:raise LibraryError('EMBEDDING_LIMIT')
+        return self.queue(database,{'kind':'rebuild','profile':profile,'selected':[{'asset_id':d['id'],'result_id':d['resultId']} for d in docs.values()],'total':len(docs)})
+
     def queue(self,database,job):
         with self.lock:
             if self.controls:raise LibraryError('EMBEDDING_BUSY')
-        identifier=str(uuid4());job.update(id=identifier,status='queued',processed=0,failed=0,errors=[])
+        identifier=str(uuid4());query=job.pop('query',None)
+        if query is not None:self.pending[identifier]=query
+        job.update(id=identifier,status='queued',processed=0,failed=0,errors=[])
         database.connection.execute("INSERT INTO settings VALUES (?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",('embedding.work.'+identifier,json.dumps(job)))
         self.launch(identifier);return {'jobId':identifier}
 
@@ -45,7 +58,9 @@ class EmbeddingEngine(AnalysisEngine):
             profile=job['profile']
             if job['kind']=='query':
                 from .semantic_search import search
+                job['query']=self.pending.pop(identifier)
                 job['results']=search(database,job,control);job.update(status='completed',processed=1);self.save(db,job);return
+            staged=[]
             for pair in job['selected']:
                 if control['cancel'].is_set():raise LibraryError('USER_CANCELED')
                 try:
@@ -57,31 +72,44 @@ class EmbeddingEngine(AnalysisEngine):
                     values=vector(embed(profile,doc['text'],False,control['cancel'],register),profile['dimension'])
                     service.fresh(profile);current=service.documents().get(doc['id'])
                     if not current or current['fingerprint']!=doc['fingerprint']:raise LibraryError('EMBEDDING_RESULT_CHANGED')
-                    db.execute('BEGIN IMMEDIATE')
-                    try:
-                        if service.profile()!=profile or service.documents().get(doc['id'],{}).get('fingerprint')!=doc['fingerprint']:raise LibraryError('EMBEDDING_RESULT_CHANGED')
-                        db.execute("INSERT INTO asset_embeddings VALUES (?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(asset_id,embedding_model) DO UPDATE SET result_id=excluded.result_id,dimension=excluded.dimension,vector_blob=excluded.vector_blob,input_fingerprint=excluded.input_fingerprint,created_at=excluded.created_at",
-                                   (doc['id'],doc['resultId'],profile['version'],profile['dimension'],struct.pack('<'+'f'*len(values),*values),doc['fingerprint']))
-                        db.execute('COMMIT')
-                    except Exception:db.execute('ROLLBACK');raise
+                    if job['kind']=='rebuild':staged.append((doc,values))
+                    else:
+                        db.execute('BEGIN IMMEDIATE')
+                        try:
+                            if service.profile()!=profile or service.documents().get(doc['id'],{}).get('fingerprint')!=doc['fingerprint']:raise LibraryError('EMBEDDING_RESULT_CHANGED')
+                            db.execute("INSERT INTO asset_embeddings VALUES (?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(asset_id,embedding_model) DO UPDATE SET result_id=excluded.result_id,dimension=excluded.dimension,vector_blob=excluded.vector_blob,input_fingerprint=excluded.input_fingerprint,created_at=excluded.created_at",
+                                       (doc['id'],doc['resultId'],profile['version'],profile['dimension'],struct.pack('<'+'f'*len(values),*values),doc['fingerprint']))
+                            db.execute('COMMIT')
+                        except Exception:db.execute('ROLLBACK');raise
                 except LibraryError as error:
                     job['failed']+=1
-                    if len(job['errors'])<10:job['errors'].append({'assetId':pair['asset_id'],'code':str(error)})
+                    if len(job['errors'])<10:job['errors'].append({'assetId':pair['asset_id'],'code':str(error) if str(error) in ERROR_MESSAGES else 'EMBEDDING_FAILED'})
                 job['processed']+=1;self.save(db,job)
+            if job['kind']=='rebuild':
+                if job['failed']:raise LibraryError('EMBEDDING_FAILED')
+                service.fresh(profile);db.execute('BEGIN IMMEDIATE')
+                try:
+                    current=service.documents()
+                    if service.profile()!=profile or set(current)!={d['id'] for d,v in staged} or any(current[d['id']]['fingerprint']!=d['fingerprint'] for d,v in staged):raise LibraryError('EMBEDDING_RESULT_CHANGED')
+                    db.execute('DELETE FROM asset_embeddings WHERE embedding_model=?',(profile['version'],))
+                    db.executemany("INSERT INTO asset_embeddings VALUES (?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",[(d['id'],d['resultId'],profile['version'],profile['dimension'],struct.pack('<'+'f'*len(v),*v),d['fingerprint']) for d,v in staged])
+                    db.execute("INSERT INTO search_documents(asset_id,searchable_text,version,updated_at) SELECT asset_id,searchable_text,1,strftime('%Y-%m-%dT%H:%M:%fZ','now') FROM asset_search_source WHERE 1 ON CONFLICT(asset_id) DO UPDATE SET searchable_text=excluded.searchable_text,version=search_documents.version+1,updated_at=excluded.updated_at")
+                    db.execute("INSERT INTO asset_fts(asset_fts) VALUES ('rebuild')");db.execute('COMMIT')
+                except Exception:db.execute('ROLLBACK');raise
             job['status']='failed' if job['failed'] else 'completed';self.save(db,job)
         except Exception as error:
             if database and job:
-                from .libraries import ERROR_MESSAGES
                 job['status']='canceled' if control['cancel'].is_set() else 'failed';job['error']=str(error) if isinstance(error,LibraryError) and str(error) in ERROR_MESSAGES else 'EMBEDDING_FAILED'
                 try:self.save(database.connection,job)
                 except Exception:pass
         finally:
             if database:database.close()
+            self.pending.pop(identifier,None)
             with self.lock:self.controls.pop(identifier,None)
 
     @staticmethod
     def save(db,job):
-        db.execute("UPDATE settings SET value_json=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE key=?",(json.dumps(job),'embedding.work.'+job['id']))
+        db.execute("UPDATE settings SET value_json=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE key=?",(json.dumps({k:v for k,v in job.items() if k!='query'}),'embedding.work.'+job['id']))
 
 
 def work_status(database,params):

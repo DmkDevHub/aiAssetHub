@@ -342,3 +342,12 @@ Node 112개·Python 81개·타입/빌드, Rust 12개 통과. 한국어 질의에
 
 ## R07-05 내부 검증
 Node 113개·Python 82개·타입/빌드, Rust 12개 통과. 벡터 없는 혼합 검색의 모델 호출 0건·키워드만 결과 표시, 태그/경로 검증·타입 조건 서버 전달·혼합 출처 표시 확인.
+
+## R07-06 / M07 최종 내부 검증
+- `npm run check`: Node 114개·Python 84개·타입 검사·Vite 빌드 통과. 이후 두 후보의 실제 UUID 코사인 순위·태그 선필터 회귀 추가 후 `npm run test:core` Python 85개 통과. `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored`: 13개, `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` 통과. 최종 내부 테스트 총 212개.
+- 버전 변경 후 준비 0개·신규 차원 재구축 후 준비 1개, 기존 공간 보존, 실패한 재구축 전후 벡터 bytes 동일, FTS integrity-check 통과. 질의 원문 DB 미포함·로컬 고정 HTTP 대상/검색 접두어·응답 모델 불일치/리다이렉트 거부·취소 후 요청 0건 확인. 벡터/메타데이터는 명시된 테스트 fixture이며 실제 한국어 모델 결과가 아니다.
+- 전체 재구축 체크박스와 명시 버튼, 승인 전 명령 0건, 일반 선택 생성과 재구축 명령 분리를 jsdom으로 확인. 실제 화면·브라우저·앱 창은 열거나 조작하지 않았다.
+- `npm run build:installer`와 `scripts/verify-installer.ps1` 통과. 새 Sidecar의 임베딩 상태 조회·미승인 재구축 거부를 Rust의 실제 비공개 파이프에서 확인했다. 전용 임시 설치본의 DB v3·실제 PID 종료·Sidecar 해시·조용한 제거/기존 설치 보존 통과. 설치본에서는 모델 추론을 실행하지 않았다.
+- 설치 파일 13677238 bytes, SHA256 `d2ca203790948a801363ce44705dc55353ddb714575cb0bc163b17d87dfe36c9`. 기존 NSIS Korean `choowHowToInstall` 문자열 경고 1개 유지. 로그 `.artifacts/m07-check.log`, `m07-python-final.log`, `m07-rust.log`, `m07-clippy.log`, `m07-installer-build.log`, `m07-installed-check.log`.
+- `scripts/verify-semantic-search.py --help` 통과. 실제 PNG fixture 3개의 로컬 이미지 분석→임베딩→한국어 top1·혼합 태그 검색→규격 변경/재구축/기존 공간 복원·원본 불변을 확인하도록 준비했으나 **실제 실행은 미실행**. 추가 다국어 모델 다운로드 승인 대기이며 R07-04의 실제 적합 결과와 마일스톤 H는 미완료다. 실제 모델 호출 예: `.artifacts/core-build-venv/Scripts/python.exe scripts/verify-semantic-search.py --embedding-model embeddinggemma:300m --report .artifacts/m07-real-semantic.json --sidecar src-tauri/binaries/core/ai-asset-hub-core/ai-asset-hub-core.exe`. 이는 승인 후 명시적으로 실행하며 자동 테스트에 포함하지 않는다.
+- 대규모 라이브러리 검색 성능·실제 OS 화면 배치·외부/유료 임베딩은 미검증/미지원. 원본 파일과 기존 사용자 DB를 검증 대상으로 사용하지 않았다.

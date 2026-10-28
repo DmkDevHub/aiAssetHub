@@ -1835,3 +1835,11 @@ test('hybrid query sends combined filters before server ranking',async()=>{
  const type=document.querySelector('[aria-label="타입 필터"]');type.value='PNG';dispatch(type,new Event('change',{bubbles:true}));await nextTick();
  dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='로컬 검색 실행'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(criteria.kind,'PNG');assert.match(document.querySelector('.asset-card').textContent,/키워드\+의미/);
 });
+
+test('whole embedding rebuild requires a separate explicit approval',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{calls.push(command);if(command==='embedding_status')return {ok:true,data:{profile:{modelName:'fixture',dimension:3,version:'v'},readyCount:0}};if(command==='embedding_rebuild')return {ok:true,data:{jobId:'fixture-rebuild'}};return {ok:true,data:{status:'completed',processed:1,total:1,failed:0}};}};
+ const button=[...document.querySelectorAll('.embedding-tools button')].find(b=>b.textContent==='현재 버전 전체 재구축');assert.equal(button.disabled,true);
+ dispatch([...document.querySelectorAll('.embedding-tools button')].find(b=>b.textContent==='임베딩 준비 상태 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(button.disabled,true);
+ const approval=document.querySelector('.embedding-tools input[type=checkbox]');approval.checked=true;dispatch(approval,new Event('change',{bubbles:true}));await nextTick();assert.deepEqual(calls,['embedding_status']);dispatch(button,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.ok(calls.includes('embedding_rebuild'));assert.ok(!calls.includes('embedding_start'));
+});

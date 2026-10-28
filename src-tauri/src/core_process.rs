@@ -250,6 +250,7 @@ impl CoreProcess {
                 | "embedding.start"
                 | "embedding.work"
                 | "embedding.query"
+                | "embedding.rebuild"
                 | "analysis.cancel"
                 | "analysis.retry_plan"
                 | "asset.analysis"
@@ -319,6 +320,14 @@ mod tests {
     use super::*;
 
     fn verify_model_registry(core: &mut CoreProcess) {
+        let embedding = core.library_request("embedding.status", json!({})).unwrap();
+        assert_eq!(embedding["ok"], true);
+        assert!(embedding["data"]["profile"].is_null());
+        assert_eq!(embedding["data"]["readyCount"], 0);
+        let unapproved = core
+            .library_request("embedding.rebuild", json!({"confirmed":false}))
+            .unwrap();
+        assert_eq!(unapproved["error"]["code"], "INVALID_PARAMS");
         let registered=core.library_request("model.register",json!({"provider_name":"Ollama","kind":"local","model_id":"fixture-model:wire-test","modalities":["image"]})).unwrap();
         assert_eq!(registered["ok"], true);
         let identifier = registered["data"]["id"].as_str().unwrap();

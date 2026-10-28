@@ -134,3 +134,15 @@
 mode는 all/unanalyzed/completed/failed/selected, scope는 folder/library/all이다. all 범위는 library_id=null·folder_parts=[], library 범위는 실제 활성 루트 UUID·빈 parts, folder는 실제 루트와 디렉터리 구성요소를 사용한다. selected_ids는 최대 200개 실제 활성 UUID이며 선택 범위와 교차한다. 범위 대상은 최대 1000개다. eligibleCount는 실제 stat·확장자·파일 크기를 통과한 이미지 후보 수이며 디코드 성공 보장이 아니다. missingCount는 권한/경로 포함 원본 확인 실패 수다.
 
 미리보기 토큰은 실제 대상 stat/모델·한도·가격 상한을 결합한다. 승인된 동일 request_id·동일 payload 재전송은 기존 Job을 반환하고 예약·추론을 추가하지 않는다. 중단된 Job은 needsRecovery로 표시하며 조회/재연결만으로 재개하지 않는다. 정상 입력 준비를 마치지 못해 해시를 확정하지 않은 경우 inputFingerprint는 빈 값이며 해시를 추측하지 않는다. 토큰은 추정 결과와 승인 조건을 일치시키기 위한 값이고 사용자 인증을 대체하지 않는다.
+
+## M07 임베딩 고정 명령
+| Tauri | Core | 입력/출력 |
+|---|---|---|
+| embedding_configure | embedding.configure | modelName→model_name,prefixScheme→prefix_scheme(plain/embeddinggemma) / profile,inferenceCalled:false |
+| embedding_status | embedding.status | 인자 없음 / profile,readyCount,inferenceCalled:false |
+| embedding_start | embedding.start | selected:[{asset_id,result_id}],confirmed:true / jobId |
+| embedding_query | embedding.query | query,mode(semantic/hybrid),confirmed:true,criteria / jobId |
+| embedding_rebuild | embedding.rebuild | confirmed:true / jobId |
+| embedding_work | embedding.work | jobId→job_id / id,kind,status,total,processed,failed,errors,error,results |
+
+criteria는 library_id(UUID/null),folder_parts(구성요소 배열),kind(대문자 확장자),tag(사용자 태그),analysis(빈 값/unanalyzed/completed/failed)다. 생략 필드는 기본값을 사용한다. 결과는 실제 id,score,reason(semantic/keyword/hybrid),semanticScore와 선택적 keywordScore만 반환하며 벡터/원문 오류/질의 원문을 반환하지 않는다. 작업은 queued/running/completed/failed/canceled/interrupted이며 재시작 후 중단 상태를 조회만으로 재개하지 않는다. 생성·재구축·질의는 공유 임베딩 작업 슬롯 하나를 사용하며 경합 시 EMBEDDING_BUSY로 실패한다.
