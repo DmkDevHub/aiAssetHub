@@ -60,17 +60,20 @@ def main():
         plan={'mode':'all','scope':'all','library_id':None,'folder_parts':[],'selected_ids':[],'model_id':model}
         preview=call('analysis.preview',plan)
         job=call('analysis.start',{'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId'];wait('analysis.status',job)
+        print('Local image analysis completed for three test-owned PNGs.',flush=True)
         captions={a['name']:call('asset.analysis',{'asset_id':a['id']})['active'] for a in assets}
         configured=call('embedding.configure',{'model_name':args.embedding_model,'prefix_scheme':'embeddinggemma'})['profile']
         pairs=[{'asset_id':a['id'],'result_id':captions[a['name']]['id']} for a in assets]
         wait('embedding.work',call('embedding.start',{'selected':pairs,'confirmed':True})['jobId'])
         assert call('embedding.status')['readyCount']==3
+        print('Three real document embeddings stored.',flush=True)
         queries=[]
         for query,target in [('중세 마을 횃불','torch.png'),('숲에서 쓸 만한 나무','tree.png'),('푸른 바다의 물결','water.png')]:
             result=wait('embedding.work',call('embedding.query',{'query':query,'mode':'semantic','confirmed':True})['jobId'])['results']
             expected=next(a['id'] for a in assets if a['name']==target)
             queries.append({'query':query,'expected':expected,'results':result})
             if not result or result[0]['id']!=expected:raise RuntimeError('KOREAN_RETRIEVAL_MISMATCH: '+json.dumps(queries,ensure_ascii=False))
+        print('Korean retrieval top-1 checks passed: 3/3.',flush=True)
         tree=next(a['id'] for a in assets if a['name']=='tree.png');call('asset.tags',{'asset_id':tree,'add':['tree','forest-fixture'],'remove':[]})
         hybrid=wait('embedding.work',call('embedding.query',{'query':'tree','mode':'hybrid','confirmed':True,'criteria':{'tag':'forest-fixture'}})['jobId'])['results']
         assert hybrid and hybrid[0]['id']==tree and hybrid[0]['reason']=='hybrid'

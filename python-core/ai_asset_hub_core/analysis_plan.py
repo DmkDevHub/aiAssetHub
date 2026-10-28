@@ -69,7 +69,7 @@ class AnalysisPlan:
             if type(context) is not int or not 1<=context<=2_000_000 or any(Decimal(value)!=0 for key,value in pricing.items() if key not in ('prompt','completion','image','request')):raise LibraryError('COST_ESTIMATE_UNAVAILABLE')
             cost=(Decimal(pricing['prompt'])*context+Decimal(pricing['completion'])*512+Decimal(pricing.get('image','0'))+Decimal(pricing.get('request','0')))*eligible
         if eligible:BudgetPolicy(self.db).check(params['model_id'],str(cost),eligible)
-        snapshot['analysisLimits']={'outputTokens':512,'inputBytes':20_000_000,'imageEdge':512,'promptSchema':'asset-description.v1'}
+        snapshot['analysisLimits']={'outputTokens':1024 if snapshot['kind']=='local' else 512,'inputBytes':20_000_000,'imageEdge':512,'promptSchema':'asset-description.v2'}
         token=hashlib.sha256(json.dumps({'request':params,'targets':live,'model':snapshot['profileVersion'],'cost':str(cost),'eligible':eligible,'limits':snapshot['analysisLimits']},sort_keys=True).encode('utf-8')).hexdigest()
         response={'eligibleCount':eligible,'unsupportedCount':unsupported,'overLimitCount':over_limit,'formats':formats,'targetCount':len(targets),'missingCount':sum(row[3]!='present' for row in live),'planToken':token,
                 'estimatedUpperBoundUsd':str(cost),'costIsEstimate':True,'externalTransfer':snapshot['kind']=='external',

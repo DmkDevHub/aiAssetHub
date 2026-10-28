@@ -351,3 +351,20 @@ Node 113개·Python 82개·타입/빌드, Rust 12개 통과. 벡터 없는 혼�
 - 설치 파일 13677238 bytes, SHA256 `d2ca203790948a801363ce44705dc55353ddb714575cb0bc163b17d87dfe36c9`. 기존 NSIS Korean `choowHowToInstall` 문자열 경고 1개 유지. 로그 `.artifacts/m07-check.log`, `m07-python-final.log`, `m07-rust.log`, `m07-clippy.log`, `m07-installer-build.log`, `m07-installed-check.log`.
 - `scripts/verify-semantic-search.py --help` 통과. 실제 PNG fixture 3개의 로컬 이미지 분석→임베딩→한국어 top1·혼합 태그 검색→규격 변경/재구축/기존 공간 복원·원본 불변을 확인하도록 준비했으나 **실제 실행은 미실행**. 추가 다국어 모델 다운로드 승인 대기이며 R07-04의 실제 적합 결과와 마일스톤 H는 미완료다. 실제 모델 호출 예: `.artifacts/core-build-venv/Scripts/python.exe scripts/verify-semantic-search.py --embedding-model embeddinggemma:300m --report .artifacts/m07-real-semantic.json --sidecar src-tauri/binaries/core/ai-asset-hub-core/ai-asset-hub-core.exe`. 이는 승인 후 명시적으로 실행하며 자동 테스트에 포함하지 않는다.
 - 대규모 라이브러리 검색 성능·실제 OS 화면 배치·외부/유료 임베딩은 미검증/미지원. 원본 파일과 기존 사용자 DB를 검증 대상으로 사용하지 않았다.
+
+## 2026-10-29 R07-04 / M07 실제 로컬 검증 완료
+- 사용자 ‘추가 다운로드·실제 검증 허용’ 승인 후 기존 Ollama에 `embeddinggemma:300m` 다운로드. 공식 표기 622MB, 로컬 실측 621875917 bytes·embedding capability·768차원. manifest digest `85462619ee721b466c5927d109d4cb765861907d5417b9109caebc4e614679f1`, pull의 SHA256 검증 성공. 설치 경로/공식 근거는 MODEL_MANAGEMENT에 기록했다. 외부/유료 추론 호출 없음.
+- 초기 동봉 Core 실제 시험은 물결 이미지 1개에서 INVALID_MODEL_OUTPUT으로 실패했다(`.artifacts/m07-real-semantic.log`). 같은 테스트 이미지의 로컬 진단은 `done_reason:length`, eval_count=512, 빈 최종 content를 반환했다. 추론을 완성된 설명으로 저장하지 않았다. 로컬 출력 상한 1024·한 문장/최대 8태그의 v2 규격·명시적 MODEL_OUTPUT_LIMIT 오류 및 스냅샷 한도 기록 회귀를 추가했다. 외부 512토큰 예약/상한은 유지한다. 자동 재시도 없이 보완 후 명시적으로 다시 실행했다.
+- 실행: `.artifacts/core-build-venv/Scripts/python.exe -B scripts/verify-semantic-search.py --embedding-model embeddinggemma:300m --report .artifacts/m07-real-semantic.json`. 테스트 소유 torch/tree/water PNG를 qwen3-vl:2b가 실제 분석하고 실제 결과 UUID를 임베딩했다. 실제 설명은 각각 ‘stylized fire icon…brown stick’, ‘green triangular tree…brown trunk’, ‘Blue background with white curved lines…’였다. 수동 설명/가짜 벡터/추측 ID를 삽입하지 않았다.
+
+| 한국어 질의 | 실제 1위 테스트 파일 | 코사인 점수 |
+|---|---|---|
+| 중세 마을 횃불 | torch.png | 0.282786 |
+| 숲에서 쓸 만한 나무 | tree.png | 0.366854 |
+| 푸른 바다의 물결 | water.png | 0.260616 |
+
+- 3/3 top1 통과, 사용자 태그 필터를 적용한 혼합 검색에서 실제 tree UUID·hybrid 출처 확인. EmbeddingGemma→plain 규격 교체 시 새 버전/준비 0개, 전체 재구축 후 준비 3개, 원래 규격 복원 시 기존 벡터 3개 확인. 원본 PNG 3개 SHA256 불변. 보고 `.artifacts/m07-real-semantic.json`, 로그 `.artifacts/m07-real-semantic-final.log`.
+- 최종 동봉 PyInstaller Core를 Python 없는 PATH·비공개 JSON 파이프로 다시 실행했다. 앞선 개발 검증 DB를 같은 development 환경으로 열어 실제 PID·동일 profile·준비 3개·한국어 ‘숲에서 쓸 만한 나무’ top1 보존을 확인하고 EOF 정상 종료·stderr 0 bytes 확인. 보고 `.artifacts/m07-packaged-restart.json`, 로그 `.artifacts/m07-packaged-restart.log`. Sidecar SHA256 `29185b32e64c2985c67824c16b71442531ddd17fd6a2a0115e5b3e947ad58fcb`.
+- 최종 `npm run check` Node 114개·Python 86개·타입 검사·Vite 빌드 통과, 스냅샷 검증 보완 후 `npm run test:core`도 Python 86개 통과. Rust `--include-ignored` 13개 및 Clippy `-D warnings` 통과. **총 213개 내부 테스트**. 로그 `.artifacts/m07-final-check.log`, `m07-final-python.log`, `m07-final-rust.log`, `m07-final-clippy.log`.
+- 최종 `npm run build:installer` 및 `scripts/verify-installer.ps1` 통과. 임시 전용 설치본의 DB v3·실제 Core PID 종료·Sidecar 해시·조용한 제거/기존 설치 보존 확인. NSIS 설치본은 13675518 bytes, SHA256 `815259d92f3ca6c35005da5540341384398b630d7f4e0f63ad6c4908224e0246`. 기존 Korean choowHowToInstall 문자열 경고 1개 유지. 로그 `.artifacts/m07-final-installer-build.log`, `m07-final-installed-check.log`.
+- R07-04/H 및 M07 전체 완료로 갱신한다. 위 결과는 단순 테스트 이미지 3개에 한정하며 다양한 실사용 에셋·대규모 라이브러리 품질/성능·깨끗한 PC·시각적 배치/OS 화면은 미검증이다. 실제 화면 조작·외부 유료 호출·사용자 원본 수정·원격 push는 하지 않았다. 앞선 승인 대기/미실행 기록은 당시의 검증 이력으로 보존한다.

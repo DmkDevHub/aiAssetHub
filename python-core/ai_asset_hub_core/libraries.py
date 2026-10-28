@@ -151,6 +151,7 @@ ERROR_MESSAGES = {
     'API_AUTHENTICATION': '공급자 인증을 확인하세요.',
     'API_FAILED': '모델 호출에 실패했습니다.',
     'INVALID_MODEL_OUTPUT': '모델 응답 형식이 올바르지 않습니다.',
+    'MODEL_OUTPUT_LIMIT': '모델이 출력 한도 내에 최종 응답을 완료하지 못했습니다. 자동 재시도하지 않습니다.',
     'USER_CANCELED': '사용자가 분석을 취소했습니다.',
     'ANALYSIS_NOT_FOUND': '분석 작업을 찾을 수 없습니다.',
     'COST_ESTIMATE_UNAVAILABLE': '안전한 비용 상한을 계산할 수 없습니다.',

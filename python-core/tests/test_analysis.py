@@ -354,3 +354,19 @@ class AnalysisTests(unittest.TestCase):
             while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
             engine.close();inference.assert_not_called()
         self.assertEqual(jobs.status({'job_id':job})['errors'][0]['code'],'MODEL_UNAVAILABLE')
+
+    def test_local_reasoning_token_limit_cannot_be_saved_as_a_final_result(self):
+        import json,threading
+        from unittest.mock import MagicMock,patch
+        from ai_asset_hub_core.inference import infer
+        connection=MagicMock();response=connection.getresponse.return_value;response.status=200
+        response.read.return_value=json.dumps({'model':'fixture','done_reason':'length','message':{'content':'','thinking':'private fixture reasoning'}}).encode()
+        snapshot={'kind':'local','provider':'Ollama','modelId':'fixture','inspection':{'supportsThinking':True}}
+        limits=AnalysisPlan(self.db).preview(self.params(),internal=True)['snapshot']['analysisLimits']
+        self.assertEqual(limits['outputTokens'],1024);self.assertEqual(limits['promptSchema'],'asset-description.v2')
+        with patch('ai_asset_hub_core.inference.http.client.HTTPConnection',return_value=connection):
+            with self.assertRaisesRegex(LibraryError,'MODEL_OUTPUT_LIMIT'):infer(snapshot,{'image':'fixture'},threading.Event(),lambda _:None)
+        payload=json.loads(connection.request.call_args.args[2]);self.assertFalse(payload['think'])
+        self.assertEqual(payload['options']['num_predict'],1024)
+        self.assertEqual(payload['format']['properties']['tags']['maxItems'],8)
+        connection.close.assert_called_once()
