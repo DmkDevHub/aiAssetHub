@@ -87,3 +87,20 @@ class AnnotationTests(unittest.TestCase):
         from ai_asset_hub_core.search import SearchService
         self.assertEqual(SearchService(self.db).search({'query':'shared'})['ids'],[self.id])
         self.assertEqual(db.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],1)
+
+    def test_new_queued_attempt_and_source_fingerprint_survive_reopen(self):
+        import json
+        from uuid import uuid4
+        from ai_asset_hub_core.analysis_state import asset_state
+        job=str(uuid4())
+        self.db.connection.execute("INSERT INTO analysis_jobs(id,request_id,scope_json,model_snapshot_json,requested_count,status,created_at,initiated_by) VALUES (?,?,'{}','{}',1,'queued','2030-01-01','fixture')",(job,str(uuid4())))
+        self.db.connection.execute("INSERT INTO analysis_job_items(job_id,asset_id,status) VALUES (?,?,'queued')",(job,self.id))
+        self.assertEqual(asset_state(self.db.connection,self.id)['lastAttemptState'],'queued')
+        self.db.close();self.db=Database(self.base/'db.sqlite')
+        state=asset_state(self.db.connection,self.id)
+        self.assertEqual(state['lastAttemptState'],'queued');self.assertFalse(state['hasActiveResult'])
+        self.db.connection.execute("UPDATE asset_files SET sha256='fixture-hash'")
+        (self.source/'나무.png').write_bytes(b'changed-original-fixture')
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        AssetService(self.db).scan({'library_id':library})
+        self.assertIsNone(self.db.connection.execute('SELECT sha256 FROM asset_files').fetchone()[0])

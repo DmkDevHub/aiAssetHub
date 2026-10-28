@@ -283,3 +283,6 @@ Node 99개·Python 59개·타입/빌드 통과. 유료 기본 OFF·미인증/미
 
 - 최종 Rust `--include-ignored` 13개 통과: 새 PyInstaller Core에서도 Registry UUID·기본 OFF·비호환 선택 차단을 실측했다. `npm run build:installer` 및 `scripts/verify-installer.ps1` 통과: 임시 전용 설치본의 DB v2·Core 실제 PID 종료·Sidecar 해시·조용한 제거/기존 설치 보존 확인, GUI 미실행.
 - 설치 파일 13544949 bytes, SHA256 `61f157a587a5c26b9271cbeac4e4957f99b79fd39274d4ae4742af8e8ecbbbff`. 기존 NSIS Korean choowHowToInstall 문자열 경고 1개 유지.
+
+## R06-01 내부 검증
+`npm run check`: Node 100개·Python 61개·타입/빌드 통과. 대기 상태 DB 재개방·원본 변경 시 해시 무효화, 기존 실패 재분석 후 성공 결과 유지 회귀 통과. 실제 화면 조작 없음.

@@ -67,7 +67,7 @@ class AssetService:
                 if key in existing:
                     file_id, asset_id, size, mtime, present = existing[key]
                     change='changed' if (size,mtime,present)!=(info.st_size,info.st_mtime_ns,1) else 'unchanged'
-                    self.db.execute('UPDATE asset_files SET size_bytes=?,mtime_ns=?,exists_flag=1 WHERE id=?', (info.st_size, info.st_mtime_ns, file_id))
+                    self.db.execute('UPDATE asset_files SET sha256=CASE WHEN size_bytes!=? OR mtime_ns!=? THEN NULL ELSE sha256 END,size_bytes=?,mtime_ns=?,exists_flag=1 WHERE id=?', (info.st_size,info.st_mtime_ns,info.st_size, info.st_mtime_ns, file_id))
                 else:
                     change='new'
                     asset_id, file_id = str(uuid4()), str(uuid4())
@@ -97,11 +97,8 @@ class AssetService:
             WHERE l.enabled=1 AND a.id>? ORDER BY a.id LIMIT 2''', (params.get('after_id') or '',)).fetchall()
         items = [dict(zip(('id','name','kind','libraryId','relativePath','path','size','mtimeNs','exists','scanChange'), row)) for row in rows[:1]]
         for item in items:
-            item['hasActiveResult'] = bool(self.db.execute('SELECT 1 FROM asset_active_results WHERE asset_id=?', (item['id'],)).fetchone())
-            attempt = self.db.execute('SELECT status FROM analysis_runs WHERE asset_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1', (item['id'],)).fetchone()
-            item['lastAttemptState'] = attempt[0] if attempt else None
-            active = self.db.execute('SELECT r.created_at FROM asset_active_results ar JOIN analysis_results r ON r.id=ar.analysis_result_id WHERE ar.asset_id=?', (item['id'],)).fetchone()
-            item['lastAnalysisAt'] = active[0] if active else None
+            from .analysis_state import asset_state
+            item.update(asset_state(self.db,item['id']))
             item['userTags'] = [row[0] for row in self.db.execute("SELECT t.label FROM tags t JOIN asset_tags at ON at.tag_id=t.id WHERE at.asset_id=? AND at.source='user' ORDER BY t.normalized_label", (item['id'],))]
             item['kind'] = item['kind'].lstrip('.').upper() or 'FILE'
             item['exists'] = bool(item['exists'])
