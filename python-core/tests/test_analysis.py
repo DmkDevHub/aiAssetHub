@@ -36,3 +36,15 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(plan.preview(self.params(mode='selected',selected_ids=[other]))['targetCount'],1)
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],2)
         with self.assertRaises(LibraryError):plan.preview(self.params(mode='selected',selected_ids=[str(uuid4())]))
+
+    def test_folder_library_and_selection_scopes_intersect_without_prefix_collisions(self):
+        for folder in ('tree','treehouse'):
+            path=self.source/folder;path.mkdir();(path/'asset.png').write_bytes(b'fixture')
+        nested=self.source/'tree'/'child';nested.mkdir();(nested/'nested.png').write_bytes(b'fixture')
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        AssetService(self.db).scan({'library_id':library});plan=AnalysisPlan(self.db)
+        self.assertEqual(plan.preview(self.params(scope='folder',library_id=library,folder_parts=['tree']))['targetCount'],2)
+        self.assertEqual(plan.preview(self.params(scope='library',library_id=library))['targetCount'],4)
+        self.assertEqual(plan.preview(self.params(scope='folder',library_id=library,folder_parts=['tree'],mode='selected',selected_ids=[self.id]))['targetCount'],0)
+        with self.assertRaises(LibraryError):plan.preview(self.params(scope='folder',library_id=library,folder_parts=['..']))
+        with self.assertRaises(LibraryError):plan.preview(self.params(scope='library',library_id=str(uuid4())))

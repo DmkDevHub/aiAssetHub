@@ -24,10 +24,21 @@ async function show(){
  }catch{if(alive)error.value='모델 목록을 불러오지 못했습니다.';}
  finally{if(alive)busy.value=false;}
 }
+function requestPlan(){
+ let library:string|null=null,parts:string[]=[];
+ if(scope.value!=='all'){
+  if(!props.folderId)throw new Error();
+  if(props.folderId.startsWith('folder:')){
+   const path=JSON.parse(props.folderId.slice(7)) as string[];library=path[0]??null;
+   if(scope.value==='folder')parts=path.slice(1);
+  }else library=props.folderId;
+ }
+ return {mode:mode.value,scope:scope.value,library_id:library,folder_parts:parts,selected_ids:mode.value==='selected'?props.selectedIds:[],model_id:model.value};
+}
 async function review(){
  if(busy.value || !model.value)return;busy.value=true;error.value='';preview.value=null;
  try{
-  const result=await invoke<{ok:boolean;data:{targetCount:number;missingCount:number;planToken:string}}>('preview_analysis',{plan:{mode:mode.value,scope:scope.value,library_id:null,folder_parts:[],selected_ids:mode.value==='selected'?props.selectedIds:[],model_id:model.value}});
+  const result=await invoke<{ok:boolean;data:{targetCount:number;missingCount:number;planToken:string}}>('preview_analysis',{plan:requestPlan()});
   if(!result.ok || !Number.isSafeInteger(result.data?.targetCount))throw new Error();
   preview.value=result.data;
  }catch{error.value='대상을 확인하지 못했습니다. 분석 범위와 모델을 확인하세요.';}
