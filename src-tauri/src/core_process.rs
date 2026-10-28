@@ -207,7 +207,11 @@ impl CoreProcess {
     pub fn library_request(&mut self, method: &str, params: Value) -> Result<Value, &'static str> {
         if !matches!(
             method,
-            "library.register" | "library.unregister" | "library.list"
+            "library.register"
+                | "library.unregister"
+                | "library.list"
+                | "library.scan"
+                | "asset.list"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

@@ -8,6 +8,7 @@ import type { AssetSummary } from "../types/assets";
 import { useWorkspaceLayout } from "../composables/useWorkspaceLayout";
 import LibraryManagement from '../components/LibraryManagement.vue';
 import { libraries, refreshLibraries } from '../stores/libraries';
+import { assets } from '../stores/assets';
 
 onMounted(() => { void refreshLibraries(); });
 watch(() => libraries.roots, (roots) => {
@@ -16,9 +17,10 @@ watch(() => libraries.roots, (roots) => {
 const emptyMessage = computed(() => libraries.loading ? '등록 폴더를 불러오는 중입니다.'
   : libraries.error ? '등록 폴더를 확인하지 못했습니다.' : '등록된 폴더가 없습니다.');
 
-const props = withDefaults(defineProps<{ items?: readonly AssetSummary[] }>(), { items: () => [] });
+const props = defineProps<{ items?: readonly AssetSummary[] }>();
+const items = computed(() => props.items ?? assets.items);
 const selectedId = ref<string | null>(null);
-const selectedAsset = computed(() => props.items.find((item) => item.id === selectedId.value) ?? null);
+const selectedAsset = computed(() => items.value.find((item) => item.id === selectedId.value) ?? null);
 watch(selectedAsset, (asset) => { if (!asset) selectedId.value = null; });
 const workspace = ref<HTMLElement>();
 const layout = useWorkspaceLayout(workspace);

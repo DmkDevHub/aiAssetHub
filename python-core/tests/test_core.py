@@ -71,7 +71,7 @@ class CoreTests(unittest.TestCase):
 
     def test_unknown_or_analysis_commands_cannot_run_health_or_start_work(self):
         with patch.object(self.app, "health", side_effect=AssertionError("must not run")):
-            for method in ["analysis.start", "library.scan", "__dict__", "fixture-secret"]:
+            for method in ["analysis.start", "__dict__", "fixture-secret"]:
                 response = self.app.handle(self.request(method=method))
                 self.assertEqual(response["error"]["code"], "METHOD_NOT_FOUND")
                 self.assertFalse(response["error"]["retryable"])

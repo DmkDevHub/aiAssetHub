@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const root = fileURLToPath(new URL("../", import.meta.url));
+const root = fileURLToPath(new URL("../python-core/", import.meta.url));
 const tests = fileURLToPath(new URL("../python-core/tests/", import.meta.url));
 const python = process.env.AI_ASSET_HUB_PYTHON || "python";
 const result = spawnSync(python, ["-B", "-m", "unittest", "discover", "-s", tests, "-v"], {

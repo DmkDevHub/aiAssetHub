@@ -47,15 +47,17 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
-            if method not in {"health.get", "library.register", "library.unregister", "library.list"}:
+            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list"}:
                 return self.error(request_id, "METHOD_NOT_FOUND", "지원하지 않는 명령입니다.")
-            if method.startswith('library.'):
+            if method.startswith(('library.', 'asset.')):
                 from .libraries import LibraryService, LibraryError, ERROR_MESSAGES
                 import sqlite3
                 try:
                     service = LibraryService(self.database)
+                    from .assets import AssetService
                     action = {'library.register': service.register, 'library.unregister': service.unregister,
-                              'library.list': service.list}[method]
+                              'library.list': service.list, 'library.scan': AssetService(self.database).scan,
+                              'asset.list': AssetService(self.database).list}[method]
                     return self._response(request_id, data=action(request.get('params', {})))
                 except LibraryError as error:
                     code = str(error) if str(error) in ERROR_MESSAGES else 'DB_UNAVAILABLE'
