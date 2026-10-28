@@ -19,3 +19,5 @@ export { libraries, refreshLibraries, registerLibrary, unregisterLibrary, resetL
 export { folderNodes, filterFolder } from '../../src/services/assetFolders';
 export { default as AssetThumbnail } from '../../src/components/AssetThumbnail.vue';
 export { default as AssetMetadata } from '../../src/components/AssetMetadata.vue';
+
+export { default as AssetAnnotations } from '../../src/components/AssetAnnotations.vue';

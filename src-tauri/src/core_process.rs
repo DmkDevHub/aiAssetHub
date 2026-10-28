@@ -229,6 +229,8 @@ impl CoreProcess {
                 | "asset.list"
                 | "asset.thumbnail"
                 | "asset.get"
+                | "asset.annotations"
+                | "asset.tags"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

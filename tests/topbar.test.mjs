@@ -1441,3 +1441,35 @@ test('a fresh UI session reloads stored library IDs and renders names as literal
   assert.equal(document.querySelector('[data-folder-id]').dataset.folderId, record.id);
   assert.equal(document.querySelectorAll('[data-folder-id]').length, 1);
 });
+
+async function mountAnnotations(invoke) {
+  app.unmount(); globalThis.isTauri = true;
+  dom.window.__TAURI_INTERNALS__ = {invoke};
+  app = createApp(components.AssetAnnotations, {assetId:'12345678-1234-4234-9234-123456789abc'});
+  app.config.errorHandler = error => errors.push(error); app.mount('#app');
+  await new Promise(resolve => setImmediate(resolve)); await nextTick();
+}
+test('user tags load, submit and delete through fixed Core commands', async () => {
+  const calls=[];
+  await mountAnnotations(async (command, args) => {
+    calls.push([command,args]);
+    return {ok:true,data:{tags:command==='asset_annotations'?['old']:args.add}};
+  });
+  assert.match(document.querySelector('.user-annotations').textContent,/old/);
+  const input=document.querySelector('.user-annotations input'); input.value='숲';
+  dispatch(input,new Event('input',{bubbles:true})); await nextTick();
+  dispatch(document.querySelector('.user-annotations form'),new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve => setImmediate(resolve)); await nextTick();
+  assert.deepEqual(calls[1][1].add,['숲']);
+  dispatch(document.querySelector('.user-annotations li button'),new MouseEvent('click',{bubbles:true}));
+  await new Promise(resolve => setImmediate(resolve)); await nextTick();
+  assert.deepEqual(calls[2][1].remove,['숲']);
+  assert.equal(document.querySelectorAll('.user-annotations li').length,0);
+});
+test('user tag write failure is visible and keeps saved tags', async () => {
+  await mountAnnotations(async command => ({ok:command==='asset_annotations',data:{tags:['saved']}}));
+  dispatch(document.querySelector('.user-annotations li button'),new MouseEvent('click',{bubbles:true}));
+  await new Promise(resolve => setImmediate(resolve)); await nextTick();
+  assert.match(document.querySelector('[role=alert]').textContent,/저장하지 못/);
+  assert.match(document.querySelector('.user-annotations li').textContent,/saved/);
+});

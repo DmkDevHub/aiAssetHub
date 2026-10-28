@@ -9,6 +9,47 @@ use tauri_plugin_dialog::DialogExt;
 type CoreState = Arc<Mutex<CoreProcess>>;
 
 #[tauri::command]
+async fn asset_annotations(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.annotations",
+                serde_json::json!({"asset_id":asset_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+#[tauri::command]
+async fn edit_asset_tags(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    add: Vec<String>,
+    remove: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.tags",
+                serde_json::json!({"asset_id":asset_id,"add":add,"remove":remove}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn get_asset(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -239,7 +280,9 @@ pub fn run() {
             scan_library,
             list_assets,
             asset_thumbnail,
-            get_asset
+            get_asset,
+            asset_annotations,
+            edit_asset_tags
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")
