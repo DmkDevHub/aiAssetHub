@@ -27,3 +27,5 @@ export { keywordFilter, stateFilter, sortAssets } from '../../src/services/asset
 export {assets, refreshAssets, resetAssets} from '../../src/stores/assets';
 
 export {default as ModelsView} from '../../src/views/ModelsView.vue';
+
+export {default as ModelCredential} from '../../src/components/ModelCredential.vue';

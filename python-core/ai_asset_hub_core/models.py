@@ -10,6 +10,12 @@ class ModelService:
         if database is None or getattr(database,'connection',None) is None:
             raise LibraryError('DB_UNAVAILABLE')
         self.db=database.connection
+        self.database=database
+
+    @property
+    def vault(self):
+        from .credentials import Vault
+        return Vault(self.database.path)
 
     @staticmethod
     def text(value, limit):
@@ -46,6 +52,9 @@ class ModelService:
             FROM model_registry m JOIN model_providers p ON p.id=m.provider_id
             WHERE m.id>? ORDER BY m.id LIMIT 11''',(params.get('after_id') or '',)).fetchall()
         items=[{'id':r[0],'provider':r[1],'kind':r[2],'modelId':r[3],'modalities':json.loads(r[4]),'enabled':bool(r[5]),'inspection':json.loads(r[6])} for r in rows[:10]]
+        for item in items:
+            try:item['hasCredential']=self.vault.read(item['id']) is not None
+            except OSError:item['hasCredential']=False
         bounded=[];size=0
         for item in items:
             length=len(json.dumps(item,ensure_ascii=False).encode('utf-8'))
@@ -73,3 +82,28 @@ class ModelService:
         result.update(checkedAt=datetime.now(timezone.utc).isoformat(),inferenceCalled=False,verified=result['status']=='available')
         self.db.execute('UPDATE model_registry SET capabilities_json=?,enabled=0 WHERE id=?',(json.dumps(result),params['id']))
         return result
+
+    def credential(self, params):
+        if not isinstance(params,dict) or set(params)-{'id','action','key','allow_external'} or not valid_id(params.get('id')) or params.get('action') not in ('save','delete','test'):
+            raise LibraryError('INVALID_PARAMS')
+        row=self.db.execute('SELECT p.name,p.kind,m.capabilities_json FROM model_registry m JOIN model_providers p ON p.id=m.provider_id WHERE m.id=?',(params['id'],)).fetchone()
+        if not row or row[0].casefold()!='openrouter' or row[1]!='external':raise LibraryError('INVALID_PARAMS')
+        caps=json.loads(row[2]);caps['authentication']='not_tested'
+        action=params['action']
+        if action=='save':
+            key=params.get('key')
+            if not isinstance(key,str) or not 1<=len(key)<=1024 or not key.isascii() or any(ord(c)<33 or ord(c)>126 for c in key):raise LibraryError('INVALID_PARAMS')
+            self.vault.write(params['id'],key)
+        elif action=='delete':self.vault.delete(params['id'])
+        else:
+            if params.get('allow_external') is not True:return {'status':'external_consent_required','inferenceCalled':False}
+            key=self.vault.read(params['id'])
+            if not key:return {'status':'credential_missing','inferenceCalled':False}
+            from .providers import metadata
+            try:
+                data=metadata('https://openrouter.ai/api/v1/key',key=key)
+                if not isinstance(data.get('data'),dict):raise ValueError()
+                caps['authentication']='authenticated'
+            except Exception:caps['authentication']='failed'
+        self.db.execute('UPDATE model_registry SET capabilities_json=?,enabled=0 WHERE id=?',(json.dumps(caps),params['id']))
+        return {'status':caps['authentication'] if action=='test' else 'saved' if action=='save' else 'deleted','inferenceCalled':False}

@@ -237,6 +237,7 @@ impl CoreProcess {
                 | "model.register"
                 | "model.list"
                 | "model.inspect"
+                | "model.credential"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

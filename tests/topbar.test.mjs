@@ -1667,3 +1667,12 @@ test('external model inspection sends only explicit consent and displays unknown
  await new Promise(r=>setImmediate(r));await nextTick();assert.equal(sent.allowExternal,true);
  assert.match(document.querySelector('.model-list').textContent,/paid/);assert.match(document.querySelector('.model-list').textContent,/not_tested/);
 });
+
+test('credential input is masked, sent only on save and cleared after failure',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:false};}};
+ app=createApp(components.ModelCredential,{id:'fixture',hasCredential:false,allowExternal:false});app.config.errorHandler=e=>errors.push(e);app.mount('#app');
+ const input=document.querySelector('.model-credential input');assert.equal(input.type,'password');input.value='fixture-private-key';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,0);
+ dispatch(document.querySelector('.model-credential form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[0][0],'model_credential');assert.equal(calls[0][1].key,'fixture-private-key');assert.equal(input.value,'');assert.doesNotMatch(document.body.textContent,/fixture-private-key/);
+});

@@ -91,3 +91,23 @@ class ModelTests(unittest.TestCase):
         with patch('ai_asset_hub_core.providers.metadata',return_value=data):
             self.assertEqual(self.service.inspect({'id':identifier,'allow_external':True})['status'],'unavailable')
         self.assertFalse(self.service.list({})['items'][0]['enabled'])
+
+    def test_windows_vault_roundtrip_is_scoped_and_never_stored_in_database(self):
+        import os,json
+        if os.name!='nt':self.skipTest('Windows vault only')
+        profile=self.profile();profile.update(provider_name='OpenRouter',kind='external')
+        identifier=self.service.register(profile)['id'];secret='fixture-private-credential-value'
+        try:
+            self.service.credential({'id':identifier,'action':'save','key':secret})
+            self.assertEqual(self.service.vault.read(identifier),secret)
+            self.assertTrue(self.service.list({})['items'][0]['hasCredential'])
+            self.assertNotIn(secret,json.dumps(self.service.list({})))
+            for table,column in [('model_registry','capabilities_json'),('settings','value_json')]:
+                self.assertNotIn(secret,str(self.db.connection.execute(f'SELECT {column} FROM {table}').fetchall()))
+            from unittest.mock import patch
+            with patch('ai_asset_hub_core.providers.metadata',return_value={'data':{}}) as request:
+                self.assertEqual(self.service.credential({'id':identifier,'action':'test','allow_external':True})['status'],'authenticated')
+                request.assert_called_once_with('https://openrouter.ai/api/v1/key',key=secret)
+            self.service.credential({'id':identifier,'action':'delete'})
+            self.assertIsNone(self.service.vault.read(identifier))
+        finally:self.service.vault.delete(identifier)

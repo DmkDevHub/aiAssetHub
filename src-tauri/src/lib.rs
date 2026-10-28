@@ -8,6 +8,18 @@ use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
 #[tauri::command]
+async fn model_credential(
+    state: tauri::State<'_, CoreState>,
+    id: String,
+    action: String,
+    key: Option<String>,
+    allow_external: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move||state.lock().map_err(|_|"CORE_UNAVAILABLE")?.library_request("model.credential",serde_json::json!({"id":id,"action":action,"key":key,"allow_external":allow_external.unwrap_or(false)}))).await.map_err(|_|"CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn inspect_model(
     state: tauri::State<'_, CoreState>,
     id: String,
@@ -401,7 +413,8 @@ pub fn run() {
             search_assets,
             list_models,
             register_model,
-            inspect_model
+            inspect_model,
+            model_credential
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")
