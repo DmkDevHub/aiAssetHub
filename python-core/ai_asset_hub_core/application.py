@@ -47,7 +47,7 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
-            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail"}:
+            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail", "asset.get"}:
                 return self.error(request_id, "METHOD_NOT_FOUND", "지원하지 않는 명령입니다.")
             if method.startswith(('library.', 'asset.')):
                 from .libraries import LibraryService, LibraryError, ERROR_MESSAGES
@@ -58,7 +58,8 @@ class CoreApplication:
                     from .thumbnails import thumbnail
                     action = {'library.register': service.register, 'library.unregister': service.unregister,
                               'library.list': service.list, 'library.scan': AssetService(self.database).scan,
-                              'asset.list': AssetService(self.database).list, 'asset.thumbnail': lambda params: thumbnail(self.database, params)}[method]
+                              'asset.list': AssetService(self.database).list, 'asset.get': AssetService(self.database).get,
+                              'asset.thumbnail': lambda params: thumbnail(self.database, params)}[method]
                     return self._response(request_id, data=action(request.get('params', {})))
                 except LibraryError as error:
                     code = str(error) if str(error) in ERROR_MESSAGES else 'DB_UNAVAILABLE'

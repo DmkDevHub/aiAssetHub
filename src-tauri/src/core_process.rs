@@ -228,6 +228,7 @@ impl CoreProcess {
                 | "library.scan"
                 | "asset.list"
                 | "asset.thumbnail"
+                | "asset.get"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

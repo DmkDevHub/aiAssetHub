@@ -11,6 +11,7 @@ class AssetService:
         if database is None or getattr(database, 'connection', None) is None:
             raise LibraryError('DB_UNAVAILABLE')
         self.db = database.connection
+        self.database = database
 
     def scan(self, params):
         if set(params) != {'library_id'} or not valid_id(params['library_id']):
@@ -72,3 +73,21 @@ class AssetService:
             item['kind'] = item['kind'].lstrip('.').upper() or 'FILE'
             item['exists'] = bool(item['exists'])
         return {'items': items, 'next_cursor': items[-1]['id'] if len(rows) > 1 else None}
+
+    def get(self, params):
+        if set(params) != {'asset_id'} or not valid_id(params['asset_id']): raise LibraryError('INVALID_PARAMS')
+        row = self.db.execute('''SELECT f.absolute_path,l.absolute_path FROM asset_files f JOIN assets a ON a.id=f.asset_id
+            JOIN library_roots l ON l.id=a.library_root_id WHERE a.id=? AND l.enabled=1''', (params['asset_id'],)).fetchone()
+        if not row: return {'availability':'unavailable'}
+        path, root = Path(row[0]), Path(row[1])
+        try:
+            if path.is_symlink() or not path.resolve(strict=True).is_relative_to(root.resolve(strict=True)): return {'availability':'unavailable'}
+            info = path.stat()
+            result = {'availability':'present','path':str(path),'size':info.st_size,'modified':info.st_mtime_ns // 1_000_000}
+            if path.suffix.lower() in ('.png','.jpg','.jpeg'):
+                from .thumbnails import thumbnail
+                image = thumbnail(self.database, params)
+                if image['status'] == 'ready': result.update(width=image['width'],height=image['height'])
+            return result
+        except FileNotFoundError: return {'availability':'missing','path':str(path)}
+        except OSError: return {'availability':'unavailable'}

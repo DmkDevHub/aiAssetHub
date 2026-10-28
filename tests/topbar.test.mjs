@@ -1217,6 +1217,27 @@ const libraryFixture = [
   { id: '12345678-1234-4234-9234-123456789abc', name: '등록된 한글 폴더', path: 'D:\\fixture\\registered' },
   { id: '22345678-1234-4234-9234-123456789abc', name: '새 폴더', path: 'D:\\fixture\\new' },
 ];
+test('selected asset metadata renders measured values and a missing file state', async () => {
+  app.unmount();
+  globalThis.isTauri=true;
+  let missing=false;
+  dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{
+    assert.equal(command,'get_asset');
+    return {ok:true,data:missing?{availability:'missing',path:'D:\\fixture\\missing.png'}:
+      {availability:'present',path:'D:\\fixture\\a.png',size:123,modified:1700000000000,width:200,height:120}};
+  }};
+  const selected=ref({id:'fixture-metadata-a',name:'a.png',kind:'PNG',path:'D:\\fixture\\a.png'});
+  app=createApp({render:()=>h(components.AssetMetadata,{asset:selected.value})});
+  app.mount('#app');
+  await new Promise((resolve)=>setImmediate(resolve)); await nextTick();
+  assert.match(document.body.textContent,/123 바이트/);
+  assert.match(document.body.textContent,/200 × 120/);
+  missing=true;
+  selected.value={...selected.value,id:'fixture-metadata-b'};
+  await nextTick(); await new Promise((resolve)=>setImmediate(resolve)); await nextTick();
+  assert.match(document.body.textContent,/파일이 없습니다/);
+  assert.doesNotMatch(document.body.textContent,/123 바이트/);
+});
 test('thumbnail loads only after visibility and accepts only a JPEG data URL', async () => {
   app.unmount();
   const previous = globalThis.IntersectionObserver;

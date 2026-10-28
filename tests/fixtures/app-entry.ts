@@ -18,3 +18,4 @@ export { folderDraft, setPickedFolderPath } from "../../src/stores/folderDraft";
 export { libraries, refreshLibraries, registerLibrary, unregisterLibrary, resetLibrarySession } from '../../src/stores/libraries';
 export { folderNodes, filterFolder } from '../../src/services/assetFolders';
 export { default as AssetThumbnail } from '../../src/components/AssetThumbnail.vue';
+export { default as AssetMetadata } from '../../src/components/AssetMetadata.vue';

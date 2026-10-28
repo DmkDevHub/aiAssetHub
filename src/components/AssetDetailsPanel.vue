@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from "vue";
 import { libraryUi, setDetailsCollapsed } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
+import AssetMetadata from './AssetMetadata.vue';
 
 const props = withDefaults(defineProps<{ asset?: AssetSummary | null }>(), { asset: null });
 const tabs = [{ id: "info", name: "기본 정보" }, { id: "analysis", name: "분석 결과" }] as const;
@@ -44,6 +45,7 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
         <div id="detail-panel-info" role="tabpanel" aria-labelledby="detail-tab-info"
           :hidden="activeTab !== 'info'" tabindex="0">
           <dl><dt>에셋명</dt><dd>{{ asset.name }}</dd><dt>유형</dt><dd>{{ asset.kind }}</dd></dl>
+          <AssetMetadata :asset="asset" />
         </div>
         <div id="detail-panel-analysis" role="tabpanel" aria-labelledby="detail-tab-analysis"
           :hidden="activeTab !== 'analysis'" tabindex="0">

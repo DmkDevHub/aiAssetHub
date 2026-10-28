@@ -9,6 +9,13 @@ use tauri_plugin_dialog::DialogExt;
 type CoreState = Arc<Mutex<CoreProcess>>;
 
 #[tauri::command]
+async fn get_asset(state: tauri::State<'_, CoreState>, asset_id: String) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.get", serde_json::json!({"asset_id": asset_id})))
+        .await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_thumbnail(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -221,7 +228,8 @@ pub fn run() {
             unregister_library,
             scan_library,
             list_assets,
-            asset_thumbnail
+            asset_thumbnail,
+            get_asset
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")
