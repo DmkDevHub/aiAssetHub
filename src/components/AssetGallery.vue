@@ -58,6 +58,7 @@ function moveAssetFocus(event: KeyboardEvent) {
         <button type="button" class="asset-name asset-select" :title="item.name"
           :aria-pressed="selectedId === item.id" @click="$emit('select', item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>
+        <p v-if="item.scanChange && item.scanChange!=='unchanged'" class="asset-kind">{{ item.scanChange==='new'?'신규':item.scanChange==='changed'?'변경':item.scanChange==='missing'?'누락':'' }}</p>
       </li>
     </ul>
     <div v-else class="asset-list-container">

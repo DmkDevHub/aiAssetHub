@@ -10,4 +10,5 @@ export interface AssetSummary {
   size?: number;
   mtimeNs?: number;
   exists?: boolean;
+  scanChange?: string;
 }

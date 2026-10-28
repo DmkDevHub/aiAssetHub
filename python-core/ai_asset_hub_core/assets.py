@@ -42,33 +42,49 @@ class AssetService:
         # Never mark unseen files missing when a subtree could not be read.
         self.db.execute('BEGIN IMMEDIATE')
         try:
-            existing = {os.path.normcase(path): (file_id, asset_id) for file_id, asset_id, path in self.db.execute(
-                'SELECT f.id,f.asset_id,f.absolute_path FROM asset_files f JOIN assets a ON a.id=f.asset_id WHERE a.library_root_id=?', (params['library_id'],))}
+            existing = {os.path.normcase(path): (file_id, asset_id, size, mtime, present) for file_id, asset_id, path, size, mtime, present in self.db.execute(
+                'SELECT f.id,f.asset_id,f.absolute_path,f.size_bytes,f.mtime_ns,f.exists_flag FROM asset_files f JOIN assets a ON a.id=f.asset_id WHERE a.library_root_id=?', (params['library_id'],))}
+            counts={'new':0,'changed':0,'missing':0}
+            seen=set()
+            def observation(file_id, change):
+                self.db.execute("""INSERT INTO asset_observations(asset_file_id,metadata_json,scanned_at) VALUES (?,json_object('scan_change',?),strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+                    ON CONFLICT(asset_file_id) DO UPDATE SET metadata_json=json_set(metadata_json,'$.scan_change',?),scanned_at=excluded.scanned_at""", (file_id,change,change))
             if not failures:
                 self.db.execute('UPDATE asset_files SET exists_flag=0 WHERE asset_id IN (SELECT id FROM assets WHERE library_root_id=?)', (params['library_id'],))
             for path, info in found:
                 key = os.path.normcase(str(path))
+                seen.add(key)
                 if key in existing:
-                    file_id, asset_id = existing[key]
+                    file_id, asset_id, size, mtime, present = existing[key]
+                    change='changed' if (size,mtime,present)!=(info.st_size,info.st_mtime_ns,1) else 'unchanged'
                     self.db.execute('UPDATE asset_files SET size_bytes=?,mtime_ns=?,exists_flag=1 WHERE id=?', (info.st_size, info.st_mtime_ns, file_id))
                 else:
+                    change='new'
                     asset_id, file_id = str(uuid4()), str(uuid4())
                     self.db.execute('INSERT INTO assets(id,library_root_id,display_name) VALUES (?,?,?)', (asset_id, params['library_id'], path.name))
                     self.db.execute('INSERT INTO asset_files(id,asset_id,relative_path,absolute_path,extension,size_bytes,mtime_ns) VALUES (?,?,?,?,?,?,?)',
                         (file_id, asset_id, str(path.relative_to(root)), str(path), path.suffix.lower(), info.st_size, info.st_mtime_ns))
+                observation(file_id,change)
+                if change in counts: counts[change]+=1
+            if not failures:
+                for key, (file_id,asset_id,size,mtime,present) in existing.items():
+                    if key not in seen:
+                        observation(file_id,'missing')
+                        counts['missing']+=int(bool(present))
             self.db.execute('COMMIT')
         except Exception:
             self.db.execute('ROLLBACK')
             raise
-        return {'processed': len(found), 'errors': len(failures), 'complete': not failures}
+        return {'processed': len(found), 'errors': len(failures), 'complete': not failures, **counts}
 
     def list(self, params):
         if set(params) - {'after_id'} or (params.get('after_id') is not None and not valid_id(params['after_id'])):
             raise LibraryError('INVALID_PARAMS')
-        rows = self.db.execute('''SELECT a.id,a.display_name,f.extension,a.library_root_id,f.relative_path,f.absolute_path,f.size_bytes,f.mtime_ns,f.exists_flag
+        rows = self.db.execute('''SELECT a.id,a.display_name,f.extension,a.library_root_id,f.relative_path,f.absolute_path,f.size_bytes,f.mtime_ns,f.exists_flag,json_extract(o.metadata_json,'$.scan_change')
             FROM assets a JOIN asset_files f ON f.asset_id=a.id JOIN library_roots l ON l.id=a.library_root_id
+            LEFT JOIN asset_observations o ON o.asset_file_id=f.id
             WHERE l.enabled=1 AND a.id>? ORDER BY a.id LIMIT 2''', (params.get('after_id') or '',)).fetchall()
-        items = [dict(zip(('id','name','kind','libraryId','relativePath','path','size','mtimeNs','exists'), row)) for row in rows[:1]]
+        items = [dict(zip(('id','name','kind','libraryId','relativePath','path','size','mtimeNs','exists','scanChange'), row)) for row in rows[:1]]
         for item in items:
             item['kind'] = item['kind'].lstrip('.').upper() or 'FILE'
             item['exists'] = bool(item['exists'])

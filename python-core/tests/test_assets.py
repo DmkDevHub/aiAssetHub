@@ -7,6 +7,31 @@ from ai_asset_hub_core.assets import AssetService
 from ai_asset_hub_core.libraries import LibraryService
 
 class AssetTests(unittest.TestCase):
+    def test_rescan_tracks_changes_and_does_not_lose_annotations_on_partial_failure(self):
+        root=Path(__file__).resolve().parents[2]/'.artifacts'/'scan-tests'; root.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=root) as directory:
+            base=Path(directory); source=base/'source'; source.mkdir(); file=source/'a.txt'; file.write_text('first')
+            database=Database(base/'db.sqlite')
+            try:
+                library=LibraryService(database).register({'path':str(source)})['library']['id']; service=AssetService(database)
+                self.assertEqual(service.scan({'library_id':library})['new'],1)
+                identifier=service.list({})['items'][0]['id']
+                database.connection.execute('INSERT INTO asset_user_annotations VALUES (?,NULL,?,?)',(identifier,'keep description','fixture'))
+                file.write_text('changed content'); (source/'b.txt').write_text('new')
+                result=service.scan({'library_id':library}); self.assertEqual((result['new'],result['changed']),(1,1))
+                file.unlink(); self.assertEqual(service.scan({'library_id':library})['missing'],1)
+                self.assertEqual(database.connection.execute('SELECT description_override FROM asset_user_annotations').fetchone()[0],'keep description')
+                import os
+                denied=source/'denied'; denied.mkdir(); scandir=os.scandir
+                def guarded(path):
+                    if Path(path)==denied: raise PermissionError('fixture')
+                    return scandir(path)
+                with patch('ai_asset_hub_core.assets.os.scandir',side_effect=guarded):
+                    self.assertFalse(service.scan({'library_id':library})['complete'])
+                self.assertEqual(database.connection.execute('SELECT COUNT(*) FROM asset_files WHERE exists_flag=1').fetchone()[0],1)
+                self.assertEqual(database.connection.execute('SELECT COUNT(*) FROM analysis_jobs').fetchone()[0],0)
+            finally: database.close()
+
     def test_missing_corrupt_and_unsupported_files_return_safe_states(self):
         from ai_asset_hub_core.thumbnails import thumbnail
         root=Path(__file__).resolve().parents[2]/'.artifacts'/'scan-tests'

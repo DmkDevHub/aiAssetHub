@@ -35,10 +35,10 @@ export async function scanLibrary(id: string) {
   const token=epoch;
   state.error = state.notice = '';
   try {
-    const result = await invoke<{ok:boolean; data:{processed:number;errors:number;complete:boolean}}>('scan_library', {libraryId:id});
+    const result = await invoke<{ok:boolean; data:{processed:number;errors:number;complete:boolean;new:number;changed:number;missing:number}}>('scan_library', {libraryId:id});
     if(token!==epoch)return;
     if (!result.ok || !Number.isSafeInteger(result.data?.processed)) throw new Error();
-    state.notice = `${result.data.processed}개 파일 확인 · 오류 ${result.data.errors}건`;
+    state.notice = `${result.data.processed}개 파일 확인 · 신규 ${result.data.new} · 변경 ${result.data.changed} · 누락 ${result.data.missing} · 오류 ${result.data.errors}건`;
   } catch { if(token===epoch)state.error = '폴더 확인을 완료하지 못했습니다. 연결과 권한을 확인하세요.'; }
   finally { if(token===epoch)state.busy = false; }
   if(token===epoch)await refreshAssets();
