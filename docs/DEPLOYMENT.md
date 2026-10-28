@@ -6,7 +6,7 @@
 - Tauri 앱 안에 Vue 정적 파일 + 패키징된 Python Core Sidecar를 포함.
 - AI 모델 가중치는 크기/라이선스/하드웨어별 차이로 **설치본 기본 포함을 강제하지 않고**, 사용자 선택 다운로드/등록 방식을 적용한다.
 
-## 현재 최소 앱 개발 실행 (R00-02~03)
+## 현재 최소 앱 개발 실행 (R00-02~05)
 
 Windows 개발 환경에 Node.js 22.12 이상, Rust stable MSVC, Microsoft C++ Build Tools의 `Desktop development with C++` 워크로드와 Windows SDK, WebView2가 필요하다. [Tauri 공식 사전 요구사항](https://v2.tauri.app/start/prerequisites/)을 참고한다.
 
@@ -23,7 +23,7 @@ npm run dev
 - `npm test`: Node 내장 테스트 러너로 개발 포트 점유 거부·기존 서버 보존·검사 후 포트 반환을 검증한다.
 - Tauri가 `beforeDevCommand`로 Vite를 시작하므로 브라우저 확인용 서버는 먼저 종료한다.
 - 최소 앱은 다크 테마로 라이브러리 화면을 연다. `화면 설정`에서 다크/라이트를 선택하면 화면 이동 후에도 테마가 유지된다. 테마는 메모리 상태이므로 새로고침·재실행 시 다크로 돌아간다. Python·DB·AI·파일 선택 기능은 아직 연결하지 않는다.
-- `local.aiassethub.dev`는 개발용 임시 식별자다. 배포 식별자·출판사명은 DECISIONS의 미정 사항으로 유지하며 설치본 번들은 아직 비활성화했다.
+- `local.aiassethub.dev`는 개발용 임시 식별자다. 배포 식별자·출판사명은 DECISIONS의 미정 사항으로 유지한다. 현재 NSIS 번들은 최소 셸의 개발 설치본이다.
 - Windows 실행 파일의 아이콘은 공식 Tauri 템플릿 기본값을 개발용으로 사용한다. 제품 아이콘은 아직 정하지 않았다.
 
 최소 셸의 실행 파일만 빌드하려면 다음 명령을 사용한다. 결과는 `src-tauri/target/debug/ai-asset-hub.exe`이며 NSIS 설치본이 아니다.
@@ -42,7 +42,22 @@ npm run tauri dev
 - 개발 시에는 Python 가상 환경/Core 모듈을 별도로 실행하거나 개발 스크립트로 함께 구동한다.
 - 개발 DB는 프로젝트 `db/` 또는 별도 개발 데이터 경로; 실제 운영 DB와 공유 금지.
 
-## 빌드 순서
+## 최소 셸 NSIS 개발 설치본 (R00-05)
+
+```bash
+npm run build:installer
+```
+
+- 프런트엔드 검사·빌드 후 Cargo 잠금 파일 기준으로 Windows x64 release 앱과 NSIS `*-setup.exe`를 생성한다. 결과 폴더는 `src-tauri/target/release/bundle/nsis/`다.
+- 설치 언어는 한국어, 범위는 현재 Windows 사용자(`currentUser`)다. Python Core·DB·AI 기능은 아직 포함하지 않는다.
+- WebView2가 없을 때는 공식 다운로드 bootstrapper 방식으로 설치하므로 인터넷 연결이 필요하다. WebView2가 있는 환경에서는 기존 런타임을 사용한다.
+- 개발 식별자와 Tauri 기본 아이콘을 사용한 미서명 설치본이다. 제품 식별자·출판사·서명·업데이트는 공개 배포 전에 결정해야 한다.
+
+2026-10-28 `AI Asset Hub_0.5.0_x64-setup.exe`(1,941,376바이트)를 생성하고 `/S /D=<새 경로>`로 `%LOCALAPPDATA%\Programs\AIAssetHubDev`에 검증용 설치했다. HKCU 제거 프로그램 등록의 버전·경로를 확인했으며 해당 설치는 PC에 유지한다.
+
+설치된 실행 파일을 개발 서버 없이, PATH를 Windows System32로 제한해 실행한 뒤 라이브러리·화면 설정·테마 변경·뒤로 가기·정상 종료를 확인했다. 개발 도구가 설치된 현재 PC에서의 검증이며 깨끗한 PC, WebView2 신규 설치 및 설치 마법사 수동 클릭 검증은 미실행이다. 이번 설치본 해시는 TEST_PLAN의 R00-05 기록을 참고한다.
+
+## 이후 Python Core 통합 빌드 순서 (미구현)
 1. Windows x64 타깃용 Python 의존성 설치·버전 고정.
 2. PyInstaller 등으로 Python Core를 `.exe`로 패키징하고 직접 smoke test.
 3. Sidecar 바이너리를 Tauri v2가 요구하는 target triple/`externalBin` 설정에 맞춰 배치.

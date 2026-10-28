@@ -1,6 +1,6 @@
 # AI Asset Hub v0.5
 
-> 상태: **최소 데스크톱 앱 실행 검증 완료** · 작성 기준: 2026-10-28 · 언어: 한국어  
+> 상태: **M00 개발 기반·최초 NSIS 설치본 검증 완료** · 작성 기준: 2026-10-28 · 언어: 한국어  
 > 이 문서는 새로운 v0.5 설계의 출발점이다. 별도의 과거 설계 문서를 상속하거나 참조하지 않는다.
 
 ## 프로젝트 한 줄 정의
@@ -63,8 +63,8 @@ AI-Asset-Hub/
 ├─ README.md
 ├─ docs/
 ├─ assets/                 # 디자인 참고 리소스만
-├─ src/                    # Vue 최소 진입 화면
-├─ src-tauri/              # Tauri 데스크톱 셸
+├─ src/                    # Vue 화면·테마·라우터
+├─ src-tauri/              # Tauri 셸·NSIS 설치 설정
 ├─ python-core/            # 분석·검색·MCP 코어 (향후 구현)
 ├─ unity-package/          # Unity Editor 패키지 (향후 구현)
 ├─ db/                     # 스키마·마이그레이션 (향후 구현)
@@ -73,7 +73,8 @@ AI-Asset-Hub/
 ```
 
 ## 현재 상태와 다음 행동
-- `R00-02~04`: Windows 앱·개발 실행, 라이브러리/화면 설정 이동, 다크/라이트 테마 전환. 에셋 관리·분석 기능은 이후 작업 범위다.
+- `M00`: Windows 앱·개발 실행, 라이브러리/화면 설정 이동, 다크/라이트 테마 전환과 첫 NSIS 개발 설치본 검증 완료. 에셋 관리·분석 기능은 이후 작업 범위다.
+- `npm run dev`로 개발 앱을 실행하고 `npm run build:installer`로 설치본을 만든다. 설치본은 `src-tauri/target/release/bundle/nsis/`에 생성된다.
 - 개발 환경과 실행 명령, 검증 상태는 [DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고한다.
 - [ROADMAP.md](docs/ROADMAP.md)에서 최초 미완료 작업을 골라 **한 번에 한 작업만** 구현한다.
 - 완료 시 앱 화면에서 실제 결과를 확인하고 자동 테스트 후 문서/변경 이력을 갱신한다.

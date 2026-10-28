@@ -78,3 +78,13 @@
 - 라디오 방향키로 테마 변경, `본문으로 이동` Enter로 현재 경로를 바꾸지 않고 본문 포커스 이동 확인. 콘솔 오류·경고 0건.
 - Windows 개발 창에서도 라이브러리·화면 설정 이동과 다크→라이트→다크 실제 표시를 확인하고 정상 종료했다.
 - 테마 상태는 Vue 공용 반응형 메모리에만 둔다. 새로고침·재실행 후 영속 저장은 이번 범위에 포함하지 않는다.
+
+## R00-05 검증 기록 (2026-10-28)
+
+- `npm run build:installer` 통과: 타입 검사·프런트엔드 빌드·Rust release 빌드 및 x64 NSIS 번들 1개 생성. 공식 NSIS 도구와 Tauri 플러그인 다운로드 해시 검증 통과.
+- 생성 파일: `src-tauri/target/release/bundle/nsis/AI Asset Hub_0.5.0_x64-setup.exe`, 1,941,376바이트. SHA-256: `a193cd4710afeffd13c59fe5ebce24d3d47d3d18021dce02f7bb3bd6e3f51aa6`.
+- 실제 설치: 기존 설치·대상 폴더가 없는 것을 확인한 뒤 NSIS 무인 설치(`/S /D=...`) 종료 코드 0. `%LOCALAPPDATA%\Programs\AIAssetHubDev`의 실행 파일과 HKCU 제거 프로그램 등록 버전 `0.5.0`·설치 경로 확인.
+- 초기 원시 해시 비교 실패 원인은 Tauri 번들 종류 표시 `UNK`→`NSS`의 3바이트 차이였다. 사용 중인 `tauri-utils`의 표시 정의와 빌드 로그를 확인하고 메모리에서 해당 표시만 정규화한 비교로 나머지 전체 바이트 일치 확인. 설치 파일을 수정하지 않았다.
+- 설치 앱 UI: Vite 서버 종료 및 PATH를 Windows System32로 제한한 환경에서 설치된 실행 파일 실행 → `http://tauri.localhost/#/library`의 다크 화면 → 화면 설정 → 라이트 전환 → Alt+Left 후 라이브러리와 테마 유지 → Alt+F4 정상 종료·프로세스 소멸 확인.
+- `npm test` 회귀 테스트 1개 및 소스/설정 민감정보 패턴 검사 통과. 실행 시 원본 에셋·AI·Core에 접근하는 코드는 없다.
+- 한계: 설치본은 `NotSigned` 개발본이다. 깨끗한 PC, WebView2 미설치 PC, 설치 마법사 수동 클릭, 삭제·업그레이드 및 P0 제품 기능 검증은 미실행이다.

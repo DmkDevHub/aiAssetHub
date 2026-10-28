@@ -30,7 +30,7 @@
 | P-003 | Unity는 Editor C# 패키지로 작업 수신·수행 | 버전/Editor 상태/씬 저장 방식 |
 | P-004 | 검색은 SQLite FTS5 후 로컬 벡터 스토리지 | 한글 품질·데이터 규모·성능 |
 | P-005 | 최초 Unity 완료 기준은 PNG Sprite 임포트·배치 | 실제 end-to-end 최소 가치 |
-| P-006 | Windows 설치 첫 버전은 사용자 단위 NSIS | 권한/배포 환경 적합성 |
+| P-006 | Windows 설치 첫 버전은 사용자 단위 NSIS | R00-05 개발 설치본에서 currentUser 설치·실행 확인. 정식 배포 식별자·출판사·서명 및 깨끗한 PC 검증은 미정/미실행 |
 
 ## 미정 (임의로 확정하지 말 것)
 - 초기 지원 Unity 버전, Unity Editor 패키지 배포 형태(UPM 패키지 등), Scene 자동 저장 정책.
