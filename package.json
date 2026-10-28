@@ -16,6 +16,7 @@
     "typecheck": "vue-tsc --noEmit && tsc --project tsconfig.node.json",
     "build": "npm run typecheck && vite build",
     "build:installer": "tauri build --bundles nsis -- --locked",
+    "package:core": "node scripts/package-core.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "tauri": "tauri"
   },

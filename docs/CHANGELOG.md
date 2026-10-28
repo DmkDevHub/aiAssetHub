@@ -72,6 +72,10 @@
 - 변경: 개발 `.artifacts/data/development`, 운영 Tauri appLocalData/data 경로를 백엔드에서 선택하고 환경 표식·OS 파일 잠금으로 혼용/중복 쓰기 차단. DB 실측 준비/오류 상태 연결.
 - 검증: Node 57개·Python 28개·Rust 3개 및 타입·빌드 통과. 서로 다른 DB·표식 거부·실제 재시작 영속성·잠금 해제·손상 DB 보존 확인. 실제 GUI는 미검증.
 
+### 2026-10-28 — [R02-05] Windows Core Sidecar·NSIS·무화면 설치 검증
+- 변경: 빌드 전용 고정 PyInstaller 환경·폴더형 CPython/SQLite/마이그레이션 번들·Tauri externalBin/resources, release의 고정 설치 경로 실행과 전용 --verify-core 자동 검사 추가.
+- 검증: Node 57개·Python 28개·Rust 3개+패키지 전용 1개·타입·빌드, NSIS 생성·분리된 무인 설치/제거·설치 파일 Core/DB/WAL/종료 통과. 기존 설치 보존. 실제 GUI·깨끗한 PC·서명은 미검증.
+
 ## 이후 작업 기록 템플릿
 ```markdown
 ### YYYY-MM-DD — [R00-00] 작업명

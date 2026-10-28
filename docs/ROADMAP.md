@@ -37,7 +37,7 @@
 - [x] **R02-02** Tauri ↔ Python 안전한 로컬 통신 연결. **확인:** 비공개 자식 파이프·요청 UUID/PID/버전 검증·16KiB 제한·3초 응답 제한·EOF 종료/재연결 구현. Node 57개·Python 14개·Rust 실제 프로세스 테스트 2개 및 타입·빌드 통과. 화면/설치본은 미검증.
 - [x] **R02-03** SQLite 초기 스키마/마이그레이션. **확인:** 20개 테이블·FK/JSON/성공 결과 무결성·체크섬 마이그레이션·기존 DB 사전 백업/롤백·WAL·실측 DB health 구현. Node 57개·Python 23개 및 타입·빌드 통과. 앱 경로 연결은 R02-04.
 - [x] **R02-04** 개발 DB와 운영 AppData DB 분리. **확인:** 개발 전용 경로/OS appLocalData 분리·환경 표식·단일 쓰기 잠금·DB 실측 UI 연결, Node 57개·Python 28개·Rust 3개 및 타입·빌드 통과. 실제 프로세스 재시작 후 데이터 유지 검증, GUI는 미검증.
-- [ ] **R02-05** Python Core Windows Sidecar 패키징·설치본 자동 실행. **화면:** 별도 Python 없는 PC에서 엔진 정상.
+- [x] **R02-05** Python Core Windows Sidecar 패키징·설치본 자동 실행. **확인:** CPython/SQLite/스키마 동봉·release 고정 Sidecar 경로·NSIS 생성, Python PATH 없는 실제 설치 파일의 무화면 Core/DB/종료 검증 통과. Node 57개·Python 28개·Rust 3개+패키지 전용 1개 통과. 깨끗한 PC·GUI는 미검증.
 - [ ] **R02-06** Core 비정상 종료 및 복구 안내. **화면:** 실제 종료 후 명확한 오류/재시도.
 
 **마일스톤 C:** 설치한 앱에서 Core+SQLite가 실제 연결되고 사용자 데이터가 지속됨.

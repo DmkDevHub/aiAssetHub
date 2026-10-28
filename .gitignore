@@ -6,6 +6,7 @@ src-tauri/gen/
 __pycache__/
 *.py[cod]
 .venv/
+src-tauri/binaries/
 *.tsbuildinfo
 *.log
 .env

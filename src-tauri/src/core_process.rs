@@ -28,6 +28,14 @@ pub struct LaunchSpec {
 }
 
 impl LaunchSpec {
+    pub fn packaged(directory: PathBuf) -> Self {
+        Self {
+            program: directory.join("ai-asset-hub-core.exe"),
+            args: vec!["--serve".into()],
+            cwd: directory,
+        }
+    }
+
     pub fn with_data(mut self, directory: PathBuf, environment: &str) -> Self {
         self.args.extend([
             "--data-dir".into(),
@@ -111,6 +119,16 @@ impl CoreProcess {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
+        command.env_remove("PYTHONHOME").env_remove("PYTHONPATH");
+        if self
+            .spec
+            .program
+            .file_name()
+            .is_some_and(|name| name == "ai-asset-hub-core.exe")
+            && let Some(windows) = std::env::var_os("SystemRoot")
+        {
+            command.env("PATH", PathBuf::from(windows).join("System32"));
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -220,6 +238,26 @@ mod tests {
         let mut core = CoreProcess::new(spec);
         assert_eq!(core.start().unwrap_err(), "CORE_START_FAILED");
         assert!(core.session.is_none());
+    }
+
+    #[test]
+    #[ignore = "requires a built or installed Sidecar; set AI_ASSET_HUB_SIDECAR_DIR"]
+    fn packaged_core_needs_no_python_or_development_path() {
+        let directory = PathBuf::from(
+            std::env::var_os("AI_ASSET_HUB_SIDECAR_DIR").expect("Sidecar directory required"),
+        );
+        let data = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../.artifacts/packaged-data")
+            .join(uuid::Uuid::new_v4().to_string());
+        let mut core =
+            CoreProcess::new(LaunchSpec::packaged(directory).with_data(data, "production"));
+        let first = core.start().unwrap();
+        assert_eq!(first["data"]["database"]["status"], "ready");
+        assert_eq!(first["data"]["database"]["schema_version"], 1);
+        core.stop();
+        let next = core.start().unwrap();
+        assert_eq!(next["data"]["database"]["status"], "ready");
+        assert_ne!(first["data"]["core"]["pid"], next["data"]["core"]["pid"]);
     }
 
     #[test]

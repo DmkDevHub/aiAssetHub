@@ -123,3 +123,13 @@ npm run tauri build
 - Tauri Sidecar: https://v2.tauri.app/develop/sidecar/
 - Tauri Shell Plugin: https://v2.tauri.app/plugin/shell/
 - Tauri Updater: https://v2.tauri.app/plugin/updater/
+
+## 현재 Core 포함 Windows 설치본 (R02-05)
+
+- `npm run package:core`는 프로젝트 `.artifacts/core-build-venv`에 `python-core/requirements-build.txt`의 빌드 도구만 설치한다. 런타임에는 pip·Python 설치가 필요하지 않다. 전역 Python을 수정하지 않는다.
+- PyInstaller 6.22.3의 폴더형 번들은 실행 파일과 `_internal` CPython·SQLite DLL·마이그레이션을 포함한다. 단일 파일형의 부모/자식 부트로더를 피하고 실제 Core PID 검증을 유지한다. [PyInstaller 옵션](https://pyinstaller.org/en/stable/usage.html), [Tauri 외부 바이너리](https://v2.tauri.app/develop/sidecar/), [리소스 경로 매핑](https://v2.tauri.app/develop/resources/)을 기준으로 구성했다.
+- `npm run build:installer`는 프런트엔드·Core 패키징 후 NSIS를 생성한다. 바이너리·가상 환경·빌드 캐시/manifest는 Git에서 제외하고 빌드 방법·잠금 버전만 기록한다.
+- release는 앱 실행 파일 옆 `ai-asset-hub-core.exe`만 실행한다. PATH·개발 Python으로 대체하지 않으며 PYTHONHOME/PYTHONPATH를 제거하고 자식 PATH를 System32로 제한한다. debug는 개발 Python을 사용한다.
+- `ai-asset-hub.exe --verify-core <새 절대 경로/core-verification-고유값>`은 창 없이 같은 Core 관리자로 실제 설치된 Sidecar·DB를 검증하고 종료한다. 기존 경로나 사용자 AppData는 검증 대상으로 받지 않는다. 일반 앱 시작 코드는 별도로 창을 생성한다.
+- `scripts/verify-installer.ps1`는 생성된 NSIS의 제품/등록 이름만 분리해 동일 파일을 프로젝트 내부 새 위치에 무인 설치(`/S /NS`, 앱 실행 `/R` 없음)한다. Sidecar 해시·스키마·WAL·Python 없는 PATH·Core 종료를 검증하고 해당 검증 설치만 제거한다. 기존 AIAssetHubDev 설치·등록은 유지한다.
+- R02-05 기본 설치본: 9,289,722바이트, SHA-256 `5177964f68361be44bf90baaa91856725b195db33ddc3be911939a7e3b235249`. 이후 변경 재빌드 시 해시는 달라진다. 미서명 개발본이며 깨끗한 PC/WebView2 신규 설치·GUI·정식 업그레이드는 미검증이다.

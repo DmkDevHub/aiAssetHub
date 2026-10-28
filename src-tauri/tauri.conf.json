@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev:web",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && npm run package:core",
     "frontendDist": "../dist"
   },
   "app": {
@@ -29,6 +29,8 @@
     "active": true,
     "targets": ["nsis"],
     "icon": ["icons/icon.ico"],
+    "externalBin": ["binaries/ai-asset-hub-core"],
+    "resources": { "binaries/core/ai-asset-hub-core/_internal/": "_internal/" },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
       "nsis": {

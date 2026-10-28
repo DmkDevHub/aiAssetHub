@@ -185,3 +185,13 @@
 - `npm run check`: Node 57개·Python 28개·타입·빌드 통과. Rust 테스트 3개 통과·fmt 적용.
 - 격리 경로에서 개발/운영 DB 분리·환경 변경 거부·중복 쓰기 거부·정상 종료 후 잠금 해제·알 수 없는 디렉터리/상대 경로/손상 표식·손상 DB 보존을 확인했다.
 - Python이 쓴 설정을 실제 CLI 프로세스로 두 차례 조회 후 재오픈해 보존을 확인했다. Rust 실제 파이프 세션도 임시 운영 경로의 DB ready/schema 1·종료·재시작을 검증했다. 실제 사용자 AppData·원본·화면은 테스트에 사용하지 않았다.
+
+## R02-05 검증 기록 (2026-10-28)
+
+- `npm run check`: Node 57개·Python 28개·타입·빌드 통과. Rust 기본 3개 통과, 패키지 전용 1개는 `AI_ASSET_HUB_SIDECAR_DIR`를 지정한 `cargo test --lib --locked -- --ignored`에서 별도 통과했다. 일반 실행에서 전용 1개는 의도적으로 ignored다.
+- `npm run build:installer`로 CPython/SQLite/마이그레이션을 동봉한 x64 NSIS 생성. 기본 설치본 9,289,722바이트, SHA-256 `5177964f68361be44bf90baaa91856725b195db33ddc3be911939a7e3b235249`. Sidecar SHA-256 `8f45865b860a4342da09e80a4e2a5a33abf55affb9ac54e717c8d6817efa0435`.
+- 기존 설치 보호를 위해 생성 NSIS에서 제품/등록 이름만 바꾼 검증 설치를 `.artifacts/m02-installed-UUID`에 무인 설치했다. 원래 설치본의 파일을 변경하지 않았고 기존 등록 위치/버전 유지도 확인했다. 검증 설치만 제거했다.
+- 실제 설치 앱의 `--verify-core`는 Tauri 창을 생성하지 않고 release와 동일한 관리자로 Sidecar를 자동 시작한다. PATH=System32·잘못된 PYTHONHOME/PYTHONPATH 환경에서도 실제 PID health·DB ready/schema 1·SQLite 3.50.4·WAL·stderr 없음·종료 후 Core PID 소멸을 확인했다. SQLite/DB 검증 경로도 새 전용 fixture다.
+- 초기 제거 검사의 NSIS 후속 프로세스 대기 누락을 보정하고 최종 무인 설치/제거 절차가 통과했다. NSIS 공식 템플릿의 한국어 `choowHowToInstall` 번역 경고 1개는 남으며 실제 GUI는 검증하지 않았다.
+- 깨끗한 PC·WebView2 신규 설치·실제 GUI·정식 배포 서명/업그레이드는 미검증이다. 원본·AI·유료 모델·Unity 작업은 실행하지 않았다.
+- Rust Clippy의 중첩 조건 경고 2개를 정리한 후 `cargo clippy --lib --locked -- -D warnings` 통과·fmt 적용.
