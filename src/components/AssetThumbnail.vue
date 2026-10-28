@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref } from 'vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-const props = defineProps<{id:string;kind:string}>();
+const props = withDefaults(defineProps<{id:string;kind:string;exists?:boolean}>(),{exists:undefined});
 const element = ref<HTMLElement>();
 const url = ref('');
 const status = ref('');
@@ -18,10 +18,10 @@ async function load() {
   } catch { if (active) status.value='unavailable'; }
 }
 onMounted(() => {
-  if (!isTauri() || !['PNG','JPG','JPEG'].includes(props.kind) || typeof IntersectionObserver === 'undefined') return;
+  if (!isTauri() || props.exists===false || !['PNG','JPG','JPEG'].includes(props.kind) || typeof IntersectionObserver === 'undefined') return;
   observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) void load(); });
   if (element.value) observer.observe(element.value);
 });
 onBeforeUnmount(() => { active=false; observer?.disconnect(); });
 </script>
-<template><div ref="element" class="asset-format-mark"><img v-if="url" :src="url" alt="" loading="lazy" style="max-width:100%;max-height:120px" /><span v-else>{{ status === 'missing' ? '파일 없음' : status === 'unavailable' ? '미리보기 불가' : kind }}</span></div></template>
+<template><div ref="element" class="asset-format-mark"><img v-if="url && exists!==false" :src="url" alt="" loading="lazy" style="max-width:100%;max-height:120px" /><span v-else>{{ exists===false || status==='missing' ? '파일 없음' : status==='unavailable' ? '미리보기 불가' : status==='too_large' ? '이미지 크기 제한' : !['PNG','JPG','JPEG'].includes(kind) ? `미리보기 미지원 · ${kind}` : kind }}</span></div></template>

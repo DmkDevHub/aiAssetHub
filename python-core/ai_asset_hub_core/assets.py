@@ -83,6 +83,7 @@ class AssetService:
         try:
             if path.is_symlink() or not path.resolve(strict=True).is_relative_to(root.resolve(strict=True)): return {'availability':'unavailable'}
             info = path.stat()
+            if not stat.S_ISREG(info.st_mode) or getattr(info,'st_file_attributes',0) & 0x400: return {'availability':'unavailable'}
             result = {'availability':'present','path':str(path),'size':info.st_size,'modified':info.st_mtime_ns // 1_000_000}
             if path.suffix.lower() in ('.png','.jpg','.jpeg'):
                 from .thumbnails import thumbnail

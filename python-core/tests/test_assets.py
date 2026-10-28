@@ -7,6 +7,30 @@ from ai_asset_hub_core.assets import AssetService
 from ai_asset_hub_core.libraries import LibraryService
 
 class AssetTests(unittest.TestCase):
+    def test_missing_corrupt_and_unsupported_files_return_safe_states(self):
+        from ai_asset_hub_core.thumbnails import thumbnail
+        root=Path(__file__).resolve().parents[2]/'.artifacts'/'scan-tests'
+        root.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=root) as directory:
+            base=Path(directory); source=base/'source'; source.mkdir()
+            (source/'bad.png').write_bytes(b'fixture corrupt')
+            (source/'other.fbx').write_bytes(b'fixture unsupported')
+            database=Database(base/'db.sqlite')
+            try:
+                library=LibraryService(database).register({'path':str(source)})['library']['id']
+                service=AssetService(database); service.scan({'library_id':library})
+                rows=database.connection.execute('SELECT a.id,a.display_name FROM assets a').fetchall()
+                identifiers={name:identifier for identifier,name in rows}
+                self.assertEqual(thumbnail(database,{'asset_id':identifiers['bad.png']})['status'],'unavailable')
+                self.assertEqual(thumbnail(database,{'asset_id':identifiers['other.fbx']})['status'],'unsupported')
+                (source/'bad.png').unlink()
+                self.assertEqual(service.get({'asset_id':identifiers['bad.png']})['availability'],'missing')
+                self.assertEqual(thumbnail(database,{'asset_id':identifiers['bad.png']})['status'],'missing')
+                with patch('ai_asset_hub_core.assets.Path.stat',side_effect=PermissionError('fixture secret')):
+                    self.assertEqual(service.get({'asset_id':identifiers['other.fbx']})['availability'],'unavailable')
+                self.assertEqual(database.health()['status'],'ready')
+            finally: database.close()
+
     def test_thumbnail_is_derived_cached_and_source_stays_unchanged(self):
         from PIL import Image
         from ai_asset_hub_core.thumbnails import thumbnail

@@ -54,7 +54,7 @@ function moveAssetFocus(event: KeyboardEvent) {
     <ul v-else-if="libraryUi.galleryViewMode === 'grid'" class="asset-grid" aria-label="에셋 그리드" @keydown="moveAssetFocus">
       <li v-for="item in items" :key="item.id" class="asset-card" :data-asset-id="item.id"
         :class="{ 'is-selected': selectedId === item.id }">
-        <AssetThumbnail :id="item.id" :kind="item.kind" />
+        <AssetThumbnail :id="item.id" :kind="item.kind" :exists="item.exists" />
         <button type="button" class="asset-name asset-select" :title="item.name"
           :aria-pressed="selectedId === item.id" @click="$emit('select', item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>

@@ -19,8 +19,9 @@ const emptyMessage = computed(() => libraries.loading ? '등록 폴더를 불러
   : libraries.error ? '등록 폴더를 확인하지 못했습니다.' : '등록된 폴더가 없습니다.');
 
 const props = defineProps<{ items?: readonly AssetSummary[] }>();
-const items = computed(() => props.items ?? filterFolder(assets.items, libraryUi.selectedFolderId));
-const nodes = computed(() => folderNodes(libraries.roots, assets.items));
+const availableItems = computed(() => assets.items.filter((item) => libraries.roots.some((root) => root.id===item.libraryId)));
+const items = computed(() => props.items ?? filterFolder(availableItems.value, libraryUi.selectedFolderId));
+const nodes = computed(() => folderNodes(libraries.roots, availableItems.value));
 const selectedId = ref<string | null>(null);
 const selectedAsset = computed(() => items.value.find((item) => item.id === selectedId.value) ?? null);
 watch(selectedAsset, (asset) => { if (!asset) selectedId.value = null; });

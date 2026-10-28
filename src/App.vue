@@ -6,8 +6,10 @@ import AppStatusBar from "./components/AppStatusBar.vue";
 import CoreConnection from "./components/CoreConnection.vue";
 import { appearance } from "./stores/appearance";
 import { resetLibrarySession } from './stores/libraries';
+import { resetAssets } from './stores/assets';
 
 onBeforeUnmount(resetLibrarySession);
+onBeforeUnmount(resetAssets);
 
 watch(() => appearance.theme, (theme) => {
   document.documentElement.dataset.theme = theme;
