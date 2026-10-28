@@ -2,6 +2,7 @@
 import { watch } from "vue";
 import { RouterView } from "vue-router";
 import AppTopBar from "./components/AppTopBar.vue";
+import AppStatusBar from "./components/AppStatusBar.vue";
 import { appearance } from "./stores/appearance";
 
 watch(() => appearance.theme, (theme) => {
@@ -20,5 +21,6 @@ function focusMainContent() {
     <main id="main-content" tabindex="-1">
       <RouterView />
     </main>
+    <AppStatusBar />
   </div>
 </template>

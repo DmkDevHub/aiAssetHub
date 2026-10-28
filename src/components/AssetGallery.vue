@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { libraryUi, setGalleryViewMode } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
+import { executeUiCommand } from "../stores/operations";
+import type { GalleryViewMode } from "../stores/libraryUi";
 
 withDefaults(defineProps<{ items?: readonly AssetSummary[]; selectedId?: string | null }>(), {
   items: () => [], selectedId: null,
 });
 defineEmits<{ select: [id: string] }>();
+
+function changeView(mode: GalleryViewMode) {
+  if (libraryUi.galleryViewMode === mode) return;
+  return executeUiCommand('gallery.view', () => setGalleryViewMode(mode));
+}
 
 function moveAssetFocus(event: KeyboardEvent) {
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -32,9 +39,9 @@ function moveAssetFocus(event: KeyboardEvent) {
       </div>
       <div class="gallery-view-controls" role="group" aria-label="에셋 보기 방식">
         <button type="button" :aria-pressed="libraryUi.galleryViewMode === 'grid'"
-          @click="setGalleryViewMode('grid')">그리드</button>
+          @click="changeView('grid')">그리드</button>
         <button type="button" :aria-pressed="libraryUi.galleryViewMode === 'list'"
-          @click="setGalleryViewMode('list')">목록</button>
+          @click="changeView('list')">목록</button>
       </div>
     </header>
 

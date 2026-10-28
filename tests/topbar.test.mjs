@@ -95,6 +95,11 @@ beforeEach(async (t) => {
   components.selectLibraryFolder(null);
   components.setGalleryViewMode("grid");
   components.setDetailsCollapsed(false);
+  for (const operation of components.operations) {
+    if (operation.state === 'running') components.receiveOperation({ id: operation.id, kind: operation.kind, state: 'cancelled' });
+    if (operation.state === 'failed') components.dismissOperationAlert(operation.id);
+  }
+  components.clearFinishedOperations();
   document.body.innerHTML = '<div id="app"></div>';
   router = components.createAppRouter(createMemoryHistory());
   await router.push("/library");
@@ -816,4 +821,163 @@ test("workspace measures on window resize when ResizeObserver is unavailable", a
   } finally {
     globalThis.ResizeObserver = Observer;
   }
+});
+
+test("status bar starts absent without seeded jobs or fake progress", () => {
+  assert.equal(document.querySelector('.app-status'), null);
+  assert.equal(components.operations.length, 0);
+});
+
+test("actual theme command publishes success and keeps its result across routes", async () => {
+  await activateLink('[aria-label="주 메뉴"] a');
+  const radio = document.querySelector('input[value="light"]');
+  radio.checked = true;
+  dispatch(radio, new dom.window.Event('change', { bubbles: true }));
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+  assert.equal(document.documentElement.dataset.theme, 'light');
+  assert.match(document.querySelector('.app-status').textContent, /테마 변경: 완료/);
+  assert.equal(components.operations.length, 1);
+  await activateLink('.breadcrumbs a');
+  assert.match(document.querySelector('.app-status').textContent, /테마 변경: 완료/);
+  assert.equal(document.querySelector('.app-status progress'), null);
+  await clickElement('.clear-operations');
+  assert.equal(document.querySelector('.app-status'), null);
+});
+
+test("actual view change reports its own result and redundant clicks create no job", async () => {
+  await changeGalleryMode('목록');
+  assert.equal(components.libraryUi.galleryViewMode, 'list');
+  assert.equal(components.operations.length, 1);
+  assert.equal(components.operations[0].kind, 'gallery.view');
+  assert.equal(components.operations[0].state, 'succeeded');
+  assert.match(document.querySelector('.app-status').textContent, /갤러리 보기 변경: 완료/);
+  await changeGalleryMode('목록');
+  assert.equal(components.operations.length, 1);
+  assert.equal(components.operations.some((operation) => operation.kind === 'analysis.run'), false);
+});
+
+test("measured operation events update concurrent counts and copy incoming progress", async () => {
+  const progress = { processed: 1, total: 4 };
+  assert.equal(components.receiveOperation({ id: 'fixture-scan', kind: 'library.scan', state: 'running', progress }), true);
+  progress.processed = 4;
+  assert.equal(components.operations[0].progress.processed, 1);
+  assert.equal(components.receiveOperation({ id: 'fixture-analysis', kind: 'analysis.run', state: 'running' }), true);
+  await nextTick();
+  const bar = document.querySelector('.app-status progress');
+  assert.equal(bar.value, 1);
+  assert.equal(bar.max, 4);
+  assert.equal(bar.getAttribute('aria-label'), '파일 스캔 처리 건수');
+  assert.match(document.querySelector('.app-status').textContent, /1 \/ 4/);
+  components.receiveOperation({ id: 'fixture-scan', kind: 'library.scan', state: 'succeeded', progress: { processed: 4, total: 4 } });
+  components.receiveOperation({ id: 'fixture-analysis', kind: 'analysis.run', state: 'cancelled' });
+  await nextTick();
+  assert.match(document.querySelector('.app-status').textContent, /파일 스캔: 완료/);
+  assert.match(document.querySelector('.app-status').textContent, /AI 분석: 취소됨/);
+  assert.equal(components.operations.length, 2);
+});
+
+test("operation receiver rejects invalid, regressive and stale event state", () => {
+  for (const event of [
+    { id: '', kind: 'library.scan', state: 'running' },
+    { id: 'fixture-invalid', kind: '__proto__', state: 'running' },
+    { id: 'fixture-invalid', kind: 'library.scan', state: 'unknown' },
+    ...[{ processed: -1, total: 4 }, { processed: 5, total: 4 }, { processed: 0, total: -1 },
+      { processed: NaN, total: 4 }, { processed: 0.5, total: 4 }].map((progress) =>
+      ({ id: 'fixture-invalid', kind: 'library.scan', state: 'running', progress })),
+  ]) assert.equal(components.receiveOperation(event), false);
+  assert.equal(components.operations.length, 0);
+  const event = { id: 'fixture-valid', kind: 'library.scan', state: 'running', progress: { processed: 2, total: 4 } };
+  assert.equal(components.receiveOperation(event), true);
+  assert.equal(components.receiveOperation({ ...event, kind: 'unity.apply' }), false);
+  assert.equal(components.receiveOperation({ ...event, progress: { processed: 1, total: 4 } }), false);
+  assert.equal(components.receiveOperation({ ...event, progress: { processed: 2, total: 5 } }), false);
+  assert.equal(components.receiveOperation({ ...event, state: 'succeeded' }), false);
+  assert.equal(components.receiveOperation({ id: event.id, kind: event.kind, state: 'succeeded' }), false);
+  assert.equal(components.receiveOperation({ ...event, state: 'succeeded', progress: { processed: 4, total: 4 } }), true);
+  assert.equal(components.receiveOperation(event), false);
+  assert.equal(components.operations[0].state, 'succeeded');
+});
+
+test("unknown error data never appears in alerts, records or DOM attributes", async () => {
+  const secret = 'fixture-private-path-and-api-key-<img src=x>';
+  components.receiveOperation({ id: 'fixture-private-error', kind: 'unity.apply', state: 'failed',
+    errorCode: secret, message: secret, path: secret });
+  await nextTick();
+  assert.equal(document.querySelector('[role="alert"]').textContent, 'Unity 적용: 작업을 완료하지 못했습니다.');
+  assert.equal(document.body.innerHTML.includes(secret), false);
+  assert.equal(JSON.stringify(components.operations).includes(secret), false);
+  assert.equal(document.querySelector('img'), null);
+  assert.equal(document.querySelector('.clear-operations'), null);
+});
+
+test("command wrapper stays running until a real callback settles and invokes it once", async () => {
+  let complete;
+  let calls = 0;
+  const completion = new Promise((resolve) => { complete = resolve; });
+  const command = components.executeUiCommand('gallery.view', () => { calls++; return completion; });
+  await nextTick();
+  assert.equal(calls, 1);
+  assert.match(document.querySelector('.app-status').textContent, /갤러리 보기 변경: 진행 중/);
+  assert.equal(document.querySelector('.clear-operations'), null);
+  complete();
+  assert.equal(await command, true);
+  await nextTick();
+  assert.equal(components.operations[0].state, 'succeeded');
+  assert.equal(calls, 1);
+});
+
+test("command failure is redacted, dismissible and never automatically retried", async () => {
+  let calls = 0;
+  const secret = 'fixture-exception-secret-C:/private/data';
+  const result = await components.executeUiCommand('appearance.change', () => { calls++; throw new Error(secret); });
+  await nextTick();
+  assert.equal(result, false);
+  assert.equal(components.operations[0].state, 'failed');
+  assert.match(document.querySelector('[role="alert"]').textContent, /테마 변경: 작업을 완료하지 못했습니다/);
+  assert.equal(document.body.textContent.includes(secret), false);
+  assert.equal(JSON.stringify(components.operations).includes(secret), false);
+  await clickElement('.operation-error button');
+  assert.equal(document.querySelector('[role="alert"]'), null);
+  await clickElement('.clear-operations');
+  assert.equal(document.querySelector('.app-status'), null);
+  assert.equal(calls, 1);
+});
+
+test("clearing completed states preserves active work and undismissed errors", async () => {
+  components.receiveOperation({ id: 'fixture-running', kind: 'library.scan', state: 'running', progress: { processed: 1, total: 3 } });
+  components.receiveOperation({ id: 'fixture-failed', kind: 'analysis.run', state: 'failed', errorCode: 'CORE_UNAVAILABLE' });
+  components.receiveOperation({ id: 'fixture-done', kind: 'gallery.view', state: 'succeeded' });
+  await nextTick();
+  await clickElement('.clear-operations');
+  assert.equal(components.operations.length, 2);
+  await activateLink('[aria-label="주 메뉴"] a');
+  assert.match(document.querySelector('[role="alert"]').textContent, /Core에 연결할 수 없습니다/);
+  assert.match(document.querySelector('.app-status').textContent, /1 \/ 3/);
+  components.receiveOperation({ id: 'fixture-running', kind: 'library.scan', state: 'cancelled' });
+  await nextTick();
+  assert.match(document.querySelector('.app-status').textContent, /파일 스캔: 취소됨/);
+});
+
+test("event history is bounded without evicting active work or unacknowledged errors", () => {
+  for (let index = 0; index < components.MAX_OPERATIONS; index++) {
+    assert.equal(components.receiveOperation({ id: `fixture-cap-${index}`, kind: 'library.scan', state: 'running' }), true);
+  }
+  assert.equal(components.receiveOperation({ id: 'fixture-overflow', kind: 'library.scan', state: 'running' }), false);
+  assert.equal(components.operations.length, components.MAX_OPERATIONS);
+  components.receiveOperation({ id: 'fixture-cap-0', kind: 'library.scan', state: 'failed', errorCode: 'PERMISSION_DENIED' });
+  assert.equal(components.receiveOperation({ id: 'fixture-overflow', kind: 'library.scan', state: 'running' }), false);
+  components.dismissOperationAlert('fixture-cap-0');
+  assert.equal(components.receiveOperation({ id: 'fixture-overflow', kind: 'library.scan', state: 'running' }), true);
+  assert.equal(components.operations.length, components.MAX_OPERATIONS);
+  assert.equal(components.operations.some((operation) => operation.id === 'fixture-cap-0'), false);
+});
+
+test("zero-target completion displays measured zero counts without inventing a progress maximum", async () => {
+  assert.equal(components.receiveOperation({ id: 'fixture-empty-scan', kind: 'library.scan', state: 'succeeded',
+    progress: { processed: 0, total: 0 } }), true);
+  await nextTick();
+  assert.match(document.querySelector('.app-status').textContent, /파일 스캔: 완료/);
+  assert.match(document.querySelector('.app-status').textContent, /0 \/ 0/);
+  assert.equal(document.querySelector('.app-status progress'), null);
 });

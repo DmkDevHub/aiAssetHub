@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { appearance, setTheme } from "../stores/appearance";
+import { executeUiCommand } from "../stores/operations";
+import type { Theme } from "../stores/appearance";
+
+function changeTheme(theme: Theme) {
+  return executeUiCommand('appearance.change', () => setTheme(theme));
+}
 </script>
 
 <template>
@@ -10,12 +16,12 @@ import { appearance, setTheme } from "../stores/appearance";
       <legend>테마</legend>
       <label>
         <input type="radio" name="theme" value="dark"
-          :checked="appearance.theme === 'dark'" @change="setTheme('dark')" />
+          :checked="appearance.theme === 'dark'" @change="changeTheme('dark')" />
         다크
       </label>
       <label>
         <input type="radio" name="theme" value="light"
-          :checked="appearance.theme === 'light'" @change="setTheme('light')" />
+          :checked="appearance.theme === 'light'" @change="changeTheme('light')" />
         라이트
       </label>
     </fieldset>

@@ -496,6 +496,31 @@ h1 {
 .detail-analysis { white-space: pre-wrap; }
 [hidden] { display: none !important; }
 
+.app-status {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.operation-list { margin: 0; padding: 0; list-style: none; }
+.operation-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 6px 0; }
+.operation-list progress { max-width: 100%; accent-color: var(--accent); }
+.operation-error { display: flex; align-items: center; gap: 12px; }
+.operation-error p { flex: 1; }
+.app-status button {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
 .asset-list-container {
   overflow-x: auto;
 }
