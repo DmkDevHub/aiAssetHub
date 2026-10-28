@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import sqlite3
 import time
+import unicodedata
 from uuid import uuid4
 
 
@@ -41,6 +42,7 @@ class Database:
             existed = path.exists() and path.stat().st_size > 0
             path.parent.mkdir(parents=True, exist_ok=True)
             self.connection = sqlite3.connect(path, timeout=3, isolation_level=None)
+            self.connection.create_function('search_normalize', 1, lambda text: ' '.join(unicodedata.normalize('NFKC', text or '').casefold().split()), deterministic=True)
             self.connection.execute('PRAGMA foreign_keys=ON')
             self.connection.execute('PRAGMA busy_timeout=3000')
             tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}

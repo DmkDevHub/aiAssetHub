@@ -1526,3 +1526,30 @@ test('global query and tag selection reduce actual gallery cards', async () => {
   assert.equal(document.querySelectorAll('.asset-card').length,1);
   assert.match(document.querySelector('.asset-card').textContent,/돌/);
 });
+
+test('workspace uses local Core search IDs for description matches and ignores stale results', async () => {
+  await mountWorkspace([{id:'a',name:'one.txt',kind:'TXT'},{id:'b',name:'two.txt',kind:'TXT'}]);
+  globalThis.isTauri=true; let first;
+  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+    assert.equal(command,'search_assets');
+    if(args.query==='first')return new Promise(resolve=>{first=resolve;});
+    return {ok:true,data:{ids:['b'],next_cursor:null}};
+  }};
+  components.setSearchQuery('first'); await nextTick();
+  components.setSearchQuery('설명'); await nextTick();
+  await new Promise(resolve=>setImmediate(resolve)); await nextTick();
+  assert.equal(document.querySelectorAll('.asset-card').length,1);
+  assert.match(document.querySelector('.asset-card').textContent,/two/);
+  first({ok:true,data:{ids:['a'],next_cursor:null}});
+  await new Promise(resolve=>setImmediate(resolve)); await nextTick();
+  assert.match(document.querySelector('.asset-card').textContent,/two/);
+});
+test('Core search failure reports fallback rather than claiming a full result', async () => {
+  await mountWorkspace([{id:'a',name:'나무.txt',kind:'TXT'}]);
+  globalThis.isTauri=true; dom.window.__TAURI_INTERNALS__={invoke:async()=>{throw new Error('fixture private');}};
+  components.setSearchQuery('나무'); await nextTick();
+  await new Promise(resolve=>setImmediate(resolve)); await nextTick();
+  assert.match(document.querySelector('[role=alert]').textContent,/전문 검색을 완료하지 못/);
+  assert.equal(document.querySelectorAll('.asset-card').length,1);
+  assert.doesNotMatch(document.body.textContent,/fixture private/);
+});

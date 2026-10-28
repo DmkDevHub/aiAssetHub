@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import LibraryTreePanel from "../components/LibraryTreePanel.vue";
 import AssetGallery from "../components/AssetGallery.vue";
 import AssetDetailsPanel from "../components/AssetDetailsPanel.vue";
@@ -10,6 +10,8 @@ import LibraryManagement from '../components/LibraryManagement.vue';
 import { libraries, refreshLibraries } from '../stores/libraries';
 import { assets, refreshAssets, resetAssets } from '../stores/assets';
 import { workspace as searchState } from '../stores/workspace';
+import { isTauri } from '@tauri-apps/api/core';
+import { coreSearch } from '../services/coreSearch';
 import { keywordFilter } from '../services/assetSearch';
 import { folderNodes, filterFolder, type FolderNode } from '../services/assetFolders';
 
@@ -22,7 +24,23 @@ const availableItems = computed(() => assets.items.filter((item) => libraries.ro
 const tag = ref('');
 const sourceItems = computed(() => props.items ?? availableItems.value);
 const tags = computed(() => [...new Set(sourceItems.value.flatMap(item => [...item.userTags ?? []]))].sort((a,b)=>a.localeCompare(b,'ko')));
-const items = computed(() => keywordFilter(filterFolder(sourceItems.value, libraryUi.selectedFolderId), searchState.searchQuery, tag.value));
+const searchIds = ref<Set<string>|null>(null), searchError=ref(''), searching=ref(false);
+let searchGeneration=0;
+onBeforeUnmount(()=>{searchGeneration++;});
+watch([()=>searchState.searchQuery, sourceItems], async ([query])=>{
+  const token=++searchGeneration; searchIds.value=null; searchError.value=''; searching.value=false;
+  if(!query.trim() || !isTauri())return;
+  if(query.length>256 || query.trim().split(/\s+/).length>16){searchError.value='검색어는 256자, 16개 단어까지 입력하세요.';return;}
+  searching.value=true;
+  try { const ids=await coreSearch(query,()=>token===searchGeneration); if(token===searchGeneration)searchIds.value=ids; }
+  catch { if(token===searchGeneration)searchError.value='전문 검색을 완료하지 못했습니다. 현재 파일명·태그 일치 결과를 표시합니다.'; }
+  finally { if(token===searchGeneration)searching.value=false; }
+}, {immediate:true});
+const items = computed(() => {
+  const folderItems=filterFolder(sourceItems.value, libraryUi.selectedFolderId);
+  return searchIds.value ? keywordFilter(folderItems.filter(item=>searchIds.value!.has(item.id)), '', tag.value)
+    : keywordFilter(folderItems, searchState.searchQuery, tag.value);
+});
 const nodes = computed(() => folderNodes(libraries.roots, availableItems.value));
 watch(nodes,(roots)=>{
   function contains(items: readonly FolderNode[]): boolean { return items.some((node)=>node.id===libraryUi.selectedFolderId || contains(node.children ?? [])); }
@@ -67,7 +85,7 @@ function moveRegion(event: KeyboardEvent) {
       <template #management><LibraryManagement /></template>
     </LibraryTreePanel>
     <AssetGallery :items="items" :selected-id="selectedId" @select="selectedId = $event">
-      <template #filters><label class="tag-filter">사용자 태그 <select v-model="tag" aria-label="사용자 태그 필터"><option value="">전체 태그</option><option v-for="value in tags" :key="value" :value="value">{{ value }}</option></select></label></template>
+      <template #filters><p v-if="searching" role="status">로컬 전문 검색 중…</p><p v-if="searchError" role="alert">{{ searchError }}</p><label class="tag-filter">사용자 태그 <select v-model="tag" aria-label="사용자 태그 필터"><option value="">전체 태그</option><option v-for="value in tags" :key="value" :value="value">{{ value }}</option></select></label></template>
     </AssetGallery>
     <AssetDetailsPanel :asset="selectedAsset" />
   </div>

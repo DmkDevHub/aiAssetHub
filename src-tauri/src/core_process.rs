@@ -233,6 +233,7 @@ impl CoreProcess {
                 | "asset.tags"
                 | "asset.annotate"
                 | "asset.tags.batch"
+                | "asset.search"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }
@@ -333,7 +334,7 @@ mod tests {
             CoreProcess::new(LaunchSpec::packaged(directory).with_data(data.clone(), "production"));
         let first = core.start().unwrap();
         assert_eq!(first["data"]["database"]["status"], "ready");
-        assert_eq!(first["data"]["database"]["schema_version"], 1);
+        assert_eq!(first["data"]["database"]["schema_version"], 2);
         let source = data
             .parent()
             .unwrap()
@@ -387,7 +388,7 @@ mod tests {
             CoreProcess::new(LaunchSpec::development().with_data(prod.clone(), environment));
         let health = core.start().unwrap();
         assert_eq!(health["data"]["database"]["status"], "ready");
-        assert_eq!(health["data"]["database"]["schema_version"], 1);
+        assert_eq!(health["data"]["database"]["schema_version"], 2);
         core.stop();
         assert!(prod.join("asset_hub.sqlite").is_file());
         assert_eq!(core.start().unwrap()["data"]["database"]["status"], "ready");
@@ -502,6 +503,35 @@ mod tests {
                 .unwrap()["data"]["status"],
             "unsupported"
         );
+        assert_eq!(
+            core.library_request(
+                "asset.tags",
+                json!({"asset_id":asset_id,"add":["숲"],"remove":[]})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request(
+                "asset.annotate",
+                json!({"asset_id":asset_id,"title":"별칭","description":"한글 설명"})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request(
+                "asset.tags.batch",
+                json!({"asset_ids":[asset_id],"add":["green"],"remove":[]})
+            )
+            .unwrap()["data"]["updated"],
+            1
+        );
+        assert_eq!(
+            core.library_request("asset.search", json!({"query":"설명 숲"}))
+                .unwrap()["data"]["ids"],
+            json!([asset_id])
+        );
         assert!(uuid::Uuid::parse_str(&id).is_ok());
         let overlap = core
             .library_request(
@@ -518,6 +548,16 @@ mod tests {
         core.stop();
         core.start().unwrap();
         let listed = core.library_request("library.list", json!({})).unwrap();
+        assert_eq!(
+            core.library_request("asset.annotations", json!({"asset_id":asset_id}))
+                .unwrap()["data"]["description"],
+            "한글 설명"
+        );
+        assert_eq!(
+            core.library_request("asset.search", json!({"query":"숲"}))
+                .unwrap()["data"]["ids"],
+            json!([asset_id])
+        );
         assert_eq!(listed["data"]["libraries"][0]["id"], id);
         assert_eq!(
             core.library_request("library.unregister", json!({"library_id":id}))

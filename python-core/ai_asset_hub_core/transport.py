@@ -27,7 +27,7 @@ def serve(application, source, sink):
             response = application.handle(request)
         except (ValueError, UnicodeError, RecursionError):
             response = application.error(None, "INVALID_REQUEST", "요청 형식이 올바르지 않습니다.")
-        sink.write((json.dumps(response, ensure_ascii=True, allow_nan=False) + "\n").encode("ascii"))
+        sink.write((json.dumps(response, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8"))
         sink.flush()
         if oversized:
             return 2

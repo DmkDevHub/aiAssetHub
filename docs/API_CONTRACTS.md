@@ -89,3 +89,15 @@
 - 0/0건 완료는 허용하며 추정 백분율을 생성하지 않는다. 제공하지 않은 진행 수는 생성하지 않는다. 종료 이벤트는 실제 실행 결과에 근거해 전달하며 성공·실패를 추측하지 않는다.
 - `executeUiCommand`는 현재 로컬 테마/보기 변경 콜백만 감싸고 `ui-command-*` 상관 ID를 만든다. 이것은 에셋/모델/백엔드 작업 ID가 아니다. 콜백 종료 후 성공, 예외 시 안전한 실패 문구를 기록하며 자동 재시도하지 않는다. 이력 공간이 없으면 콜백을 실행하지 않고 `false`를 반환한다.
 - 실제 Core/스캔/분석/Unity 송수신 연결은 후속 마일스톤이며 현재 테스트 fixture가 그 성공을 보증하지 않는다.
+
+## M04 사용자 메타데이터·검색 명령
+모두 고정 Tauri 명령→Python allowlist만 통과한다. 활성 등록 폴더의 실제 asset UUID만 허용한다. 오류는 고정 INVALID_PARAMS/DB_UNAVAILABLE이며 원문 예외를 반환하지 않는다.
+| Tauri | Core | 입력/출력 |
+|---|---|---|
+| asset_annotations | asset.annotations | assetId→asset_id / tags,title,description |
+| edit_asset_tags | asset.tags | assetId,add,remove / 저장된 사용자 정보 |
+| save_asset_annotation | asset.annotate | assetId,title,description / 저장된 사용자 정보 |
+| batch_asset_tags | asset.tags.batch | assetIds→asset_ids,add,remove / updated |
+| search_assets | asset.search | query,afterId→after_id / ids,next_cursor |
+
+태그는 NFKC·casefold 중복 제거, 각 64자·에셋당 32개/합계 512자. 표시명 128자·설명 1024자, 빈 값은 override 해제. 사용자 태그만 변경하며 AI 이력은 보존한다. 일괄 최대 100개, 전체 대상 검증 및 원자적 반영. add/remove가 겹치면 추가를 우선한다. asset.list의 name은 사용자 표시명 우선이며 userTags는 사용자 태그만 포함한다. 검색 query는 최대 256자/16단어, ID순 200개 페이지다. 전체 파이프 응답은 UTF-8 JSON을 사용한다. 원본·AI 호출·과금·분석 작업은 발생하지 않는다.

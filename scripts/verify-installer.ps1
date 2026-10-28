@@ -50,7 +50,7 @@ try {
     $env:PYTHONPATH = $taskOldPythonPath
 }
 $taskHealth = Get-Content -LiteralPath $taskStdout -Raw | ConvertFrom-Json
-if (!$taskHealth.ok -or $taskHealth.data.database.status -ne 'ready' -or $taskHealth.data.database.schema_version -ne 1) { throw 'Installed Core/DB not ready.' }
+if (!$taskHealth.ok -or $taskHealth.data.database.status -ne 'ready' -or $taskHealth.data.database.schema_version -ne 2) { throw 'Installed Core/DB not ready.' }
 if ((Get-Item -LiteralPath $taskStderr).Length -ne 0) { throw 'Unexpected installed Core stderr.' }
 if (Get-Process -Id $taskHealth.data.core.pid -ErrorAction SilentlyContinue) { throw 'Core remained alive after verification.' }
 $taskResult = @{ installation = $taskInstallDir; core_pid = $taskHealth.data.core.pid; database = $taskHealth.data.database; sidecar_sha256 = (Get-FileHash -LiteralPath $taskInstalledCore).Hash; gui_opened = $false }
