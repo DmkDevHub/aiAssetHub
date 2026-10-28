@@ -64,3 +64,9 @@
 - 기존 DB 업그레이드 전에 SQLite backup API로 `backups/pre-migration-UUID.sqlite`를 만들고 전체 적용을 하나의 BEGIN IMMEDIATE 트랜잭션으로 처리한다. 실패 시 롤백하고 백업을 보존한다. 손상/다른 용도의 DB를 초기화하거나 자동 교체하지 않는다.
 - 성공 결과는 완료 run에만 생성하고 UPDATE를 차단한다. 활성 결과/AI 태그/임베딩은 같은 에셋의 결과만 참조한다. 모델은 기본 disabled이며 사용자 보정은 별도 테이블이다.
 - health는 실제 연결의 스키마·SQLite 버전·journal mode를 반환하며 닫혔거나 실패한 연결은 error다. 실제 개발/운영 경로·앱 연결은 R02-04에서 적용한다.
+
+## 실행 데이터 분리 (R02-04)
+
+- debug 앱은 프로젝트 `.artifacts/data/development`, release는 Tauri `app_local_data_dir()/data`를 사용한다. 프런트엔드는 경로를 지정할 수 없고 DB 파일을 직접 열지 않는다.
+- Python은 절대 경로·환경을 받아 `.ai-asset-hub.json`의 application/environment/layout_version을 확인한다. 다른 환경·알 수 없는 기존 내용·손상 표식·DB는 자동 복구/덮어쓰기하지 않고 오류로 반환한다.
+- `.core.lock`은 Windows 비차단 바이트 잠금(다른 OS는 flock)을 사용한다. 동시에 한 Core만 쓰기 소유권을 가지며 EOF·정상 종료·프로세스 사망 시 OS가 잠금을 해제한다. lock 파일은 남겨도 정상이며 PID/비밀키를 저장하지 않는다.

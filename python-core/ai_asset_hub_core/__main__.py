@@ -23,22 +23,38 @@ def main(argv=None):
     parser.add_argument("method", nargs="?", help="health.get")
     parser.add_argument("--serve", action="store_true", help="Private desktop pipe server")
     parser.add_argument("--request-id", default=None, metavar="UUID")
+    parser.add_argument("--data-dir", default=None)
+    parser.add_argument("--environment", choices=['development', 'production'], default=None)
     application = CoreApplication()
     try:
         args = parser.parse_args(argv)
     except InvalidArguments:
         response = application.error(None, "INVALID_REQUEST", "명령 인자가 올바르지 않습니다.")
     else:
+        if bool(args.data_dir) != bool(args.environment):
+            response = application.error(None, "INVALID_REQUEST", "데이터 실행 환경을 지정해야 합니다.")
+            sys.stdout.write(json.dumps(response, ensure_ascii=True) + '\n')
+            return 2
+        runtime = None
+        if args.data_dir:
+            from .runtime import CoreRuntime
+            runtime = CoreRuntime(args.data_dir, args.environment)
+            application.database = runtime.database
         if args.serve and args.method is None and args.request_id is None:
             from .transport import serve
             try:
                 return serve(application, sys.stdin.buffer, sys.stdout.buffer)
             except (BrokenPipeError, OSError):
                 return 1
+            finally:
+                if runtime:
+                    runtime.close()
         response = application.handle({
             "request_id": args.request_id if args.request_id is not None else str(uuid4()),
             "method": args.method if not args.serve else None,
         })
+        if runtime:
+            runtime.close()
     # ASCII escapes keep the wire output UTF-8 compatible even on legacy Windows consoles.
     sys.stdout.write(json.dumps(response, ensure_ascii=True, allow_nan=False) + "\n")
     return 0 if response["ok"] else 2 if response["error"]["code"] != "INTERNAL_ERROR" else 1

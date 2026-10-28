@@ -17,7 +17,8 @@ async function check(reconnect = false) {
       reconnect ? 'core_reconnect' : 'core_health');
     if (!response.ok || response.data?.core?.status !== 'ready' || typeof response.data.core.version !== 'string') throw new Error();
     version.value = response.data.core.version;
-    database.value = response.data.database?.status === 'ready' ? 'DB 연결됨' : 'DB 미연결';
+    database.value = response.data.database?.status === 'ready' ? 'DB 연결됨'
+      : response.data.database?.status === 'error' ? 'DB 연결 오류' : 'DB 미연결';
     state.value = 'connected';
   } catch {
     state.value = 'failed';

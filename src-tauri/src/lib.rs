@@ -30,7 +30,12 @@ async fn core_reconnect(state: tauri::State<'_, CoreState>) -> Result<serde_json
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let mut core = CoreProcess::new(LaunchSpec::development());
+            let (directory, environment) = core_process::data_location(
+                cfg!(debug_assertions),
+                app.path().app_local_data_dir()?,
+            );
+            let mut core =
+                CoreProcess::new(LaunchSpec::development().with_data(directory, environment));
             let _ = core.start(); // Failure is shown by the health command; keep the shell usable.
             app.manage(Arc::new(Mutex::new(core)));
             Ok(())

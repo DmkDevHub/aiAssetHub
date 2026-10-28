@@ -9,6 +9,17 @@ use std::time::Duration;
 const MAX_FRAME: usize = 16_384;
 const TIMEOUT: Duration = Duration::from_secs(3);
 
+pub fn data_location(development: bool, app_data: PathBuf) -> (PathBuf, &'static str) {
+    if development {
+        (
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.artifacts/data/development"),
+            "development",
+        )
+    } else {
+        (app_data.join("data"), "production")
+    }
+}
+
 #[derive(Clone)]
 pub struct LaunchSpec {
     pub program: PathBuf,
@@ -17,6 +28,16 @@ pub struct LaunchSpec {
 }
 
 impl LaunchSpec {
+    pub fn with_data(mut self, directory: PathBuf, environment: &str) -> Self {
+        self.args.extend([
+            "--data-dir".into(),
+            directory.to_string_lossy().into_owned(),
+            "--environment".into(),
+            environment.into(),
+        ]);
+        self
+    }
+
     pub fn development() -> Self {
         Self {
             program: std::env::var_os("AI_ASSET_HUB_PYTHON")
@@ -199,5 +220,24 @@ mod tests {
         let mut core = CoreProcess::new(spec);
         assert_eq!(core.start().unwrap_err(), "CORE_START_FAILED");
         assert!(core.session.is_none());
+    }
+
+    #[test]
+    fn data_locations_are_separate_and_database_survives_restart() {
+        let app_data = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../.artifacts/native-tests")
+            .join(uuid::Uuid::new_v4().to_string());
+        let (dev, _) = data_location(true, app_data.clone());
+        let (prod, environment) = data_location(false, app_data);
+        assert_ne!(dev, prod);
+        assert_eq!(environment, "production");
+        let mut core =
+            CoreProcess::new(LaunchSpec::development().with_data(prod.clone(), environment));
+        let health = core.start().unwrap();
+        assert_eq!(health["data"]["database"]["status"], "ready");
+        assert_eq!(health["data"]["database"]["schema_version"], 1);
+        core.stop();
+        assert!(prod.join("asset_hub.sqlite").is_file());
+        assert_eq!(core.start().unwrap()["data"]["database"]["status"], "ready");
     }
 }
