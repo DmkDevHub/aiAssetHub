@@ -41,12 +41,12 @@ body {
   padding: clamp(20px, 4vw, 48px);
 }
 
-.app-header {
+.app-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: 20px;
   padding-bottom: 28px;
 }
 
@@ -55,25 +55,128 @@ body {
   color: var(--text);
   font-weight: 700;
   font-size: 22px;
+  white-space: nowrap;
+  text-decoration: none;
 }
 
-nav {
+.topbar-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-nav a {
+.topbar-actions a {
   padding: 10px 16px;
   border-radius: 8px;
   color: var(--muted);
   text-decoration: none;
 }
 
-nav a:hover,
-nav a.router-link-active {
+.topbar-actions a:hover,
+.topbar-actions a.router-link-active {
   background: var(--active);
   color: var(--accent);
+}
+
+.breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.breadcrumbs li + li::before {
+  content: "/";
+  margin-right: 8px;
+  color: var(--muted);
+}
+
+.breadcrumbs a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.breadcrumbs a:hover {
+  color: var(--accent);
+}
+
+.topbar-search {
+  display: flex;
+  align-items: center;
+  flex: 1 1 240px;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.topbar-search:focus-within {
+  border-color: var(--accent);
+}
+
+.topbar-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.topbar-search input::placeholder {
+  color: var(--muted);
+}
+
+.topbar-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search-icon,
+.clear-search svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+}
+
+.search-icon {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.clear-search {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.clear-search:hover {
+  background: var(--active);
+  color: var(--accent);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .page {
