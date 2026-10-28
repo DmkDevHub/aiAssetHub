@@ -635,3 +635,7 @@ input[type="radio"] {
 .model-list li { padding-block: 12px; overflow-wrap: anywhere; }
 
 .model-policy { display: grid; gap: 8px; max-width: 620px; padding-block: 12px; }
+
+.analysis-overlay { position: fixed; inset: 0; z-index: 50; background: #0008; display: grid; place-items: center; }
+.analysis-dialog { display: grid; gap: 12px; width: min(620px, 90vw); max-height: 90vh; overflow: auto; padding: 24px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; }
+.analysis-dialog label { display: grid; gap: 4px; }

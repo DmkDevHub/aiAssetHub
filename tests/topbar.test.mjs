@@ -1697,3 +1697,12 @@ test('incompatible model cannot be selected and compatible input uses server val
  const validate=[...document.querySelectorAll('.model-list button')].find(b=>b.textContent==='입력 지원 검사');dispatch(validate,new MouseEvent('click',{bubbles:true}));
  await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.querySelector('[role=status]').textContent,/MODEL_CAPABILITY_MISMATCH/);assert.equal(calls[1][1].modality,'image');
 });
+
+test('opening and closing manual analysis only reads profiles and cannot start without review',async()=>{
+ await mountGallery([{id:'fixture',name:'fixture.png',kind:'PNG'}]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{calls.push(command);return {ok:true,data:{items:[],next_cursor:null}};}};
+ dispatch(document.querySelector('.analysis-open'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const dialog=document.querySelector('[role=dialog]');assert.ok(dialog);assert.deepEqual(calls,['list_models']);
+ const start=[...dialog.querySelectorAll('button')].find(b=>b.textContent.includes('분석 시작'));assert.equal(start.disabled,true);
+ dispatch(dialog,new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await nextTick();assert.equal(document.querySelector('[role=dialog]'),null);assert.equal(document.activeElement,document.querySelector('.analysis-open'));
+});

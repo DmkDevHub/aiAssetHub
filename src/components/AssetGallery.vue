@@ -4,6 +4,7 @@ import type { AssetSummary } from "../types/assets";
 import { executeUiCommand } from "../stores/operations";
 import type { GalleryViewMode } from "../stores/libraryUi";
 import { sortAssets } from '../services/assetSearch';
+import ManualAnalysis from './ManualAnalysis.vue';
 import BulkTags from './BulkTags.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, watch } from 'vue';
@@ -61,6 +62,7 @@ function moveAssetFocus(event: KeyboardEvent) {
 
 <template>
   <section class="page asset-gallery" aria-labelledby="library-title">
+    <ManualAnalysis :selected-ids="[...selection]" :folder-id="libraryUi.selectedFolderId" />
     <slot name="filters" />
     <header class="gallery-header">
       <div>
