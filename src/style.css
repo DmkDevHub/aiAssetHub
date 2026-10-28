@@ -506,6 +506,10 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.core-connection { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 13px; }
+.core-connection button { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); cursor: pointer; }
+.core-connection button:disabled { cursor: wait; opacity: 0.65; }
+
 .operation-list { margin: 0; padding: 0; list-style: none; }
 .operation-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 6px 0; }
 .operation-list progress { max-width: 100%; accent-color: var(--accent); }

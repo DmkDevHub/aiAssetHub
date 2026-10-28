@@ -12,3 +12,4 @@ export { default as LibraryView } from "../../src/views/LibraryView.vue";
 export { workspaceLayout } from "../../src/composables/useWorkspaceLayout";
 export { operations, receiveOperation, dismissOperationAlert, clearFinishedOperations,
   executeUiCommand, MAX_OPERATIONS } from "../../src/stores/operations";
+export { default as CoreConnection } from "../../src/components/CoreConnection.vue";

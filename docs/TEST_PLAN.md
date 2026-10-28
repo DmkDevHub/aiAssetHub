@@ -165,3 +165,10 @@
 - 주입한 예외에서 안전한 `INTERNAL_ERROR`·종료 코드 1·원문/traceback/로그 미노출을 검증했다. 별도 Python 프로세스에서 import 이후 audit hook으로 파일 열기/변경·디렉터리 스캔·SQLite·소켓·추가 프로세스 실행을 차단한 상태로 실제 health 명령 성공을 확인했다.
 - 첫 audit 검사에서 argparse의 표준 라이브러리 지연 import까지 차단한 것을 확인해 명령 처리 자체에 guard를 적용했다. Node 테스트 자동 탐색이 Python 실행 도우미를 중복 실행하는 문제는 파일명을 바꿔 해결했다. 최종 결과는 중복 없는 Node 54개 + Python 11개다.
 - UI·Tauri는 변경하지 않았고 실제 화면을 열지 않았다. Core는 개발 조회 후 종료하며 UI 연결/수명주기/인증은 R02-02, DB는 R02-03, 설치본 Sidecar는 R02-05에서 검증한다. 이를 실제 앱 연결·DB 성공·제품 기능 완료로 보고하지 않는다.
+
+## R02-02 검증 기록 (2026-10-28)
+
+- `npm run check`: Node 57개·Python 14개 및 타입·빌드 통과. `cargo test --manifest-path src-tauri/Cargo.toml --lib`: Rust 2개 통과. `cargo fmt` 적용.
+- Rust는 실제 Python 자식으로 두 health 응답의 동일 PID/서로 다른 UUID, EOF 종료·명시적 새 세션·실행 파일 없음의 고정 오류를 검증했다. Python은 다중 프레임/EOF·잘못된 UTF-8/JSON·중복 키/NaN·초과/불완전 프레임 거부를 검사했다.
+- DOM에서는 브라우저 미연결·fixture health 성공/DB 미연결·오류 원문 비노출·명시적 재연결을 검증했다. 실제 프로세스 결과와 UI fixture를 구분한다. 새 의존성은 공식 `@tauri-apps/api` 및 기존 Cargo 잠금 파일의 serde/serde_json/uuid 직접 참조다. npm 감사 0건.
+- 실제 GUI·OS 화면·설치본은 실행하지 않았다. DB·배포 Sidecar·비정상 종료 복구 강화는 다음 작업 범위다.

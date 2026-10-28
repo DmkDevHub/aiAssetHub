@@ -9,6 +9,7 @@ const dom = new JSDOM('<!doctype html><html><body><div id="app"></div></body></h
   virtualConsole,
 });
 const originalGlobals = new Map();
+originalGlobals.set('isTauri', Object.getOwnPropertyDescriptor(globalThis, 'isTauri'));
 for (const key of ["window", "document", "history", "location", "Document", "ShadowRoot", "Element", "HTMLElement", "SVGElement", "Event", "InputEvent", "CompositionEvent", "KeyboardEvent", "MouseEvent"]) {
   originalGlobals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
   Object.defineProperty(globalThis, key, { configurable: true, value: dom.window[key] });
@@ -22,7 +23,6 @@ const rejectTransport = () => {
 const originalFetch = globalThis.fetch;
 globalThis.fetch = dom.window.fetch = rejectTransport;
 dom.window.open = rejectTransport;
-dom.window.__TAURI_INTERNALS__ = { invoke: rejectTransport };
 for (const key of ["XMLHttpRequest", "WebSocket"]) {
   originalGlobals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
   const BlockedTransport = class { constructor() { rejectTransport(); } };
@@ -89,6 +89,8 @@ beforeEach(async (t) => {
   transportCalls = 0;
   errors = [];
   workspaceWidth = 1100;
+  delete dom.window.__TAURI_INTERNALS__;
+  globalThis.isTauri = false;
   components.setSearchQuery("");
   components.setTheme("dark");
   components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
@@ -980,4 +982,47 @@ test("zero-target completion displays measured zero counts without inventing a p
   assert.match(document.querySelector('.app-status').textContent, /파일 스캔: 완료/);
   assert.match(document.querySelector('.app-status').textContent, /0 \/ 0/);
   assert.equal(document.querySelector('.app-status progress'), null);
+});
+
+async function mountConnection(invoke) {
+  app.unmount();
+  dom.window.__TAURI_INTERNALS__ = { invoke };
+  globalThis.isTauri = true;
+  app = createApp(components.CoreConnection);
+  app.config.errorHandler = (error) => errors.push(error);
+  app.mount('#app');
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+}
+
+test('browser mode does not pretend to connect to Core', () => {
+  assert.equal(document.querySelector('.core-connection'), null);
+});
+
+test('desktop connection displays only the supplied successful health response', async () => {
+  const commands = [];
+  await mountConnection(async (command) => {
+    commands.push(command);
+    return { ok: true, data: { core: { status: 'ready', version: 'fixture-0.5' }, database: { status: 'not_configured' } } };
+  });
+  assert.match(document.querySelector('.core-connection').textContent, /Core 연결됨 · fixture-0.5 · DB 미연결/);
+  await clickElement('.core-connection button');
+  await nextTick();
+  assert.deepEqual(commands, ['core_health', 'core_health']);
+});
+
+test('desktop failure is redacted and explicit reconnect requests a fresh session', async () => {
+  const commands = [];
+  await mountConnection(async (command) => {
+    commands.push(command);
+    if (command === 'core_health') throw new Error('fixture-private-key-path');
+    return { ok: true, data: { core: { status: 'ready', version: 'fixture-0.5' }, database: { status: 'not_configured' } } };
+  });
+  assert.equal(document.querySelector('.core-connection button').textContent.trim(), '다시 연결');
+  assert.equal(document.body.textContent.includes('fixture-private-key-path'), false);
+  await clickElement('.core-connection button');
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+  assert.deepEqual(commands, ['core_health', 'core_reconnect']);
+  assert.match(document.querySelector('.core-connection').textContent, /Core 연결됨/);
 });

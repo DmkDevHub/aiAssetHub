@@ -3,6 +3,7 @@ import { watch } from "vue";
 import { RouterView } from "vue-router";
 import AppTopBar from "./components/AppTopBar.vue";
 import AppStatusBar from "./components/AppStatusBar.vue";
+import CoreConnection from "./components/CoreConnection.vue";
 import { appearance } from "./stores/appearance";
 
 watch(() => appearance.theme, (theme) => {
@@ -22,5 +23,6 @@ function focusMainContent() {
       <RouterView />
     </main>
     <AppStatusBar />
+    <CoreConnection />
   </div>
 </template>

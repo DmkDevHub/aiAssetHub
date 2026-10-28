@@ -20,7 +20,8 @@ class SafeArgumentParser(argparse.ArgumentParser):
 
 def main(argv=None):
     parser = SafeArgumentParser(prog="ai_asset_hub_core", description="Read-only Core health probe")
-    parser.add_argument("method", help="health.get")
+    parser.add_argument("method", nargs="?", help="health.get")
+    parser.add_argument("--serve", action="store_true", help="Private desktop pipe server")
     parser.add_argument("--request-id", default=None, metavar="UUID")
     application = CoreApplication()
     try:
@@ -28,9 +29,15 @@ def main(argv=None):
     except InvalidArguments:
         response = application.error(None, "INVALID_REQUEST", "명령 인자가 올바르지 않습니다.")
     else:
+        if args.serve and args.method is None and args.request_id is None:
+            from .transport import serve
+            try:
+                return serve(application, sys.stdin.buffer, sys.stdout.buffer)
+            except (BrokenPipeError, OSError):
+                return 1
         response = application.handle({
             "request_id": args.request_id if args.request_id is not None else str(uuid4()),
-            "method": args.method,
+            "method": args.method if not args.serve else None,
         })
     # ASCII escapes keep the wire output UTF-8 compatible even on legacy Windows consoles.
     sys.stdout.write(json.dumps(response, ensure_ascii=True, allow_nan=False) + "\n")
