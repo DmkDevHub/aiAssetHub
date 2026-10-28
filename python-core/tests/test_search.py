@@ -69,3 +69,16 @@ class SearchTests(unittest.TestCase):
             self.assertEqual(SearchService(database).search({'query':'마이그레이션'})['ids'],[identifier])
             database.connection.execute("INSERT INTO asset_fts(asset_fts,rank) VALUES ('integrity-check',1)")
         finally: database.close()
+
+    def test_active_ai_description_tags_and_failed_retry_are_searchable_without_calls(self):
+        import test_analysis
+        from unittest.mock import patch
+        test_analysis.AnalysisTests.history(self,self.id,'completed',True)
+        result=self.db.connection.execute('SELECT id FROM analysis_results').fetchone()[0]
+        tag=str(uuid4());self.db.connection.execute('INSERT INTO tags VALUES (?,?,?)',(tag,'중세 횃불','중세 횃불'))
+        self.db.connection.execute("INSERT INTO asset_tags VALUES (?,?,'ai',?)",(self.id,tag,result))
+        test_analysis.AnalysisTests.history(self,self.id,'failed',timestamp='2030-01-01')
+        with patch('ai_asset_hub_core.providers.metadata',side_effect=AssertionError('no model calls')):
+            self.assertEqual(self.find('successful'),[self.id]);self.assertEqual(self.find('중세 횃불'),[self.id])
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_runs').fetchone()[0],2)
+        self.db.connection.execute("INSERT INTO asset_fts(asset_fts,rank) VALUES ('integrity-check',1)")

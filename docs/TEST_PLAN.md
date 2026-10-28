@@ -327,3 +327,6 @@ Node 110개·Python 74개·타입/빌드 통과. PNG+WAV+FBX 범위에서 이미
 - 원본/기존 사용자 AppData는 검증에 사용하지 않았다. 실제 앱 창·브라우저·화면 조작은 미실행이며 UI는 내부 DOM/상태/이벤트로 검증했다. 실제 GUI·깨끗한 PC·대규모 라이브러리/모델 성능·외부 유료 추론/청구서는 미검증이다. 오디오/3D는 기술 메타데이터와 제한/오류만 제공하며 AI 성공으로 표시하지 않는다.
 - 설치 파일 13616738 bytes, SHA256 `d2b4175992620873796ea8733404e402d855d9637a82ae45d01fe211fd8e6e11`. 기존 NSIS Korean `choowHowToInstall` 문자열 경고 1개 유지.
 - 개발 검증용 Ollama CLI v0.40.12: `C:/Users/kdm/AppData/Local/AIAssetHubTools/ollama-v0.40.12/ollama.exe`, 모델 경로 `.artifacts/tools/ollama-models`. 사용자 설치/다운로드 승인으로 루프백 127.0.0.1:11434·클라우드 비활성 환경에서 실행했다. 앱이 런타임/모델을 자동 설치·다운로드하지 않는다.
+
+## R07-01 내부 검증
+`npm run check`: Node 110개·Python 78개·타입/빌드 통과. 현재 활성 AI 설명/태그 키워드·실패 후 성공 결과 검색·FTS 무결성 및 모델 호출 0건 확인.
