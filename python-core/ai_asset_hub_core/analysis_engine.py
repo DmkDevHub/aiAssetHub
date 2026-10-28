@@ -64,6 +64,7 @@ class AnalysisEngine:
                     checked=ModelService(database).validate({'id':snapshot['registryId'],'modality':'image'},reserved=True)
                     if not checked['compatible']:raise LibraryError(checked['reason'])
                     if checked['snapshot']['profileVersion']!=snapshot['profileVersion']:raise LibraryError('MODEL_CHANGED')
+                    prepared=prepare_image(database,asset_id,versions[asset_id])
                     from .providers import inspect_local,inspect_external
                     if snapshot['kind']=='local':
                         current=inspect_local(snapshot['modelId'])
@@ -71,7 +72,6 @@ class AnalysisEngine:
                     else:
                         current=inspect_external(snapshot['modelId'])
                         if current.get('status')!='available' or any(current.get(k)!=snapshot['inspection'].get(k) for k in ('pricing','contextLength','modalities','costClass')):raise LibraryError('MODEL_CHANGED')
-                    prepared=prepare_image(database,asset_id,versions[asset_id])
                     db.execute('UPDATE analysis_runs SET input_fingerprint=? WHERE id=?',(prepared['fingerprint'],run))
                     if control['cancel'].is_set():raise LibraryError('USER_CANCELED')
                     key=ModelService(database).vault.read(snapshot['registryId']) if snapshot['kind']=='external' else None
@@ -102,7 +102,7 @@ class AnalysisEngine:
                     except Exception:db.execute('ROLLBACK');raise
                 except Exception as error:
                     from .libraries import ERROR_MESSAGES
-                    code=str(error) if isinstance(error,LibraryError) and str(error) in ERROR_MESSAGES else 'INTERNAL_ERROR'
+                    code='FILE_PERMISSION_DENIED' if isinstance(error,PermissionError) else 'FILE_MISSING' if isinstance(error,FileNotFoundError) else 'FILE_UNAVAILABLE' if isinstance(error,OSError) else str(error) if isinstance(error,LibraryError) and str(error) in ERROR_MESSAGES else 'INTERNAL_ERROR'
                     state='canceled' if control['cancel'].is_set() or code=='USER_CANCELED' else 'failed'
                     db.execute('BEGIN IMMEDIATE')
                     try:

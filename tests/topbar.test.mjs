@@ -1805,3 +1805,10 @@ test('user metadata and AI results remain visibly separate after a failed attemp
  assert.equal(document.querySelector('.annotation-form textarea').value,'User notes');assert.match(document.querySelector('.user-annotations').textContent,/user-tag/);assert.doesNotMatch(document.querySelector('.user-annotations').textContent,/AI description/);
  assert.match(document.querySelector('.asset-analysis').textContent,/ai-tag/);assert.match(document.querySelector('.analysis-retained').textContent,/이전 성공 결과를 유지/);
 });
+
+test('unsupported preview reports limits and cannot start an all-audio scope',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{calls.push(command);return command==='list_models'?{ok:true,data:{items:[{id:'fixture-model',modelId:'fixture',enabled:true,selected:true,inspection:{modalities:['image']}}],next_cursor:null}}:{ok:true,data:{targetCount:2,eligibleCount:0,unsupportedCount:2,overLimitCount:0,missingCount:0,planToken:'a'.repeat(64),estimatedUpperBoundUsd:'0'}};}};
+ dispatch(document.querySelector('.analysis-open'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();const selects=document.querySelectorAll('[role=dialog] select');for(const select of [selects[0],selects[1]]){select.value='all';dispatch(select,new Event('change',{bubbles:true}));}await nextTick();dispatch([...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent==='대상 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(document.querySelector('.analysis-start').disabled,true);assert.match(document.querySelector('[role=dialog]').textContent,/미지원 2개/);assert.ok(!calls.includes('start_analysis'));
+});

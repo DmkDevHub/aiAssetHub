@@ -130,6 +130,8 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'FILE_PERMISSION_DENIED': '원본 파일의 읽기 권한이 없습니다.',
+    'ANALYSIS_NO_SUPPORTED_INPUT': '현재 분석 경로에서 처리할 이미지 후보가 없습니다.',
     'CORE_INTERRUPTED': 'Core 종료로 중단된 작업을 사용자가 정리했습니다.',
     'UNSUPPORTED_FORMAT': '현재 분석 경로에서 지원하지 않는 파일 형식입니다.',
     'INPUT_TOO_LARGE': '분석 입력 크기 또는 픽셀 한도를 초과했습니다.',

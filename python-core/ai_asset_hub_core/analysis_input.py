@@ -36,8 +36,9 @@ def prepare_image(database, identifier, expected):
         if (after.st_size,after.st_mtime_ns)!=(info.st_size,info.st_mtime_ns):raise LibraryError('FILE_CHANGED')
     try:
         with Image.open(io.BytesIO(raw)) as image:
-            if image.format not in ('PNG','JPEG') or image.width*image.height>16_000_000:raise LibraryError('INPUT_TOO_LARGE')
-            image.load();image.thumbnail((512,512));converted=image.convert('RGB')
+            if image.format not in ('PNG','JPEG'):raise LibraryError('UNSUPPORTED_FORMAT')
+            if image.width*image.height>16_000_000:raise LibraryError('INPUT_TOO_LARGE')
+            image.load();image.thumbnail((512,512));rgba=image.convert('RGBA');converted=Image.new('RGB',rgba.size,'white');converted.paste(rgba,mask=rgba.getchannel('A'))
             output=io.BytesIO();converted.save(output,format='JPEG',quality=80)
     except LibraryError:raise
     except Exception:raise LibraryError('INVALID_IMAGE') from None
@@ -63,5 +64,6 @@ def source_info(database, identifier):
         info=path.stat()
         if not stat.S_ISREG(info.st_mode):raise LibraryError('FILE_UNAVAILABLE')
         return path,info
+    except PermissionError:raise LibraryError('FILE_PERMISSION_DENIED') from None
     except FileNotFoundError:raise LibraryError('FILE_MISSING') from None
     except OSError:raise LibraryError('FILE_UNAVAILABLE') from None

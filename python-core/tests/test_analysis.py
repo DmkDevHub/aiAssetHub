@@ -239,3 +239,50 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(set(annotations.get({'asset_id':self.id})['tags']),{'user-only','edited'})
         self.assertEqual(AssetService(self.db).list({})['items'][0]['name'],'User renamed')
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_results').fetchone()[0],1)
+
+    def test_audio_and_3d_are_explicit_failures_and_never_sent_to_the_model(self):
+        import json,time
+        from unittest.mock import patch
+        from PIL import Image
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        from ai_asset_hub_core.analysis_engine import AnalysisEngine
+        Image.new('RGB',(16,16),'red').save(self.source/'나무.png')
+        (self.source/'sound.wav').write_bytes(b'fixture audio');(self.source/'mesh.fbx').write_bytes(b'fixture mesh')
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0];AssetService(self.db).scan({'library_id':library})
+        caps=json.loads(self.db.connection.execute('SELECT capabilities_json FROM model_registry WHERE id=?',(self.model,)).fetchone()[0]);caps['metadataVersion']='a'*64
+        self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),self.model))
+        plan=self.params();preview=AnalysisPlan(self.db).preview(plan)
+        self.assertEqual((preview['targetCount'],preview['eligibleCount'],preview['unsupportedCount']),(3,1,2));self.assertEqual(preview['formats']['audio'],1);self.assertEqual(preview['formats']['threeD'],1)
+        jobs=AnalysisJobs(self.db);job=jobs.start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
+        engine=AnalysisEngine(self.db)
+        with patch('ai_asset_hub_core.providers.inspect_local',return_value={'status':'available','metadataVersion':'a'*64}) as metadata,patch('ai_asset_hub_core.inference.infer',return_value=({'description':'Fixture image','tags':[]},{'providerRequestAttempted':True})) as inference:
+            engine.launch(job);deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+            engine.close();self.assertEqual(inference.call_count,1);self.assertEqual(metadata.call_count,1)
+        status=jobs.status({'job_id':job});self.assertEqual((status['succeeded'],status['failed']),(1,2));self.assertTrue(all(e['code']=='UNSUPPORTED_FORMAT' for e in status['errors']))
+        self.assertEqual((self.source/'mesh.fbx').read_bytes(),b'fixture mesh')
+
+    def test_no_image_candidates_or_oversize_inputs_cannot_create_jobs(self):
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        (self.source/'audio.wav').write_bytes(b'fixture')
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0];AssetService(self.db).scan({'library_id':library})
+        audio=self.db.connection.execute("SELECT id FROM assets WHERE display_name='audio.wav'").fetchone()[0]
+        for identifier in (audio,self.id):
+            if identifier==self.id:
+                with open(self.source/'나무.png','wb') as source:source.truncate(20_000_001)
+            plan=self.params(mode='selected',selected_ids=[identifier]);preview=AnalysisPlan(self.db).preview(plan)
+            self.assertEqual(preview['eligibleCount'],0)
+            with self.assertRaises(LibraryError):AnalysisJobs(self.db).start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
+
+    def test_transparent_pixels_are_composited_and_permission_errors_are_redacted(self):
+        import base64,io
+        from PIL import Image
+        from unittest.mock import patch
+        from ai_asset_hub_core.analysis_input import source_info,prepare_image
+        Image.new('RGBA',(16,16),(255,0,0,0)).save(self.source/'나무.png');before=(self.source/'나무.png').read_bytes()
+        path,info=source_info(self.db,self.id);prepared=prepare_image(self.db,self.id,{'size':info.st_size,'mtimeNs':info.st_mtime_ns})
+        with Image.open(io.BytesIO(base64.b64decode(prepared['image']))) as derived:self.assertTrue(all(c>240 for c in derived.getpixel((0,0))))
+        self.assertEqual((self.source/'나무.png').read_bytes(),before)
+        with patch('ai_asset_hub_core.analysis_input.Path.stat',side_effect=PermissionError('fixture private path')):
+            with self.assertRaisesRegex(LibraryError,'FILE_PERMISSION_DENIED'):source_info(self.db,self.id)

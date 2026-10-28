@@ -20,13 +20,14 @@ class AnalysisJobs:
         preview=AnalysisPlan(self.database).preview(params['plan'],internal=True)
         if preview['planToken']!=params['plan_token']:raise LibraryError('ANALYSIS_PLAN_CHANGED')
         if not preview['targetCount']:raise LibraryError('ANALYSIS_EMPTY')
+        if not preview['eligibleCount']:raise LibraryError('ANALYSIS_NO_SUPPORTED_INPUT')
         if preview['externalTransfer'] and not params['confirm_external'] or preview['paid'] and not params['confirm_paid']:raise LibraryError('MODEL_POLICY_DENIED')
         targets=AnalysisPlan(self.database).targets(params['plan']);identifier=str(uuid4())
         self.db.execute('BEGIN IMMEDIATE')
         try:
             if self.db.execute("SELECT 1 FROM analysis_jobs WHERE status IN ('queued','running') LIMIT 1").fetchone():raise LibraryError('ANALYSIS_BUSY')
-            manager=BudgetPolicy(self.db);policy=manager.check(params['plan']['model_id'],preview['estimatedUpperBoundUsd'],len(targets))
-            policy['reservedUsd']=str(money(policy['reservedUsd'])+money(preview['estimatedUpperBoundUsd']));policy['requestsUsed']+=len(targets)
+            manager=BudgetPolicy(self.db);policy=manager.check(params['plan']['model_id'],preview['estimatedUpperBoundUsd'],preview['eligibleCount'])
+            policy['reservedUsd']=str(money(policy['reservedUsd'])+money(preview['estimatedUpperBoundUsd']));policy['requestsUsed']+=preview['eligibleCount']
             manager.write(params['plan']['model_id'],policy)
             self.db.execute("INSERT INTO analysis_jobs(id,request_id,scope_json,model_snapshot_json,requested_count,status,created_at,initiated_by,cost_limit) VALUES (?,?,?,?,?,'queued',strftime('%Y-%m-%dT%H:%M:%fZ','now'),'user',?)",(identifier,params['request_id'],payload,json.dumps({**preview['snapshot'],'inputVersions':preview['_inputVersions']}),len(targets),float(preview['estimatedUpperBoundUsd'])))
             self.db.executemany("INSERT INTO analysis_job_items(job_id,asset_id,status) VALUES (?,?,'queued')",[(identifier,row[0]) for row in targets])

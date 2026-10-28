@@ -49,21 +49,29 @@ class AnalysisPlan:
         targets=self.targets(params)
         checked=ModelService(self.database).validate({'id':params['model_id'],'modality':'image'})
         if not checked['compatible']:raise LibraryError(checked['reason'])
-        snapshot=checked['snapshot'];cost=Decimal('0')
+        snapshot=checked['snapshot'];live=[];eligible=0;unsupported=0;over_limit=0;formats={'image':0,'audio':0,'threeD':0,'other':0}
+        from pathlib import Path
+        for row in targets:
+            extension=Path(row[2]).suffix.lower()
+            image=extension in ('.png','.jpg','.jpeg')
+            kind='image' if image else 'audio' if extension in ('.wav','.mp3','.flac','.ogg','.m4a') else 'threeD' if extension in ('.fbx','.obj','.gltf','.glb','.blend') else 'other'
+            formats[kind]+=1
+            if not image:unsupported+=1
+            try:
+                path,info=source_info(self.database,row[0]);live.append((row[0],info.st_size,info.st_mtime_ns,'present'))
+                if image:
+                    if info.st_size>20_000_000:over_limit+=1
+                    else:eligible+=1
+            except LibraryError as error:live.append((row[0],None,None,str(error)))
+        cost=Decimal('0')
         if snapshot['kind']=='external' and snapshot['inspection'].get('costClass')=='paid':
             caps=snapshot['inspection'];pricing=caps.get('pricing',{});context=caps.get('contextLength')
             if type(context) is not int or not 1<=context<=2_000_000 or any(Decimal(value)!=0 for key,value in pricing.items() if key not in ('prompt','completion','image','request')):raise LibraryError('COST_ESTIMATE_UNAVAILABLE')
-            cost=(Decimal(pricing['prompt'])*context+Decimal(pricing['completion'])*512+Decimal(pricing.get('image','0'))+Decimal(pricing.get('request','0')))*len(targets)
-        manager=BudgetPolicy(self.db)
-        if targets:manager.check(params['model_id'],str(cost),len(targets))
-        live=[]
-        for row in targets:
-            try:
-                path,info=source_info(self.database,row[0]);live.append((row[0],info.st_size,info.st_mtime_ns,'present'))
-            except LibraryError as error:live.append((row[0],None,None,str(error)))
+            cost=(Decimal(pricing['prompt'])*context+Decimal(pricing['completion'])*512+Decimal(pricing.get('image','0'))+Decimal(pricing.get('request','0')))*eligible
+        if eligible:BudgetPolicy(self.db).check(params['model_id'],str(cost),eligible)
         snapshot['analysisLimits']={'outputTokens':512,'inputBytes':20_000_000,'imageEdge':512,'promptSchema':'asset-description.v1'}
-        token=hashlib.sha256(json.dumps({'request':params,'targets':live,'model':snapshot['profileVersion'],'cost':str(cost)},sort_keys=True).encode('utf-8')).hexdigest()
-        response={'targetCount':len(targets),'missingCount':sum(row[3]!='present' for row in live),'planToken':token,
+        token=hashlib.sha256(json.dumps({'request':params,'targets':live,'model':snapshot['profileVersion'],'cost':str(cost),'eligible':eligible,'limits':snapshot['analysisLimits']},sort_keys=True).encode('utf-8')).hexdigest()
+        response={'eligibleCount':eligible,'unsupportedCount':unsupported,'overLimitCount':over_limit,'formats':formats,'targetCount':len(targets),'missingCount':sum(row[3]!='present' for row in live),'planToken':token,
                 'estimatedUpperBoundUsd':str(cost),'costIsEstimate':True,'externalTransfer':snapshot['kind']=='external',
                 'paid':snapshot['inspection'].get('costClass')=='paid','snapshot':snapshot,'inferenceCalled':False}
         if internal:response['_inputVersions']={row[0]:{'size':row[1],'mtimeNs':row[2],'status':row[3]} for row in live}
