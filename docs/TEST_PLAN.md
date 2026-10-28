@@ -43,3 +43,23 @@
 ## 실패율·성능
 - 초기에는 정량 SLA를 추정으로 확정하지 않는다. 실제 샘플 폴더 100/1,000개에서 탐색·스크롤·스캔 소요 시간을 측정해 기준 결정.
 - 벡터 검색 품질은 사람이 평가한 고정 질의/정답 세트를 만든 후 개선.
+
+## R00-02 검증 기록 (2026-10-28)
+
+범위는 최소 진입 화면과 Tauri 데스크톱 셸이다. P0 제품 기능 및 설치본 수용 테스트 통과를 뜻하지 않는다.
+
+검증 환경: Windows x64, Node.js 24.12.0, npm 11.6.2, Rust/Cargo 1.99.1 MSVC, C++ Build Tools 2022 17.14.42, Windows SDK 10.0.26100, WebView2 155.0.4283.62. 의존성은 npm·Cargo 잠금 파일로 기록한다.
+
+| 검사 | 실제 결과 |
+|---|---|
+| `npm run build` | 통과: Vue·Vite 설정 타입 검사 및 프로덕션 번들 생성 |
+| `cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check` | 통과 |
+| `npm run tauri build -- --debug --no-bundle -- --locked` | 통과: `src-tauri/target/debug/ai-asset-hub.exe` 생성 |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --features tauri/custom-protocol -- -D warnings` | 통과: 경고를 오류로 처리한 검사 성공 |
+| 브라우저 UI 자동 검사 | 통과: 페이지 제목, `AI Asset Hub` 제목 요소, `로컬 에셋 작업 공간` 표시. 콘솔 오류·경고 0건 |
+| Windows 네이티브 UI | 통과: Vite 서버 종료 후 실행 파일을 직접 실행. `http://tauri.localhost/` 내장 화면에서 제목·한국어 문구 표시, 최대화/복원 후에도 내용 유지 |
+| 정상 종료 | 통과: 네이티브 창에서 Alt+F4 후 창 0개 및 시작한 앱 프로세스 종료 확인 |
+| 개발 포트 중복 실행 | 기대한 실패: 두 번째 `npm run dev`가 `Port 1420 is already in use`로 종료 코드 1 반환 |
+| 민감정보 패턴 검사 | 통과: 소스·설정 15개 파일에서 지정된 비밀키·토큰 패턴 검출 0건 |
+
+기능 로직은 아직 없어 별도 유닛 테스트를 추가하지 않았다. 폴더·AI·DB·MCP·Unity 및 설치본 테스트는 미실행이며 해당 ROADMAP 작업에서 검증한다.

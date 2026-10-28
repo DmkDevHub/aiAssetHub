@@ -1,6 +1,6 @@
-# AI Asset Hub v0.5 — 개발 문서
+# AI Asset Hub v0.5
 
-> 상태: **신규 설계안 / 구현 전** · 작성 기준: 2026-10-28 · 언어: 한국어  
+> 상태: **최소 데스크톱 앱 실행 검증 완료** · 작성 기준: 2026-10-28 · 언어: 한국어  
 > 이 문서는 새로운 v0.5 설계의 출발점이다. 별도의 과거 설계 문서를 상속하거나 참조하지 않는다.
 
 ## 프로젝트 한 줄 정의
@@ -50,21 +50,21 @@
 | [TEST_PLAN.md](docs/TEST_PLAN.md) | 테스트·UI 수용 기준 |
 | [ROADMAP.md](docs/ROADMAP.md) | 작업 1개씩 완료하는 체크리스트 |
 | [DECISIONS.md](docs/DECISIONS.md) | 확정 결정과 검토 필요 사항 |
-| [CHANGELOG.md](docs/CHANGELOG.md) | 개발 이력(초기 비어 있음) |
+| [CHANGELOG.md](docs/CHANGELOG.md) | 개발·검증 이력 |
 | [GLOSSARY.md](docs/GLOSSARY.md) | 기술 용어·약어 |
 | [REFERENCE_LINKS.md](docs/REFERENCE_LINKS.md) | 공식 기술 문서 링크 |
 
 **화면 기준 이미지:** [`assets/ui_reference.jpg`](assets/ui_reference.jpg) — 제공된 Blueberry 레퍼런스의 레이아웃·탐색 흐름 참고. 원본 서비스의 로고·콘텐츠·상표를 그대로 복제하지 않는다.
 
-## 제안 리포지토리 폴더 구조 (미생성)
+## 리포지토리 폴더 구조
 ```text
 AI-Asset-Hub/
 ├─ AGENTS.md
 ├─ README.md
 ├─ docs/
 ├─ assets/                 # 디자인 참고 리소스만
-├─ src/                    # Vue UI (향후 구현)
-├─ src-tauri/              # Tauri 앱 (향후 구현)
+├─ src/                    # Vue 최소 진입 화면
+├─ src-tauri/              # Tauri 데스크톱 셸
 ├─ python-core/            # 분석·검색·MCP 코어 (향후 구현)
 ├─ unity-package/          # Unity Editor 패키지 (향후 구현)
 ├─ db/                     # 스키마·마이그레이션 (향후 구현)
@@ -72,6 +72,7 @@ AI-Asset-Hub/
 ```
 
 ## 현재 상태와 다음 행동
-- 본 문서 세트는 **실제 코드를 생성하지 않은 설계/개발 지침**이다.
+- `R00-02`: Tauri 2 + Vue 3 + TypeScript + Vite 최소 진입 화면. 에셋 관리·분석 기능은 이후 작업 범위다.
+- 개발 환경과 실행 명령, 검증 상태는 [DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고한다.
 - [ROADMAP.md](docs/ROADMAP.md)에서 최초 미완료 작업을 골라 **한 번에 한 작업만** 구현한다.
 - 완료 시 앱 화면에서 실제 결과를 확인하고 자동 테스트 후 문서/변경 이력을 갱신한다.

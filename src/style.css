@@ -1,0 +1,33 @@
+:root {
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+  color: #202939;
+  background: #f6f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: clamp(24px, 5vw, 64px);
+}
+
+h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.4;
+}
+
+p {
+  margin-top: 8px;
+  color: #536176;
+  line-height: 1.6;
+}

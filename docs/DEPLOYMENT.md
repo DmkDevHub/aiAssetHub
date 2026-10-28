@@ -6,7 +6,33 @@
 - Tauri 앱 안에 Vue 정적 파일 + 패키징된 Python Core Sidecar를 포함.
 - AI 모델 가중치는 크기/라이선스/하드웨어별 차이로 **설치본 기본 포함을 강제하지 않고**, 사용자 선택 다운로드/등록 방식을 적용한다.
 
-## 개발 실행 (예시 명령; 실제 스크립트는 구현 시 정의)
+## 현재 최소 앱 개발 실행 (R00-02)
+
+Windows 개발 환경에 Node.js 22.12 이상, Rust stable MSVC, Microsoft C++ Build Tools의 `Desktop development with C++` 워크로드와 Windows SDK, WebView2가 필요하다. [Tauri 공식 사전 요구사항](https://v2.tauri.app/start/prerequisites/)을 참고한다.
+
+```bash
+npm ci
+npm run build
+npm run tauri dev
+```
+
+- `npm run build`: Vue 화면·Vite 설정 타입 검사 후 프런트엔드 프로덕션 빌드.
+- `npm run tauri dev`: Windows 데스크톱 창 실행. Cargo/MSVC 설치 후 새 터미널에서 실행한다.
+- `npm run dev`: 브라우저 전용 화면 확인용 `http://127.0.0.1:1420`. Windows 앱과의 검증 결과를 구분한다. 포트 점유 시 다른 포트로 변경하지 않고 오류를 반환한다.
+- Tauri가 `beforeDevCommand`로 Vite를 시작하므로 브라우저 확인용 서버는 먼저 종료한다.
+- 최소 앱은 `AI Asset Hub`와 `로컬 에셋 작업 공간`을 표시한다. Python·DB·AI·파일 선택 기능은 아직 연결하지 않는다.
+- `local.aiassethub.dev`는 개발용 임시 식별자다. 배포 식별자·출판사명은 DECISIONS의 미정 사항으로 유지하며 설치본 번들은 아직 비활성화했다.
+- Windows 실행 파일의 아이콘은 공식 Tauri 템플릿 기본값을 개발용으로 사용한다. 제품 아이콘은 아직 정하지 않았다.
+
+최소 셸의 실행 파일만 빌드하려면 다음 명령을 사용한다. 결과는 `src-tauri/target/debug/ai-asset-hub.exe`이며 NSIS 설치본이 아니다.
+
+```bash
+npm run tauri build -- --debug --no-bundle -- --locked
+```
+
+2026-10-28 위 실행 파일을 Vite 서버 없이 실행해 제목·한국어 문구 표시와 정상 종료를 확인했다. 검사 범위와 결과는 [TEST_PLAN.md](TEST_PLAN.md)의 R00-02 기록을 참고한다.
+
+## 이후 Core 통합 개발 실행 (미구현 예시)
 ```bash
 npm install
 npm run tauri dev
