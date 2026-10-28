@@ -1706,3 +1706,16 @@ test('opening and closing manual analysis only reads profiles and cannot start w
  const start=[...dialog.querySelectorAll('button')].find(b=>b.textContent.includes('분석 시작'));assert.equal(start.disabled,true);
  dispatch(dialog,new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await nextTick();assert.equal(document.querySelector('[role=dialog]'),null);assert.equal(document.activeElement,document.querySelector('.analysis-open'));
 });
+
+test('manual target preview sends selected mode and shows server count without starting work',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+  calls.push([command,args]);
+  if(command==='list_models')return {ok:true,data:{items:[{id:'fixture-model-id',modelId:'fixture',enabled:true,selected:true,inspection:{modalities:['image']}}],next_cursor:null}};
+  return {ok:true,data:{targetCount:2,missingCount:0,planToken:'fixture-token'}};
+ }};
+ dispatch(document.querySelector('.analysis-open'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const selects=document.querySelectorAll('[role=dialog] select');selects[0].value='all';dispatch(selects[0],new Event('change',{bubbles:true}));selects[1].value='all';dispatch(selects[1],new Event('change',{bubbles:true}));await nextTick();
+ const preview=[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent==='대상 확인');dispatch(preview,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[1][0],'preview_analysis');assert.equal(calls[1][1].plan.mode,'all');assert.match(document.querySelector('[role=dialog] [role=status]').textContent,/대상 2개/);assert.equal(calls.length,2);
+});

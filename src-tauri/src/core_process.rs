@@ -241,6 +241,7 @@ impl CoreProcess {
                 | "model.policy"
                 | "model.validate"
                 | "model.select"
+                | "analysis.preview"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

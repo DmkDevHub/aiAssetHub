@@ -130,6 +130,7 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'ANALYSIS_TARGET_LIMIT': '한 번에 최대 1000개 에셋을 분석할 수 있습니다.',
     'MODEL_UNAVAILABLE': '모델이 비활성 또는 미확인 상태입니다.',
     'MODEL_CAPABILITY_MISMATCH': '선택한 입력 유형을 지원하지 않는 모델입니다.',
     'MODEL_POLICY_DENIED': '모델 상태·인증·외부 전송 및 유료 사용 승인을 확인하세요.',

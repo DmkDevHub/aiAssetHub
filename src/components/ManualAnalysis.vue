@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref } from 'vue';
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 const props=defineProps<{selectedIds:string[];folderId:string|null}>();
 const open=ref(false),busy=ref(false),error=ref(''),mode=ref('selected'),scope=ref('folder'),model=ref('');
+const preview=ref<{targetCount:number;missingCount:number;planToken:string}|null>(null);
+watch([mode,scope,model,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;});
 const models=ref<{id:string;modelId:string;enabled:boolean;selected?:boolean;inspection?:{modalities?:string[]}}[]>([]);
 const trigger=ref<HTMLButtonElement>(),panel=ref<HTMLElement>();let alive=true;
 onBeforeUnmount(()=>{alive=false;});
 async function show(){
- open.value=true;error.value='';model.value='';models.value=[];busy.value=true;
+ open.value=true;preview.value=null;error.value='';model.value='';models.value=[];busy.value=true;
  await nextTick();panel.value?.querySelector<HTMLElement>('select')?.focus();
  if(!isTauri()){busy.value=false;error.value='데스크톱 Core 연결이 필요합니다.';return;}
  try{
@@ -21,6 +23,15 @@ async function show(){
   models.value=rows;model.value=rows.find(m=>m.selected)?.id??'';
  }catch{if(alive)error.value='모델 목록을 불러오지 못했습니다.';}
  finally{if(alive)busy.value=false;}
+}
+async function review(){
+ if(busy.value || !model.value)return;busy.value=true;error.value='';preview.value=null;
+ try{
+  const result=await invoke<{ok:boolean;data:{targetCount:number;missingCount:number;planToken:string}}>('preview_analysis',{plan:{mode:mode.value,scope:scope.value,library_id:null,folder_parts:[],selected_ids:mode.value==='selected'?props.selectedIds:[],model_id:model.value}});
+  if(!result.ok || !Number.isSafeInteger(result.data?.targetCount))throw new Error();
+  preview.value=result.data;
+ }catch{error.value='대상을 확인하지 못했습니다. 분석 범위와 모델을 확인하세요.';}
+ finally{busy.value=false;}
 }
 async function close(){open.value=false;await nextTick();trigger.value?.focus();}
 function keys(event:KeyboardEvent){
@@ -42,6 +53,8 @@ function keys(event:KeyboardEvent){
    <label>분석 범위 <select v-model="scope" :disabled="busy"><option value="folder">현재 폴더 (하위 포함)</option><option value="library">현재 라이브러리</option><option value="all">전체 라이브러리</option></select></label>
    <label>모델 <select v-model="model" :disabled="busy"><option value="">모델을 선택하세요</option><option v-for="item in models" :key="item.id" :value="item.id" :disabled="!item.enabled || !item.inspection?.modalities?.includes('image')">{{ item.modelId }}{{ item.enabled?'':' (비활성)' }}</option></select></label>
    <p v-if="error" role="alert">{{ error }}</p>
+   <button type="button" :disabled="busy || !model" @click="review">대상 확인</button>
+   <p v-if="preview" role="status">대상 {{ preview.targetCount }}개 · 인덱스상 원본 누락 {{ preview.missingCount }}개</p>
    <button type="button" disabled>분석 시작 (대상 확인 필요)</button>
    <button type="button" @click="close">닫기</button>
   </section>
