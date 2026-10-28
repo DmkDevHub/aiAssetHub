@@ -1819,3 +1819,11 @@ test('embedding profile configuration is explicit metadata only',async()=>{
  const form=document.querySelector('.embedding-tools form'),input=form.querySelector('input');input.value='fixture';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,0);
  dispatch(form,new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.map(c=>c[0]),['embedding_configure','embedding_status']);assert.match(document.querySelector('.embedding-tools').textContent,/3차원/);
 });
+
+test('semantic mode and query editing do not embed until explicit execution',async()=>{
+ await mountWorkspace([{id:'a',name:'one',kind:'PNG'},{id:'b',name:'two',kind:'PNG'}]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return command==='embedding_query'?{ok:true,data:{jobId:'fixture-query'}}:{ok:true,data:{status:'completed',results:[{id:'b',score:.8,reason:'semantic'}]}};}};
+ const select=document.querySelector('[aria-label="검색 방식"]');select.value='semantic';dispatch(select,new Event('change',{bubbles:true}));await nextTick();components.setSearchQuery('중세 횃불');await nextTick();assert.equal(calls.length,0);
+ dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='로컬 검색 실행'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.deepEqual(calls.map(c=>c[0]),['embedding_query','embedding_work']);assert.match(document.querySelector('.asset-card').textContent,/two/);assert.match(document.querySelector('.asset-card').textContent,/0.800/);
+});

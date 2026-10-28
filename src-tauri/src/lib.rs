@@ -7,6 +7,28 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
+#[tauri::command]
+async fn embedding_query(
+    state: tauri::State<'_, CoreState>,
+    query: String,
+    mode: String,
+    confirmed: bool,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "embedding.query",
+                serde_json::json!({"query":query,"mode":mode,"confirmed":confirmed}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 struct EmbeddingPair {
@@ -738,7 +760,8 @@ pub fn run() {
             embedding_configure,
             embedding_status,
             embedding_start,
-            embedding_work
+            embedding_work,
+            embedding_query
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

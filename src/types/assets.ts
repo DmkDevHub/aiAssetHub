@@ -8,6 +8,8 @@ export interface AssetSummary {
   lastAttemptState?: string | null;
   lastAnalysisAt?: string | null;
   userTags?: readonly string[];
+  searchScore?: number;
+  matchReason?: string;
   id: string;
   name: string;
   kind: string;

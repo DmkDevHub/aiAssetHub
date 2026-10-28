@@ -45,3 +45,20 @@ class EmbeddingTests(unittest.TestCase):
         self.assertEqual(Embeddings(self.db).status({})['readyCount'],1)
         self.db.connection.execute('UPDATE asset_files SET sha256=NULL')
         self.assertEqual(Embeddings(self.db).status({})['readyCount'],0)
+
+    def test_korean_query_explicitly_embeds_once_and_returns_cosine_order(self):
+        import struct,time
+        from ai_asset_hub_core.embedding_engine import EmbeddingEngine,work_status
+        profile=self.configure();result=self.add_result()
+        doc=Embeddings(self.db).documents()[self.id]
+        self.db.connection.execute("INSERT INTO asset_embeddings VALUES (?,?,?,?,?,?,'fixture')",(self.id,result,profile['version'],3,struct.pack('<fff',1,0,0),doc['fingerprint']))
+        engine=EmbeddingEngine(self.db)
+        with patch('ai_asset_hub_core.embeddings.inspect',return_value=(3,profile['metadataVersion'])),patch('ai_asset_hub_core.semantic_search.embed',return_value=[.8,.6,0]) as call:
+            call.assert_not_called()
+            job=engine.query(self.db,{'query':'중세 마을 횃불','mode':'semantic','confirmed':True})['jobId']
+            deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+            engine.close();self.assertEqual(call.call_count,1)
+        status=work_status(self.db,{'job_id':job});self.assertEqual(status['status'],'completed')
+        self.assertEqual(status['results'][0]['id'],self.id);self.assertAlmostEqual(status['results'][0]['score'],.8)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_embeddings').fetchone()[0],1)

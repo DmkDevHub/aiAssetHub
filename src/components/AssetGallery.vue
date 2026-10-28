@@ -10,7 +10,7 @@ import BulkTags from './BulkTags.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, watch } from 'vue';
 
-const props = withDefaults(defineProps<{ items?: readonly AssetSummary[]; selectedId?: string | null }>(), {
+const props = withDefaults(defineProps<{ items?: readonly AssetSummary[]; ranked?: boolean; selectedId?: string | null }>(), {
   items: () => [], selectedId: null,
 });
 const emit = defineEmits<{ select: [id: string | null] }>();
@@ -26,6 +26,7 @@ watch(()=>props.items,()=>{
   selection.value=new Set([...selection.value].filter((id)=>props.items.some((item)=>item.id===id)));
   if(anchor.value && !props.items.some((item)=>item.id===anchor.value))anchor.value=null;
 });
+watch(()=>props.ranked,value=>{if(value)sort.value='source';});
 watch(sort,()=>{page.value=1;});
 function choose(event:MouseEvent,id:string){
   if(event.shiftKey && anchor.value){
@@ -79,7 +80,7 @@ function moveAssetFocus(event: KeyboardEvent) {
       </div>
     </header>
     <div class="gallery-tools">
-      <label>정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">기본순</option><option value="name">이름순</option><option value="kind">유형순</option><option value="modified">수정일 최신순</option><option value="analysis">분석일 최신순</option></select></label>
+      <label>정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">{{ ranked?'관련도순':'기본순' }}</option><option value="name">이름순</option><option value="kind">유형순</option><option value="modified">수정일 최신순</option><option value="analysis">분석일 최신순</option></select></label>
       <span class="selection-count">{{ selection.size }}개 선택</span>
       <button v-if="selection.size" type="button" @click="selection.clear();emit('select',null)">선택 해제</button>
       <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
@@ -98,6 +99,7 @@ function moveAssetFocus(event: KeyboardEvent) {
         <button type="button" class="asset-name asset-select" :title="item.name"
           :aria-pressed="selection.has(item.id)" @click="choose($event,item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>
+        <p v-if="item.searchScore!==undefined">관련도 {{ item.searchScore.toFixed(3) }} · {{ item.matchReason }}</p>
         <p class="asset-analysis-state">{{ item.hasActiveResult ? '분석 완료' : '미분석' }}{{ item.lastAttemptState==='failed' ? ' · 마지막 시도 실패' : '' }}{{ item.analysisStale ? ' · 원본 재확인 필요' : '' }}</p>
         <p v-if="item.userTags?.length" class="asset-tags">{{ item.userTags.join(", ") }}</p>
         <p v-if="item.scanChange && item.scanChange!=='unchanged'" class="asset-kind">{{ item.scanChange==='new'?'신규':item.scanChange==='changed'?'변경':item.scanChange==='missing'?'누락':'' }}</p>

@@ -19,12 +19,20 @@ class EmbeddingEngine(AnalysisEngine):
             if not isinstance(pair,dict) or set(pair)!={'asset_id','result_id'} or not valid_id(pair['asset_id']) or not valid_id(pair['result_id']) or pair['asset_id'] in seen:raise LibraryError('INVALID_PARAMS')
             seen.add(pair['asset_id']);doc=documents.get(pair['asset_id'])
             if not doc or doc['resultId']!=pair['result_id']:raise LibraryError('EMBEDDING_RESULT_CHANGED')
+        return self.queue(database,{'kind':'generate','profile':profile,'selected':pairs,'total':len(pairs)})
+
+    def query(self,database,params):
+        if not isinstance(params,dict) or set(params)!={'query','mode','confirmed'} or params['confirmed'] is not True or params['mode']!='semantic' or not isinstance(params['query'],str) or not 1<=len(params['query'].strip())<=256:raise LibraryError('INVALID_PARAMS')
+        service=Embeddings(database);profile=service.profile()
+        if not profile or not service.ready(profile):raise LibraryError('EMBEDDING_NOT_READY')
+        return self.queue(database,{'kind':'query','profile':profile,'query':params['query'].strip(),'mode':params['mode'],'total':1})
+
+    def queue(self,database,job):
         with self.lock:
             if self.controls:raise LibraryError('EMBEDDING_BUSY')
-        identifier=str(uuid4());job={'id':identifier,'kind':'generate','status':'queued','profile':profile,'selected':pairs,'total':len(pairs),'processed':0,'failed':0,'errors':[]}
+        identifier=str(uuid4());job.update(id=identifier,status='queued',processed=0,failed=0,errors=[])
         database.connection.execute("INSERT INTO settings VALUES (?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",('embedding.work.'+identifier,json.dumps(job)))
-        self.launch(identifier)
-        return {'jobId':identifier}
+        self.launch(identifier);return {'jobId':identifier}
 
     def run(self,identifier,control):
         from .database import Database
@@ -33,6 +41,9 @@ class EmbeddingEngine(AnalysisEngine):
             database=Database(self.path);db=database.connection;service=Embeddings(database)
             job=json.loads(db.execute('SELECT value_json FROM settings WHERE key=?',('embedding.work.'+identifier,)).fetchone()[0]);job['status']='running';self.save(db,job)
             profile=job['profile']
+            if job['kind']=='query':
+                from .semantic_search import search
+                job['results']=search(database,job,control);job.update(status='completed',processed=1);self.save(db,job);return
             for pair in job['selected']:
                 if control['cancel'].is_set():raise LibraryError('USER_CANCELED')
                 try:
