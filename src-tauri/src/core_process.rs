@@ -234,6 +234,8 @@ impl CoreProcess {
                 | "asset.annotate"
                 | "asset.tags.batch"
                 | "asset.search"
+                | "model.register"
+                | "model.list"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

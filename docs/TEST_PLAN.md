@@ -258,3 +258,6 @@
 
 - 최종 `npm run build:installer` 및 `scripts/verify-installer.ps1` 통과: 전용 임시 설치본의 DB v2 초기화·실제 Core PID 종료·Sidecar 해시·조용한 제거 확인, 기존 설치 보존. 실제 GUI는 열지 않았다. 소스와 동봉 002_search.sql 해시 일치.
 - 설치 파일 13476050 bytes, SHA256 `a65593995d5a9d5166d5a34fa5abd91c33c612ba178cc0ddf23aecf483e26221`. NSIS 기본 템플릿의 Korean `choowHowToInstall` 문자열 경고 1개는 기존과 동일하다.
+
+## R05-01 내부 검증
+`npm run check`: Node 95개·Python 53개, 타입 검사·빌드 통과. 모델 등록/목록 DOM·재개방·중복·잘못된 입력·페이지 검증. Rust 12개 통과(기존 패키지 전용 1개 제외). 연결/입력 지원 검증은 R05-02 이후이며 현재 등록 유형은 사용자 선언이다. 실제 화면 미검증.

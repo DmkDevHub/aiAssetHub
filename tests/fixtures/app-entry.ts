@@ -25,3 +25,5 @@ export { default as AssetAnnotations } from '../../src/components/AssetAnnotatio
 export { keywordFilter, stateFilter, sortAssets } from '../../src/services/assetSearch';
 
 export {assets, refreshAssets, resetAssets} from '../../src/stores/assets';
+
+export {default as ModelsView} from '../../src/views/ModelsView.vue';

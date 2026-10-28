@@ -47,9 +47,9 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
-            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail", "asset.get", "asset.annotations", "asset.tags", "asset.annotate", "asset.tags.batch", "asset.search"}:
+            if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail", "asset.get", "asset.annotations", "asset.tags", "asset.annotate", "asset.tags.batch", "asset.search", "model.register", "model.list"}:
                 return self.error(request_id, "METHOD_NOT_FOUND", "지원하지 않는 명령입니다.")
-            if method.startswith(('library.', 'asset.')):
+            if method.startswith(('library.', 'asset.', 'model.')):
                 from .libraries import LibraryService, LibraryError, ERROR_MESSAGES
                 import sqlite3
                 try:
@@ -58,7 +58,8 @@ class CoreApplication:
                     from .thumbnails import thumbnail
                     from .annotations import AnnotationService
                     from .search import SearchService
-                    action = {'asset.search': SearchService(self.database).search, 'asset.tags.batch': AnnotationService(self.database).batch, 'asset.annotate': AnnotationService(self.database).save, 'asset.annotations': AnnotationService(self.database).get, 'asset.tags': AnnotationService(self.database).tags, 'library.register': service.register, 'library.unregister': service.unregister,
+                    from .models import ModelService
+                    action = {'model.register': ModelService(self.database).register, 'model.list': ModelService(self.database).list, 'asset.search': SearchService(self.database).search, 'asset.tags.batch': AnnotationService(self.database).batch, 'asset.annotate': AnnotationService(self.database).save, 'asset.annotations': AnnotationService(self.database).get, 'asset.tags': AnnotationService(self.database).tags, 'library.register': service.register, 'library.unregister': service.unregister,
                               'library.list': service.list, 'library.scan': AssetService(self.database).scan,
                               'asset.list': AssetService(self.database).list, 'asset.get': AssetService(self.database).get,
                               'asset.thumbnail': lambda params: thumbnail(self.database, params)}[method]

@@ -1621,3 +1621,20 @@ test('tag refresh preserves an unsaved title draft', async () => {
   assert.equal(document.querySelector('.annotation-form input').value,'draft');
   assert.match(document.querySelector('.user-annotations li').textContent,/new/);
 });
+
+test('model registry loads actual supplied profiles and registers only on submit', async () => {
+  app.unmount();globalThis.isTauri=true;const calls=[];
+  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+    calls.push([command,args]);return {ok:true,data:{items:[{id:'fixture-id',modelId:'actual-from-Core',provider:'fixture',kind:'local',modalities:['image'],enabled:false}],next_cursor:null}};
+  }};
+  app=createApp(components.ModelsView);app.config.errorHandler=e=>errors.push(e);app.mount('#app');
+  await new Promise(resolve=>setImmediate(resolve));await nextTick();
+  assert.match(document.querySelector('.model-list').textContent,/actual-from-Core/);
+  assert.deepEqual(calls.map(c=>c[0]),['list_models']);
+  const inputs=document.querySelectorAll('.model-registration input');
+  for(const [index,value] of [[0,'Ollama'],[1,'fixture-model']]){inputs[index].value=value;dispatch(inputs[index],new Event('input',{bubbles:true}));}
+  await nextTick();dispatch(document.querySelector('.model-registration'),new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setImmediate(resolve));await nextTick();
+  assert.equal(calls[1][0],'register_model');assert.equal(calls[1][1].modelId,'fixture-model');
+  assert.match(document.querySelector('[role=status]').textContent,/프로필을 저장/);
+});

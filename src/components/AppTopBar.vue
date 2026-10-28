@@ -24,6 +24,7 @@ function handleEscape(event: KeyboardEvent) {
       AI Asset Hub
     </RouterLink>
 
+    <RouterLink to="/settings/models">모델 관리</RouterLink>
     <nav class="breadcrumbs" aria-label="현재 위치">
       <ol>
         <li><RouterLink to="/library" aria-current-value="false">작업 공간</RouterLink></li>
