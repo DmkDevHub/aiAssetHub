@@ -32,6 +32,7 @@ for (const key of ["XMLHttpRequest", "WebSocket"]) {
 
 let components;
 let createApp;
+let h;
 let nextTick;
 let createMemoryHistory;
 let app;
@@ -61,7 +62,7 @@ before(async () => {
       rolldownOptions: { external: ["vue", "vue-router"] },
     },
   });
-  ({ createApp, nextTick } = await import("vue"));
+  ({ createApp, h, nextTick } = await import("vue"));
   ({ createMemoryHistory } = await import("vue-router"));
   components = await import(pathToFileURL(`${outDir}/app.mjs`).href);
 });
@@ -75,6 +76,8 @@ beforeEach(async (t) => {
   errors = [];
   components.setSearchQuery("");
   components.setTheme("dark");
+  components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
+  components.selectLibraryFolder(null);
   document.body.innerHTML = '<div id="app"></div>';
   router = components.createAppRouter(createMemoryHistory());
   await router.push("/library");
@@ -223,4 +226,204 @@ test("theme changes and unknown-route recovery preserve the top bar state", asyn
   assert.equal(currentLocation().textContent, "라이브러리");
   assert.equal(searchInput().value, "돌길");
   assert.equal(document.documentElement.dataset.theme, "light");
+});
+
+// Library folder data is isolated fixture input, never a registered folder or asset ID.
+const folderFixture = [
+  { id: "fixture-environment", name: "환경", children: [
+    { id: "fixture-trees", name: "나무", children: [{ id: "fixture-oak", name: "참나무" }] },
+    { id: "fixture-rocks", name: "바위" },
+  ] },
+  { id: "fixture-audio", name: "효과음" },
+];
+const tree = () => document.querySelector('[role="tree"]');
+const separator = () => document.querySelector('[role="separator"]');
+const treeItems = () => [...tree().querySelectorAll('[role="treeitem"]')];
+const item = (name) => treeItems().find((element) => element.getAttribute("aria-label") === name);
+
+async function mountPanel(nodes, selectedId = null) {
+  app.unmount();
+  mounted = false;
+  components.selectLibraryFolder(selectedId);
+  app = createApp({ render: () => h(components.LibraryTreePanel, {
+    nodes,
+    selectedId: components.libraryUi.selectedFolderId,
+    onSelect: components.selectLibraryFolder,
+  }) });
+  app.config.errorHandler = (error) => errors.push(error);
+  app.config.warnHandler = (message) => errors.push(new Error(message));
+  app.mount("#app");
+  mounted = true;
+  await nextTick();
+}
+
+async function key(element, value) {
+  dispatch(element, new dom.window.KeyboardEvent("keydown", {
+    key: value, bubbles: true, cancelable: true,
+  }));
+  await nextTick();
+}
+
+async function pointer(element, type, clientX, pointerId = 1, button = 0, buttons = type === "pointermove" || type === "pointerdown" ? 1 : 0) {
+  const event = new dom.window.MouseEvent(type, {
+    bubbles: true, cancelable: true, clientX, button, buttons,
+  });
+  Object.defineProperties(event, {
+    pointerId: { value: pointerId },
+    isPrimary: { value: true },
+  });
+  dispatch(element, event);
+  await nextTick();
+}
+
+test("production library panel shows an honest empty tree and bounded accessible separator", () => {
+  assert.equal(treeItems().length, 1);
+  assert.equal(item("전체 에셋").getAttribute("aria-selected"), "true");
+  assert.match(document.querySelector(".library-empty").textContent, /등록된 폴더가 없습니다/);
+  assert.equal(document.querySelector("[data-folder-id]"), null);
+  assert.equal(separator().getAttribute("aria-orientation"), "vertical");
+  assert.equal(separator().getAttribute("aria-valuenow"), "240");
+  assert.equal(separator().getAttribute("aria-valuemin"), "200");
+  assert.equal(separator().getAttribute("aria-valuemax"), "360");
+  assert.equal(document.getElementById(separator().getAttribute("aria-controls")).tagName, "ASIDE");
+  assert.equal(document.querySelector(".library-workspace").style.getPropertyValue("--library-panel-width"), "240px");
+});
+
+test("folder selection emits the supplied ID and all-assets selection clears it", async () => {
+  await mountPanel(folderFixture);
+  dispatch(item("효과음"), new dom.window.MouseEvent("click", { bubbles: true }));
+  await nextTick();
+  assert.equal(components.libraryUi.selectedFolderId, "fixture-audio");
+  assert.equal(item("효과음").getAttribute("aria-selected"), "true");
+  assert.equal(tree().querySelectorAll('[aria-selected="true"]').length, 1);
+  await key(item("전체 에셋"), "Enter");
+  assert.equal(components.libraryUi.selectedFolderId, null);
+  assert.equal(item("전체 에셋").getAttribute("aria-selected"), "true");
+});
+
+test("folder disclosure preserves selection and creates nested groups only when expanded", async () => {
+  await mountPanel(folderFixture);
+  assert.equal(item("나무"), undefined);
+  dispatch(item("환경").querySelector("button"), new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  await nextTick();
+  assert.equal(item("환경").getAttribute("aria-expanded"), "true");
+  assert.equal(item("나무").parentElement.getAttribute("role"), "group");
+  assert.equal(item("나무").getAttribute("aria-level"), "2");
+  assert.equal(item("효과음").hasAttribute("aria-expanded"), false);
+  assert.equal(components.libraryUi.selectedFolderId, null);
+  await key(item("환경"), "ArrowLeft");
+  assert.equal(item("환경").getAttribute("aria-expanded"), "false");
+  assert.equal(item("나무"), undefined);
+});
+
+test("tree keyboard navigation separates focus from selection and follows visible hierarchy", async () => {
+  await mountPanel(folderFixture);
+  await key(item("전체 에셋"), "ArrowDown");
+  assert.equal(document.activeElement, item("환경"));
+  assert.equal(components.libraryUi.selectedFolderId, null);
+  await key(item("환경"), "ArrowRight");
+  await key(item("환경"), "ArrowRight");
+  assert.equal(document.activeElement, item("나무"));
+  await key(item("나무"), " ");
+  assert.equal(components.libraryUi.selectedFolderId, "fixture-trees");
+  await key(item("나무"), "ArrowLeft");
+  assert.equal(document.activeElement, item("환경"));
+  await key(item("환경"), "End");
+  assert.equal(document.activeElement, item("효과음"));
+  await key(item("효과음"), "ArrowUp");
+  assert.equal(document.activeElement, item("바위"));
+  await key(item("바위"), "Home");
+  assert.equal(document.activeElement, item("전체 에셋"));
+  assert.equal(treeItems().filter((element) => element.tabIndex === 0).length, 1);
+  assert.equal(components.libraryUi.selectedFolderId, "fixture-trees");
+});
+
+test("folder labels remain text even with markup and quote-like IDs", async () => {
+  const id = 'fixture-"/strange';
+  const name = '<img src=x onerror="alert(1)"> 긴 한글 폴더';
+  await mountPanel([{ id, name }]);
+  assert.equal(item(name).textContent, name);
+  assert.equal(document.querySelector("img"), null);
+  dispatch(item(name), new dom.window.MouseEvent("click", { bubbles: true }));
+  await nextTick();
+  assert.equal(components.libraryUi.selectedFolderId, id);
+});
+
+test("separator keyboard resizing clamps width and updates actual layout state", async () => {
+  await key(separator(), "ArrowRight");
+  assert.equal(components.libraryUi.panelWidth, 256);
+  assert.equal(separator().getAttribute("aria-valuenow"), "256");
+  assert.equal(document.querySelector(".library-workspace").style.getPropertyValue("--library-panel-width"), "256px");
+  await key(separator(), "End");
+  await key(separator(), "ArrowRight");
+  assert.equal(components.libraryUi.panelWidth, 360);
+  await key(separator(), "Home");
+  await key(separator(), "ArrowLeft");
+  assert.equal(components.libraryUi.panelWidth, 200);
+  dispatch(separator(), new dom.window.MouseEvent("dblclick", { bubbles: true }));
+  await nextTick();
+  assert.equal(components.libraryUi.panelWidth, 240);
+});
+
+test("pointer resizing tracks only its pointer, applies limits, and stops after pointerup", async () => {
+  await pointer(separator(), "pointerdown", 200);
+  await pointer(dom.window, "pointermove", 250, 2);
+  assert.equal(components.libraryUi.panelWidth, 240);
+  await pointer(dom.window, "pointermove", 250);
+  assert.equal(components.libraryUi.panelWidth, 290);
+  await pointer(dom.window, "pointermove", 1000);
+  assert.equal(components.libraryUi.panelWidth, 360);
+  await pointer(dom.window, "pointerup", 1000);
+  await pointer(dom.window, "pointermove", 0);
+  assert.equal(components.libraryUi.panelWidth, 360);
+  assert.equal(separator().classList.contains("is-resizing"), false);
+});
+
+test("Escape cancels a drag while pointercancel and window blur remove resize listeners", async () => {
+  await pointer(separator(), "pointerdown", 200);
+  await pointer(dom.window, "pointermove", 240);
+  await key(separator(), "Escape");
+  assert.equal(components.libraryUi.panelWidth, 240);
+  await pointer(dom.window, "pointermove", 500);
+  assert.equal(components.libraryUi.panelWidth, 240);
+  await pointer(separator(), "pointerdown", 200);
+  await pointer(dom.window, "pointermove", 230);
+  await pointer(dom.window, "pointercancel", 230);
+  await pointer(dom.window, "pointermove", 350);
+  assert.equal(components.libraryUi.panelWidth, 270);
+  await pointer(separator(), "pointerdown", 200);
+  dispatch(dom.window, new dom.window.Event("blur"));
+  await pointer(dom.window, "pointermove", 300);
+  assert.equal(components.libraryUi.panelWidth, 270);
+});
+
+test("secondary pointer buttons and nonfinite widths do not change the panel", async () => {
+  await pointer(separator(), "pointerdown", 200, 1, 2);
+  await pointer(dom.window, "pointermove", 300);
+  components.setLibraryPanelWidth(Number.NaN);
+  components.setLibraryPanelWidth(Number.POSITIVE_INFINITY);
+  assert.equal(components.libraryUi.panelWidth, 240);
+  assert.equal(separator().classList.contains("is-resizing"), false);
+});
+
+test("a released pointer button stops a drag even when pointerup was missed", async () => {
+  await pointer(separator(), "pointerdown", 200);
+  await pointer(dom.window, "pointermove", 230);
+  await pointer(dom.window, "pointermove", 500, 1, 0, 0);
+  assert.equal(components.libraryUi.panelWidth, 270);
+  assert.equal(separator().classList.contains("is-resizing"), false);
+  await pointer(dom.window, "pointermove", 600);
+  assert.equal(components.libraryUi.panelWidth, 270);
+});
+
+test("route unmount stops dragging and preserves the accepted width for the library", async () => {
+  await pointer(separator(), "pointerdown", 200);
+  await pointer(dom.window, "pointermove", 240);
+  await activateLink('[aria-label="주 메뉴"] a');
+  assert.equal(separator(), null);
+  await pointer(dom.window, "pointermove", 400);
+  assert.equal(components.libraryUi.panelWidth, 280);
+  await activateLink(".breadcrumbs a");
+  assert.equal(separator().getAttribute("aria-valuenow"), "280");
+  assert.equal(treeItems().length, 1);
 });

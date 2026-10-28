@@ -187,6 +187,118 @@ body {
   border-radius: 12px;
 }
 
+.library-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, var(--library-panel-width)) 10px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.library-panel {
+  min-width: 0;
+  min-height: 380px;
+  padding: 20px 12px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.library-panel h2 {
+  margin: 0 8px 18px;
+  font-size: 15px;
+}
+
+.library-tree,
+.library-tree [role="group"] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.library-tree [role="group"] {
+  padding-left: 16px;
+}
+
+.library-tree [role="treeitem"] {
+  cursor: pointer;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.library-tree [role="treeitem"][aria-selected="true"] > .tree-row {
+  color: var(--accent);
+  background: var(--active);
+}
+
+.tree-row:hover {
+  background: var(--active);
+}
+
+.tree-toggle,
+.tree-toggle-spacer {
+  flex: 0 0 18px;
+  width: 18px;
+}
+
+.tree-toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.folder-mark {
+  flex: 0 0 14px;
+  height: 11px;
+  border: 1px solid var(--muted);
+  border-radius: 2px;
+}
+
+.folder-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-empty {
+  margin: 16px 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.library-splitter {
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.library-splitter::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 4px;
+  width: 2px;
+  border-radius: 2px;
+}
+
+.library-splitter:hover::after,
+.library-splitter.is-resizing::after {
+  background: var(--accent);
+}
+
 h1 {
   margin: 0;
   font-size: 28px;
