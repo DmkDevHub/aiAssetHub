@@ -1,5 +1,8 @@
 /** Display data supplied by a caller; this type does not load files or invent metadata. */
 export interface AssetSummary {
+  hasActiveResult?: boolean;
+  lastAttemptState?: string | null;
+  lastAnalysisAt?: string | null;
   userTags?: readonly string[];
   id: string;
   name: string;

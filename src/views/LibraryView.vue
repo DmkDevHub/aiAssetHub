@@ -12,7 +12,7 @@ import { assets, refreshAssets, resetAssets } from '../stores/assets';
 import { workspace as searchState } from '../stores/workspace';
 import { isTauri } from '@tauri-apps/api/core';
 import { coreSearch } from '../services/coreSearch';
-import { keywordFilter } from '../services/assetSearch';
+import { keywordFilter, stateFilter } from '../services/assetSearch';
 import { folderNodes, filterFolder, type FolderNode } from '../services/assetFolders';
 
 onMounted(() => { void refreshLibraries().then((ok)=>{ if(ok){if(libraries.roots.length)void refreshAssets();else resetAssets();} }); });
@@ -21,8 +21,9 @@ const emptyMessage = computed(() => libraries.loading ? '등록 폴더를 불러
 
 const props = defineProps<{ items?: readonly AssetSummary[] }>();
 const availableItems = computed(() => assets.items.filter((item) => libraries.roots.some((root) => root.id===item.libraryId)));
-const tag = ref('');
+const tag = ref(''), kind = ref(''), analysis = ref('');
 const sourceItems = computed(() => props.items ?? availableItems.value);
+const kinds=computed(()=>[...new Set(sourceItems.value.map(item=>item.kind))].sort());
 const tags = computed(() => [...new Set(sourceItems.value.flatMap(item => [...item.userTags ?? []]))].sort((a,b)=>a.localeCompare(b,'ko')));
 const searchIds = ref<Set<string>|null>(null), searchError=ref(''), searching=ref(false);
 let searchGeneration=0;
@@ -38,8 +39,9 @@ watch([()=>searchState.searchQuery, sourceItems], async ([query])=>{
 }, {immediate:true});
 const items = computed(() => {
   const folderItems=filterFolder(sourceItems.value, libraryUi.selectedFolderId);
-  return searchIds.value ? keywordFilter(folderItems.filter(item=>searchIds.value!.has(item.id)), '', tag.value)
+  const matches=searchIds.value ? keywordFilter(folderItems.filter(item=>searchIds.value!.has(item.id)), '', tag.value)
     : keywordFilter(folderItems, searchState.searchQuery, tag.value);
+  return stateFilter(matches,kind.value,analysis.value);
 });
 const nodes = computed(() => folderNodes(libraries.roots, availableItems.value));
 watch(nodes,(roots)=>{
@@ -85,7 +87,10 @@ function moveRegion(event: KeyboardEvent) {
       <template #management><LibraryManagement /></template>
     </LibraryTreePanel>
     <AssetGallery :items="items" :selected-id="selectedId" @select="selectedId = $event">
-      <template #filters><p v-if="searching" role="status">로컬 전문 검색 중…</p><p v-if="searchError" role="alert">{{ searchError }}</p><label class="tag-filter">사용자 태그 <select v-model="tag" aria-label="사용자 태그 필터"><option value="">전체 태그</option><option v-for="value in tags" :key="value" :value="value">{{ value }}</option></select></label></template>
+      <template #filters><p v-if="searching" role="status">로컬 전문 검색 중…</p><p v-if="searchError" role="alert">{{ searchError }}</p><label class="tag-filter">사용자 태그 <select v-model="tag" aria-label="사용자 태그 필터"><option value="">전체 태그</option><option v-for="value in tags" :key="value" :value="value">{{ value }}</option></select></label>
+      <label class="tag-filter">타입 <select v-model="kind" aria-label="타입 필터"><option value="">전체 타입</option><option v-for="value in kinds" :key="value" :value="value">{{ value }}</option></select></label>
+      <label class="tag-filter">분석 상태 <select v-model="analysis" aria-label="분석 상태 필터"><option value="">전체 상태</option><option value="unanalyzed">미분석</option><option value="completed">분석 완료</option><option value="failed">마지막 시도 실패</option></select></label>
+      </template>
     </AssetGallery>
     <AssetDetailsPanel :asset="selectedAsset" />
   </div>

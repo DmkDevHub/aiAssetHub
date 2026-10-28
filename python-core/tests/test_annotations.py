@@ -63,3 +63,27 @@ class AnnotationTests(unittest.TestCase):
         self.assertEqual(self.service.get({'asset_id':self.id})['tags'],['keep','숲'])
         self.service.batch({'asset_ids':[self.id,other],'add':[],'remove':['숲']})
         self.assertEqual(self.service.get({'asset_id':other})['tags'],[])
+
+    def test_failed_reanalysis_keeps_completed_filter_and_ai_tags(self):
+        from uuid import uuid4
+        job, success, failed, result = [str(uuid4()) for _ in range(4)]
+        db=self.db.connection
+        db.execute("INSERT INTO analysis_jobs(id,request_id,scope_json,model_snapshot_json,requested_count,status,created_at,initiated_by) VALUES (?,?,'{}','{}',1,'completed','2026-10-28T00:00:00Z','fixture')",(job,str(uuid4())))
+        db.execute("INSERT INTO analysis_job_items(job_id,asset_id,status) VALUES (?,?,'completed')",(job,self.id))
+        for run,status,time in [(success,'completed','01'),(failed,'failed','02')]:
+            db.execute("INSERT INTO analysis_runs(id,job_id,asset_id,model_snapshot_json,input_fingerprint,status,created_at) VALUES (?,?,?,'{}','fixture',?,?)",(run,job,self.id,status,'2026-10-28T00:00:'+time+'Z'))
+        db.execute("INSERT INTO analysis_results(id,run_id,asset_id,description,tags_json,features_json,created_at) VALUES (?,?,?,'active forest','[]','{}','2026-10-28T00:00:01Z')",(result,success,self.id))
+        db.execute('INSERT INTO asset_active_results VALUES (?,?,?)',(self.id,result,'fixture'))
+        self.service.tags({'asset_id':self.id,'add':['shared'],'remove':[]})
+        tag=db.execute("SELECT id FROM tags WHERE normalized_label='shared'").fetchone()[0]
+        db.execute("INSERT INTO asset_tags VALUES (?,?,'ai',?)",(self.id,tag,result))
+        self.service.tags({'asset_id':self.id,'add':[],'remove':['shared']})
+        item=AssetService(self.db).list({})['items'][0]
+        self.assertTrue(item['hasActiveResult'])
+        self.assertEqual(item['lastAttemptState'],'failed')
+        self.assertEqual(item['lastAnalysisAt'],'2026-10-28T00:00:01Z')
+        self.assertEqual(item['userTags'],[])
+        self.assertEqual(db.execute("SELECT count(*) FROM asset_tags WHERE source='ai'").fetchone()[0],1)
+        from ai_asset_hub_core.search import SearchService
+        self.assertEqual(SearchService(self.db).search({'query':'shared'})['ids'],[self.id])
+        self.assertEqual(db.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],1)

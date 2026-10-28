@@ -4,9 +4,12 @@ import type { AssetSummary } from '../types/assets';
 const state = reactive({ items: [] as AssetSummary[], busy: false, error: '', notice: '' });
 export const assets = readonly(state);
 let epoch=0;
-export function resetAssets() { epoch++; Object.assign(state,{items:[],busy:false,error:'',notice:''}); }
+let refreshQueued=false;
+export function resetAssets() { epoch++; refreshQueued=false; Object.assign(state,{items:[],busy:false,error:'',notice:''}); }
 export async function refreshAssets() {
-  if (!isTauri() || state.busy) return;
+  if (!isTauri()) return;
+  if (state.busy) { refreshQueued=true; return; }
+  refreshQueued=false;
   state.busy = true;
   const token=epoch;
   state.error = '';
@@ -27,7 +30,12 @@ export async function refreshAssets() {
     } while (cursor);
     state.items = items;
   } catch { if(token===epoch)state.error = '파일 목록을 확인하지 못했습니다. 연결과 폴더 권한을 확인하세요.'; }
-  finally { if(token===epoch)state.busy = false; }
+  finally {
+    if(token===epoch) {
+      state.busy = false;
+      if(refreshQueued) { refreshQueued=false; await refreshAssets(); }
+    }
+  }
 }
 export async function scanLibrary(id: string) {
   if (state.busy) return;

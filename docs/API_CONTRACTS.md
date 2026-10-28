@@ -56,7 +56,7 @@
 
 - Tauri 시작 인자 `--serve --data-dir <백엔드 경로> --environment development|production`는 비공개 파이프 서비스와 DB를 초기화한다. 초기화 실패는 Core를 준비된 DB로 위장하지 않고 `database.status: error`와 고정 error_code로 반환한다.
 - 연결된 DB의 health는 `status: ready`, `schema_version`, `sqlite_version`, `journal_mode: wal`이다. 경로 없이 실행한 CLI만 `not_configured`다. DB가 준비되었다는 것은 라이브러리 수집/AI/모델이 준비되었다는 뜻이 아니다.
-- Vue는 `core_health`/`core_reconnect`만 호출한다. Tauri는 실행 중 자식의 UUID/PID/제품 버전을 대조한 후 응답하며 실패하면 안전한 CORE_* 코드만 반환한다. UI도 envelope·PID/가동 시간·DB 스키마 형식을 검증한다.
+- Core 연결 관찰과 재연결은 Vue의 `core_health`/`core_reconnect`를 사용한다. Tauri는 실행 중 자식의 UUID/PID/제품 버전을 대조한 후 응답하며 실패하면 안전한 CORE_* 코드만 반환한다. UI도 envelope·PID/가동 시간·DB 스키마 형식을 검증한다.
 - 5초 health 관찰은 읽기 전용이며 실패 시 자동 재시작하지 않는다. 수동 재연결도 Core/DB 준비만 수행하며 분석 작업을 생성·재개하지 않는다.
 
 ## 데스크톱 폴더 선택 (R03-01)
@@ -101,3 +101,6 @@
 | search_assets | asset.search | query,afterId→after_id / ids,next_cursor |
 
 태그는 NFKC·casefold 중복 제거, 각 64자·에셋당 32개/합계 512자. 표시명 128자·설명 1024자, 빈 값은 override 해제. 사용자 태그만 변경하며 AI 이력은 보존한다. 일괄 최대 100개, 전체 대상 검증 및 원자적 반영. add/remove가 겹치면 추가를 우선한다. asset.list의 name은 사용자 표시명 우선이며 userTags는 사용자 태그만 포함한다. 검색 query는 최대 256자/16단어, ID순 200개 페이지다. 전체 파이프 응답은 UTF-8 JSON을 사용한다. 원본·AI 호출·과금·분석 작업은 발생하지 않는다.
+
+## R04-06 분석 상태 조회
+`asset.list`는 `hasActiveResult`(boolean), `lastAttemptState`(마지막 run 상태 또는 null), `lastAnalysisAt`(활성 결과 생성 시각 또는 null)을 반환한다. 시도 순서는 created_at·rowid 역순이며 실패한 재분석은 활성 성공 결과를 교체하지 않는다. 필터/정렬은 이 실제 DB 값과 파일 수정 시각을 사용한다.

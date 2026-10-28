@@ -248,3 +248,13 @@
 
 ## R04-05 내부 검증
 `npm run check`: Node 89개·Python 49개, 타입 검사·빌드 통과. FTS5 MATCH 실측·한글/부분 단어/공백/대소문자·사용자 수정 동기화·201개 이상 검색 페이지·비활성 폴더 제외·DB v1→v2 백업/기존 자료 재색인·인덱스 integrity-check 통과. Rust 12개 통과: 실제 파이프에서 태그/설명/일괄 수정·한글 검색·재시작 유지 검증. 화면 조작 미실행.
+
+## R04-06 / M04 최종 내부 검증
+- `npm run check`: Node 94개·Python 50개 통과, 타입 검사 및 Vite 프로덕션 빌드 성공.
+- Rust `cargo test --lib --locked -- --include-ignored`: 13개 통과. 실제 파이프·Core 재시작·패키지 FTS5/한글 검색과 PNG 썸네일 검증 포함. `cargo clippy --all-targets --locked -- -D warnings` 통과.
+- 복합 폴더/검색/태그/타입/분석 상태 DOM, 정확한 나노초·분석일 정렬, 마지막 시도 실패+성공 결과 보유의 중첩, 사용자 태그 삭제 시 AI 태그/결과 보존을 검증했다. 테스트의 분석 이력은 테스트 소유 DB에 직접 만든 fixture이며 실제 모델 호출은 없다.
+- 메타데이터 로드 실패 시 빈 값 저장 차단·재시도, 태그 갱신 중 표시명 초안 보존, 목록 갱신 경합 후 재조회도 검증했다.
+- 실제 화면/시각 배치·깨끗한 PC·대규모 라이브러리 검색 성능은 미검증. 의미 검색/모델 실행은 이번 범위에 포함하지 않는다.
+
+- 최종 `npm run build:installer` 및 `scripts/verify-installer.ps1` 통과: 전용 임시 설치본의 DB v2 초기화·실제 Core PID 종료·Sidecar 해시·조용한 제거 확인, 기존 설치 보존. 실제 GUI는 열지 않았다. 소스와 동봉 002_search.sql 해시 일치.
+- 설치 파일 13476050 bytes, SHA256 `a65593995d5a9d5166d5a34fa5abd91c33c612ba178cc0ddf23aecf483e26221`. NSIS 기본 템플릿의 Korean `choowHowToInstall` 문자열 경고 1개는 기존과 동일하다.

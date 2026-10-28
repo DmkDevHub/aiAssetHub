@@ -47,7 +47,7 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
           :hidden="activeTab !== 'info'" tabindex="0">
           <dl><dt>에셋명</dt><dd>{{ asset.name }}</dd><dt>유형</dt><dd>{{ asset.kind }}</dd></dl>
           <AssetMetadata :asset="asset" />
-          <AssetAnnotations :key="`${asset.id}:${asset.userTags?.join(',')}`" :asset-id="asset.id" />
+          <AssetAnnotations :asset-id="asset.id" :user-tags="asset.userTags" />
         </div>
         <div id="detail-panel-analysis" role="tabpanel" aria-labelledby="detail-tab-analysis"
           :hidden="activeTab !== 'analysis'" tabindex="0">

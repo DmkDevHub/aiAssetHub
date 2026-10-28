@@ -3,6 +3,7 @@ import { libraryUi, setGalleryViewMode } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
 import { executeUiCommand } from "../stores/operations";
 import type { GalleryViewMode } from "../stores/libraryUi";
+import { sortAssets } from '../services/assetSearch';
 import BulkTags from './BulkTags.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, watch } from 'vue';
@@ -15,12 +16,7 @@ const sort = ref('source');
 const page = ref(1);
 const selection = ref(new Set<string>(props.selectedId ? [props.selectedId] : []));
 const anchor = ref<string|null>(null);
-const ordered = computed(() => {
-  const items=[...props.items];
-  if(sort.value==='name')items.sort((a,b)=>a.name.localeCompare(b.name,'ko') || a.id.localeCompare(b.id));
-  if(sort.value==='kind')items.sort((a,b)=>a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name,'ko'));
-  return items;
-});
+const ordered = computed(() => sortAssets(props.items, sort.value));
 const pages=computed(()=>Math.max(1,Math.ceil(ordered.value.length/60)));
 const visible=computed(()=>ordered.value.slice((page.value-1)*60,page.value*60));
 watch(()=>props.items,()=>{
@@ -79,7 +75,7 @@ function moveAssetFocus(event: KeyboardEvent) {
       </div>
     </header>
     <div class="gallery-tools">
-      <label>정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">기본순</option><option value="name">이름순</option><option value="kind">유형순</option></select></label>
+      <label>정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">기본순</option><option value="name">이름순</option><option value="kind">유형순</option><option value="modified">수정일 최신순</option><option value="analysis">분석일 최신순</option></select></label>
       <span class="selection-count">{{ selection.size }}개 선택</span>
       <button v-if="selection.size" type="button" @click="selection.clear();emit('select',null)">선택 해제</button>
       <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
@@ -98,6 +94,7 @@ function moveAssetFocus(event: KeyboardEvent) {
         <button type="button" class="asset-name asset-select" :title="item.name"
           :aria-pressed="selection.has(item.id)" @click="choose($event,item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>
+        <p class="asset-analysis-state">{{ item.hasActiveResult ? '분석 완료' : '미분석' }}{{ item.lastAttemptState==='failed' ? ' · 마지막 시도 실패' : '' }}</p>
         <p v-if="item.userTags?.length" class="asset-tags">{{ item.userTags.join(", ") }}</p>
         <p v-if="item.scanChange && item.scanChange!=='unchanged'" class="asset-kind">{{ item.scanChange==='new'?'신규':item.scanChange==='changed'?'변경':item.scanChange==='missing'?'누락':'' }}</p>
       </li>

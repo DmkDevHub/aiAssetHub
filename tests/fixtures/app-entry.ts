@@ -22,4 +22,6 @@ export { default as AssetMetadata } from '../../src/components/AssetMetadata.vue
 
 export { default as AssetAnnotations } from '../../src/components/AssetAnnotations.vue';
 
-export { keywordFilter } from '../../src/services/assetSearch';
+export { keywordFilter, stateFilter, sortAssets } from '../../src/services/assetSearch';
+
+export {assets, refreshAssets, resetAssets} from '../../src/stores/assets';

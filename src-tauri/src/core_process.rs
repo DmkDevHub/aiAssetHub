@@ -368,6 +368,28 @@ mod tests {
             .unwrap();
         assert_eq!(preview["data"]["status"], "ready");
         assert_eq!(preview["data"]["width"], 1);
+        assert_eq!(
+            core.library_request(
+                "asset.tags",
+                json!({"asset_id":id,"add":["한글숲"],"remove":[]})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request(
+                "asset.annotate",
+                json!({"asset_id":id,"title":"나무","description":"산속의 푸른 나무"})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request("asset.search", json!({"query":"푸른 숲"}))
+                .unwrap()["data"]["ids"],
+            json!([id])
+        );
+
         assert_eq!(std::fs::read(source.join("fixture.png")).unwrap(), png);
         core.stop();
         let next = core.start().unwrap();

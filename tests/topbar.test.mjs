@@ -1553,3 +1553,71 @@ test('Core search failure reports fallback rather than claiming a full result', 
   assert.equal(document.querySelectorAll('.asset-card').length,1);
   assert.doesNotMatch(document.body.textContent,/fixture private/);
 });
+
+test('combined query, tag, folder, type and analysis filters preserve failed reanalysis success', async () => {
+  const fixtures=[
+    {id:'a',name:'나무.png',kind:'PNG',libraryId:'root',relativePath:'숲/나무.png',userTags:['초록'],hasActiveResult:true,lastAttemptState:'failed'},
+    {id:'b',name:'나무.fbx',kind:'FBX',libraryId:'root',relativePath:'숲/나무.fbx',userTags:['초록'],hasActiveResult:true},
+    {id:'c',name:'나무.png',kind:'PNG',libraryId:'root',relativePath:'밖/나무.png',userTags:['초록'],hasActiveResult:true},
+    {id:'d',name:'나무.png',kind:'PNG',libraryId:'root',relativePath:'숲/나무.png',userTags:['초록'],hasActiveResult:false,lastAttemptState:'failed'}];
+  await mountWorkspace(fixtures);
+  components.selectLibraryFolder('folder:'+JSON.stringify(['root','숲']));
+  components.setSearchQuery('나무'); await nextTick();
+  for(const [name,value] of [['사용자 태그 필터','초록'],['타입 필터','PNG'],['분석 상태 필터','completed']]){
+    const select=document.querySelector(`[aria-label="${name}"]`);select.value=value;
+    dispatch(select,new Event('change',{bubbles:true}));await nextTick();
+  }
+  assert.deepEqual([...document.querySelectorAll('.asset-card')].map(node=>node.dataset.assetId),['a']);
+  const status=document.querySelector('[aria-label="분석 상태 필터"]');status.value='failed';
+  dispatch(status,new Event('change',{bubbles:true})); await nextTick();
+  assert.deepEqual([...document.querySelectorAll('.asset-card')].map(node=>node.dataset.assetId),['a','d']);
+  status.value='unanalyzed';dispatch(status,new Event('change',{bubbles:true}));await nextTick();
+  assert.deepEqual([...document.querySelectorAll('.asset-card')].map(node=>node.dataset.assetId),['d']);
+});
+test('sort uses exact nanosecond values, analysis dates and stable names', async () => {
+  const fixtures=[{id:'a',name:'A',kind:'PNG',mtimeNs:'1700000000000000001',lastAnalysisAt:'2026-10-28T00:00:00Z'},
+    {id:'b',name:'B',kind:'TXT',mtimeNs:'1700000000000000002',lastAnalysisAt:null},
+    {id:'c',name:'C',kind:'PNG',mtimeNs:'1',lastAnalysisAt:'2026-10-28T01:00:00Z'}];
+  assert.deepEqual(components.sortAssets(fixtures,'modified').map(i=>i.id),['b','a','c']);
+  assert.deepEqual(components.sortAssets(fixtures,'analysis').map(i=>i.id),['c','a','b']);
+  await mountGallery(fixtures);
+  const select=document.querySelector('[aria-label="에셋 정렬"]');select.value='modified';
+  dispatch(select,new Event('change',{bubbles:true}));await nextTick();
+  assert.deepEqual([...document.querySelectorAll('.asset-card')].map(node=>node.dataset.assetId),['b','a','c']);
+});
+
+test('metadata edits during a list refresh queue a fresh read instead of losing updates', async () => {
+  globalThis.isTauri=true; let finish; let calls=0;
+  dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{
+    assert.equal(command,'list_assets'); calls++;
+    if(calls===1)return new Promise(resolve=>{finish=resolve;});
+    return {ok:true,data:{items:[{id:'saved',name:'saved',kind:'TXT',userTags:['new']}],next_cursor:null}};
+  }};
+  const pending=components.refreshAssets(); await components.refreshAssets();
+  finish({ok:true,data:{items:[],next_cursor:null}}); await pending;
+  assert.equal(calls,2);assert.deepEqual([...components.assets.items[0].userTags],['new']);
+});
+
+test('failed metadata load blocks blank saves and can be retried', async () => {
+  let calls=0;
+  await mountAnnotations(async()=>{calls++;return {ok:calls>1,data:{tags:[],title:'preserved'}};});
+  assert.equal(document.querySelector('.annotation-form button').disabled,true);
+  const retry=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('다시 불러오기'));
+  dispatch(retry,new MouseEvent('click',{bubbles:true}));
+  await new Promise(resolve=>setImmediate(resolve)); await nextTick();
+  assert.equal(document.querySelector('.annotation-form input').value,'preserved');
+  assert.equal(document.querySelector('.annotation-form button').disabled,false);
+});
+test('tag refresh preserves an unsaved title draft', async () => {
+  app.unmount();globalThis.isTauri=true;
+  dom.window.__TAURI_INTERNALS__={invoke:async()=>({ok:true,data:{tags:['old'],title:'saved'}})};
+  const props=ref({assetId:'12345678-1234-4234-9234-123456789abc',userTags:['old']});
+  app=createApp({render:()=>h(components.AssetAnnotations,props.value)});
+  app.config.errorHandler=error=>errors.push(error);app.mount('#app');
+  await new Promise(resolve=>setImmediate(resolve));await nextTick();
+  const input=document.querySelector('.annotation-form input');input.value='draft';
+  dispatch(input,new Event('input',{bubbles:true}));await nextTick();
+  props.value={...props.value,userTags:['new']};await nextTick();
+  assert.equal(document.querySelector('.annotation-form input').value,'draft');
+  assert.match(document.querySelector('.user-annotations li').textContent,/new/);
+});
