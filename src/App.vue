@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { watch } from "vue";
+import { onBeforeUnmount, watch } from "vue";
 import { RouterView } from "vue-router";
 import AppTopBar from "./components/AppTopBar.vue";
 import AppStatusBar from "./components/AppStatusBar.vue";
 import CoreConnection from "./components/CoreConnection.vue";
 import { appearance } from "./stores/appearance";
+import { resetLibrarySession } from './stores/libraries';
+
+onBeforeUnmount(resetLibrarySession);
 
 watch(() => appearance.theme, (theme) => {
   document.documentElement.dataset.theme = theme;

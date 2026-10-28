@@ -15,3 +15,4 @@ export { operations, receiveOperation, dismissOperationAlert, clearFinishedOpera
 export { default as CoreConnection } from "../../src/components/CoreConnection.vue";
 export { default as FolderSelection } from "../../src/components/FolderSelection.vue";
 export { folderDraft, setPickedFolderPath } from "../../src/stores/folderDraft";
+export { libraries, refreshLibraries, registerLibrary, unregisterLibrary, resetLibrarySession } from '../../src/stores/libraries';

@@ -1,4 +1,4 @@
-"""Transport-independent, read-only health command dispatch."""
+"""Transport-independent allowlisted Core command dispatch."""
 
 from datetime import datetime, timezone
 import os
@@ -47,8 +47,21 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
-            if method != "health.get":
+            if method not in {"health.get", "library.register", "library.unregister", "library.list"}:
                 return self.error(request_id, "METHOD_NOT_FOUND", "지원하지 않는 명령입니다.")
+            if method.startswith('library.'):
+                from .libraries import LibraryService, LibraryError, ERROR_MESSAGES
+                import sqlite3
+                try:
+                    service = LibraryService(self.database)
+                    action = {'library.register': service.register, 'library.unregister': service.unregister,
+                              'library.list': service.list}[method]
+                    return self._response(request_id, data=action(request.get('params', {})))
+                except LibraryError as error:
+                    code = str(error) if str(error) in ERROR_MESSAGES else 'DB_UNAVAILABLE'
+                    return self.error(request_id, code, ERROR_MESSAGES[code])
+                except sqlite3.Error:
+                    return self.error(request_id, 'DB_UNAVAILABLE', ERROR_MESSAGES['DB_UNAVAILABLE'])
             if request.get("params", {}) != {}:
                 return self.error(request_id, "INVALID_PARAMS", "이 명령은 입력 매개변수를 받지 않습니다.")
             return self._response(request_id, data=self.health())

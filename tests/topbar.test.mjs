@@ -98,6 +98,7 @@ beforeEach(async (t) => {
   components.setGalleryViewMode("grid");
   components.setDetailsCollapsed(false);
   components.setPickedFolderPath(null);
+  components.resetLibrarySession();
   for (const operation of components.operations) {
     if (operation.state === 'running') components.receiveOperation({ id: operation.id, kind: operation.kind, state: 'cancelled' });
     if (operation.state === 'failed') components.dismissOperationAlert(operation.id);
@@ -1192,6 +1193,7 @@ test('actual workspace keeps an unregistered choice across routes without contac
     commands.push(command);
     if (command === 'core_health') return fixtureHealth();
     if (command === 'select_library_folder') return { path: 'D:\\fixture\\selected' };
+    if (command === 'list_libraries') return { ok: true, error: null, data: { libraries: [], next_cursor: null } };
     return rejectTransport();
   } };
   app = createApp(components.App);
@@ -1209,4 +1211,151 @@ test('actual workspace keeps an unregistered choice across routes without contac
   await activateLink('.breadcrumbs a');
   assert.equal(document.querySelector('.picked-folder-path').textContent, 'D:\\fixture\\selected');
   assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
+});
+
+const libraryFixture = [
+  { id: '12345678-1234-4234-9234-123456789abc', name: '등록된 한글 폴더', path: 'D:\\fixture\\registered' },
+  { id: '22345678-1234-4234-9234-123456789abc', name: '새 폴더', path: 'D:\\fixture\\new' },
+];
+const libraryEnvelope = (data) => ({ ok: true, error: null, data });
+
+async function mountLibraryWorkspace(invoke) {
+  globalThis.isTauri = true;
+  dom.window.__TAURI_INTERNALS__ = { invoke };
+  await mountWorkspace([]);
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+}
+
+test('persisted library list renders supplied roots and no pretend scanned assets', async () => {
+  const commands = [];
+  await mountLibraryWorkspace(async (command, args) => {
+    commands.push([command, args]);
+    return libraryEnvelope({ libraries: [libraryFixture[0]], next_cursor: null });
+  });
+  assert.deepEqual(commands, [['list_libraries', { afterId: null }]]);
+  assert.equal(document.querySelector('[data-folder-id]').dataset.folderId, libraryFixture[0].id);
+  assert.equal(document.querySelector('[data-folder-id] .folder-name').textContent, libraryFixture[0].name);
+  assert.equal(document.querySelector('.gallery-count').textContent, '0개 에셋');
+  assert.equal(document.querySelector('.library-empty'), null);
+});
+
+test('explicit registration and unregister update the real tree selection without scanning', async () => {
+  const commands = [];
+  let registered = false;
+  await mountLibraryWorkspace(async (command, args) => {
+    commands.push([command, args]);
+    if (command === 'list_libraries') return libraryEnvelope({ libraries: [], next_cursor: null });
+    if (command === 'select_library_folder') return { path: libraryFixture[1].path };
+    if (command === 'register_library') {
+      const created = !registered;
+      registered = true;
+      return libraryEnvelope({ library: libraryFixture[1], created });
+    }
+    if (command === 'unregister_library') return libraryEnvelope({ library_id: args.libraryId, enabled: false });
+    return rejectTransport();
+  });
+  await clickFolderPicker();
+  assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
+  await clickElement('.register-library');
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+  assert.equal(document.querySelector('[data-folder-id]').dataset.folderId, libraryFixture[1].id);
+  await clickElement('.register-library');
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+  assert.equal(document.querySelectorAll('[data-folder-id]').length, 1);
+  await clickElement('[data-folder-id]');
+  assert.equal(components.libraryUi.selectedFolderId, libraryFixture[1].id);
+  await clickElement('.unregister-library');
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+  assert.equal(components.libraryUi.selectedFolderId, null);
+  assert.equal(document.querySelector('[data-folder-id]'), null);
+  assert.match(document.querySelector('.library-management').textContent, /원본 파일은 유지됩니다/);
+  assert.deepEqual(commands.map(([command]) => command), ['list_libraries', 'select_library_folder', 'register_library', 'register_library', 'unregister_library']);
+  assert.deepEqual(commands[2][1], { path: libraryFixture[1].path });
+});
+
+test('failed writes keep the last confirmed library and redact raw transport failures', async () => {
+  await mountLibraryWorkspace(async (command) => {
+    if (command === 'list_libraries') return libraryEnvelope({ libraries: [libraryFixture[0]], next_cursor: null });
+    if (command === 'register_library') return { ok: false, data: null, error: { code: 'LIBRARY_OVERLAP' } };
+    if (command === 'unregister_library') throw new Error('fixture-secret-db-path');
+    return rejectTransport();
+  });
+  assert.equal(await components.registerLibrary(libraryFixture[1].path), false);
+  await nextTick();
+  assert.match(document.querySelector('.library-management [role="alert"]').textContent, /범위가 겹칩니다/);
+  await clickElement('[data-folder-id]');
+  await clickElement('.unregister-library');
+  await new Promise((resolve) => setImmediate(resolve));
+  await nextTick();
+  assert.ok(document.querySelector('[data-folder-id]'));
+  assert.equal(components.libraryUi.selectedFolderId, libraryFixture[0].id);
+  assert.equal(document.body.textContent.includes('fixture-secret-db-path'), false);
+  assert.match(document.querySelector('.library-management [role="alert"]').textContent, /처리 결과를 확인하지 못했습니다/);
+});
+
+test('list failures do not claim an empty database and preserve confirmed roots on refresh failure', async () => {
+  let fail = true;
+  await mountLibraryWorkspace(async () => {
+    if (fail) throw 'DB_UNAVAILABLE';
+    return libraryEnvelope({ libraries: [libraryFixture[0]], next_cursor: null });
+  });
+  assert.equal(document.querySelector('.library-empty').textContent, '등록 폴더를 확인하지 못했습니다.');
+  fail = false;
+  assert.equal(await components.refreshLibraries(), true);
+  await nextTick();
+  fail = true;
+  assert.equal(await components.refreshLibraries(), false);
+  await nextTick();
+  assert.ok(document.querySelector('[data-folder-id]'));
+  assert.match(document.querySelector('.library-management [role="alert"]').textContent, /DB를 사용할 수 없습니다/);
+});
+
+test('library pages merge once and malformed cursors cannot publish partial or duplicate roots', async () => {
+  const cursors = [];
+  await mountLibraryWorkspace(async (command, args) => {
+    cursors.push(args.afterId);
+    return libraryEnvelope(args.afterId === null ? { libraries: [libraryFixture[0]], next_cursor: libraryFixture[0].id }
+      : { libraries: [libraryFixture[1]], next_cursor: null });
+  });
+  assert.deepEqual(cursors, [null, libraryFixture[0].id]);
+  assert.equal(document.querySelectorAll('[data-folder-id]').length, 2);
+  dom.window.__TAURI_INTERNALS__.invoke = async () => libraryEnvelope({ libraries: [libraryFixture[0]], next_cursor: libraryFixture[0].id });
+  assert.equal(await components.refreshLibraries(), false);
+  await nextTick();
+  assert.equal(document.querySelectorAll('[data-folder-id]').length, 2);
+});
+
+test('registration cannot overlap and session reset ignores late write responses', async () => {
+  let complete;
+  let writes = 0;
+  await mountLibraryWorkspace(async (command) => {
+    if (command === 'list_libraries') return libraryEnvelope({ libraries: [], next_cursor: null });
+    if (command === 'register_library') { writes++; return new Promise((resolve) => { complete = resolve; }); }
+    return rejectTransport();
+  });
+  const pending = components.registerLibrary(libraryFixture[1].path);
+  assert.equal(await components.registerLibrary(libraryFixture[1].path), false);
+  assert.equal(await components.unregisterLibrary('guessed-library-id'), false);
+  assert.equal(writes, 1);
+  components.resetLibrarySession();
+  complete(libraryEnvelope({ library: libraryFixture[1], created: true }));
+  assert.equal(await pending, false);
+  assert.equal(components.libraries.roots.length, 0);
+  assert.equal(components.libraries.mutating, false);
+});
+
+test('a fresh UI session reloads stored library IDs and renders names as literal text', async () => {
+  const record = { ...libraryFixture[0], name: '<img src=x onerror="alert(1)">' };
+  const invoke = async () => libraryEnvelope({ libraries: [record], next_cursor: null });
+  await mountLibraryWorkspace(invoke);
+  assert.equal(document.querySelector('.folder-name').textContent, record.name);
+  assert.equal(document.querySelector('img'), null);
+  components.resetLibrarySession();
+  await mountLibraryWorkspace(invoke);
+  assert.equal(document.querySelector('[data-folder-id]').dataset.folderId, record.id);
+  assert.equal(document.querySelectorAll('[data-folder-id]').length, 1);
 });

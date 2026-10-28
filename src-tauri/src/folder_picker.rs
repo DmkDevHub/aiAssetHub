@@ -1,12 +1,15 @@
 use serde::Serialize;
 use std::path::{Component, Path, PathBuf, Prefix};
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
 
 #[derive(Default, Clone)]
-pub struct FolderPicker(Arc<AtomicBool>);
+pub struct FolderPicker {
+    busy: Arc<AtomicBool>,
+    selected: Arc<Mutex<Option<String>>>,
+}
 
 struct PickerLease(Arc<AtomicBool>);
 impl Drop for PickerLease {
@@ -26,11 +29,28 @@ impl FolderPicker {
         &self,
         pick: impl FnOnce() -> Result<Option<PathBuf>, &'static str>,
     ) -> Result<Option<PickedFolder>, &'static str> {
-        self.0
+        self.busy
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| "FOLDER_PICKER_BUSY")?;
-        let _lease = PickerLease(self.0.clone());
-        pick()?.map(|path| validate_folder(&path)).transpose()
+        let _lease = PickerLease(self.busy.clone());
+        let result = pick()?.map(|path| validate_folder(&path)).transpose()?;
+        if let Some(folder) = &result {
+            *self.selected.lock().map_err(|_| "FOLDER_PICK_FAILED")? = Some(folder.path.clone());
+        }
+        Ok(result)
+    }
+
+    pub fn registration_path(&self, requested: &str) -> Result<String, &'static str> {
+        if self
+            .selected
+            .lock()
+            .map_err(|_| "FOLDER_PICK_FAILED")?
+            .as_deref()
+            != Some(requested)
+        {
+            return Err("FOLDER_SELECTION_CHANGED");
+        }
+        Ok(validate_folder(Path::new(requested))?.path)
     }
 }
 
@@ -174,10 +194,19 @@ mod tests {
         let file = directory.join("fixture-original.txt");
         std::fs::write(&file, "fixture unchanged").unwrap();
         let picker = FolderPicker::default();
+        assert_eq!(
+            picker.registration_path("D:\\unselected").err(),
+            Some("FOLDER_SELECTION_CHANGED")
+        );
         let result = picker
             .choose(|| Ok(Some(directory.clone())))
             .unwrap()
             .unwrap();
+        assert_eq!(picker.registration_path(&result.path).unwrap(), result.path);
+        assert_eq!(
+            picker.registration_path("D:\\unselected").err(),
+            Some("FOLDER_SELECTION_CHANGED")
+        );
         assert_eq!(
             Path::new(&result.path).canonicalize().unwrap(),
             directory.canonicalize().unwrap()

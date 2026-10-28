@@ -81,6 +81,7 @@ AI-Asset-Hub/
 - `R02-01`: Python Core의 실측 `health.get` 개발 CLI 구현. 데이터 경로 없이 직접 조회하면 DB 미연결로 반환한다. 데스크톱의 실제 연결은 아래 M02에 포함한다. 실행·검사 방법은 [Core 안내](python-core/README.md)를 참고한다. 공통 검사는 개발용 Python 3.11 이상이 필요하다.
 - `M02`: 데스크톱 비공개 Core 통신·실측 연결 상태, SQLite 스키마/백업/개발·운영 분리, Python 동봉 NSIS, 종료 감지/명시적 재연결 구현. 현재 범위는 엔진·DB 기반이며 실파일 수집·AI·MCP·Unity는 후속 범위다. 기존 `AIAssetHubDev` 설치는 보존하며 최신 설치본은 아래 빌드 결과를 사용한다.
 - `R03-01`: Windows 로컬 폴더 선택·취소·선택 경로의 세션 표시 구현. 선택은 등록/스캔을 수행하지 않으며 DB 저장은 R03-02에서 연결한다. 내부 자동화만 검증했고 실제 선택 창·이 변경을 포함한 설치본은 미검증이다.
+- `R03-02`: 선택 폴더의 실제 DB 등록/비활성 해제·등록 트리·새 세션 복원 구현. 중복 ID 재사용·중첩 거부·원본/이력 보존을 검증했다. 파일 스캔·AI 작업은 시작하지 않으며 수집은 R03-03 범위다.
 - `npm run dev`로 개발 앱을 실행하고 `npm run build:installer`로 설치본을 만든다. 설치본은 `src-tauri/target/release/bundle/nsis/`에 생성된다.
 - 개발 환경과 실행 명령, 검증 상태는 [DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고한다.
 - [ROADMAP.md](docs/ROADMAP.md)에서 최초 미완료 작업을 골라 **한 번에 한 작업만** 구현한다.

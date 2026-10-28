@@ -13,7 +13,8 @@ const props = withDefaults(defineProps<{
   nodes?: readonly LibraryFolderNode[];
   selectedId: string | null;
   resizable?: boolean;
-}>(), { nodes: () => [], resizable: true });
+  emptyMessage?: string;
+}>(), { nodes: () => [], resizable: true, emptyMessage: '등록된 폴더가 없습니다.' });
 const emit = defineEmits<{ select: [id: string | null] }>();
 
 const expanded = ref(new Set<string>());
@@ -181,6 +182,7 @@ watch(() => props.resizable, (enabled) => { if (!enabled) stopResize(); });
   <aside id="library-navigation" class="library-panel" aria-labelledby="library-panel-title">
     <h2 id="library-panel-title">라이브러리</h2>
     <FolderSelection />
+    <slot name="management" />
     <ul class="library-tree" role="tree" aria-label="라이브러리 폴더">
       <li :ref="(element) => registerElement(null, element)" role="treeitem" aria-label="전체 에셋"
         :aria-selected="selectedId === null" :tabindex="focusedId === null ? 0 : -1"
@@ -189,7 +191,7 @@ watch(() => props.resizable, (enabled) => { if (!enabled) stopResize(); });
       </li>
       <FolderNodes />
     </ul>
-    <p v-if="nodes.length === 0" class="library-empty">등록된 폴더가 없습니다.</p>
+    <p v-if="nodes.length === 0" class="library-empty">{{ emptyMessage }}</p>
   </aside>
   <div v-if="resizable" class="library-splitter" :class="{ 'is-resizing': resizing }" role="separator" tabindex="0"
     aria-orientation="vertical" aria-label="라이브러리 패널 너비" aria-controls="library-navigation"

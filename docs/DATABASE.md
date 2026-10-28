@@ -70,3 +70,7 @@
 - debug 앱은 프로젝트 `.artifacts/data/development`, release는 Tauri `app_local_data_dir()/data`를 사용한다. 프런트엔드는 경로를 지정할 수 없고 DB 파일을 직접 열지 않는다.
 - Python은 절대 경로·환경을 받아 `.ai-asset-hub.json`의 application/environment/layout_version을 확인한다. 다른 환경·알 수 없는 기존 내용·손상 표식·DB는 자동 복구/덮어쓰기하지 않고 오류로 반환한다.
 - `.core.lock`은 Windows 비차단 바이트 잠금(다른 OS는 flock)을 사용한다. 동시에 한 Core만 쓰기 소유권을 가지며 EOF·정상 종료·프로세스 사망 시 OS가 잠금을 해제한다. lock 파일은 남겨도 정상이며 PID/비밀키를 저장하지 않는다.
+
+## 라이브러리 저장 (R03-02)
+
+기존 스키마 버전 1의 `library_roots`를 사용하며 마이그레이션은 추가하지 않는다. Python이 실제 UUID·폴더명·정규화 절대 경로를 저장하고 활성 중첩을 거부한다. 중복·비활성 경로 재등록은 같은 ID를 사용한다. 해제는 enabled만 0으로 바꾸며 원본 파일과 DB의 하위 에셋/보정/이력을 삭제하지 않는다. 쿼리는 값 바인딩을 사용하고 목록은 활성 ID 순서의 커서 페이지로 반환한다. 이 단계의 쓰기는 에셋/분석/임베딩 테이블을 변경하지 않는다.

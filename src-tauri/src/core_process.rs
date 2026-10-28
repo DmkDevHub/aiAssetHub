@@ -180,7 +180,21 @@ impl CoreProcess {
     }
 
     pub fn health(&mut self) -> Result<Value, &'static str> {
-        let result = self.exchange_health();
+        let result = self.exchange("health.get", json!({})).and_then(|response| {
+            let pid = self
+                .session
+                .as_ref()
+                .map(|session| session.child.id() as u64);
+            if response["ok"] != true
+                || response["data"]["core"]["pid"].as_u64() != pid
+                || response["data"]["core"]["status"] != "ready"
+                || response["data"]["core"]["version"].as_str() != Some(env!("CARGO_PKG_VERSION"))
+                || response["data"]["core"]["uptime_ms"].as_u64().is_none()
+            {
+                return Err("CORE_PROTOCOL_ERROR");
+            }
+            Ok(response)
+        });
         if let Err(code) = result {
             self.last_error = Some(code);
             self.stop();
@@ -190,7 +204,24 @@ impl CoreProcess {
         result
     }
 
-    fn exchange_health(&mut self) -> Result<Value, &'static str> {
+    pub fn library_request(&mut self, method: &str, params: Value) -> Result<Value, &'static str> {
+        if !matches!(
+            method,
+            "library.register" | "library.unregister" | "library.list"
+        ) {
+            return Err("CORE_COMMAND_NOT_ALLOWED");
+        }
+        let result = self.exchange(method, params);
+        if let Err(code) = result
+            && code != "CORE_REQUEST_TOO_LARGE"
+        {
+            self.last_error = Some(code);
+            self.stop();
+        }
+        result
+    }
+
+    fn exchange(&mut self, method: &str, params: Value) -> Result<Value, &'static str> {
         let session = self
             .session
             .as_mut()
@@ -204,7 +235,11 @@ impl CoreProcess {
             return Err("CORE_EXITED");
         }
         let id = uuid::Uuid::new_v4().to_string();
-        let request = json!({"request_id": id, "method": "health.get"}).to_string() + "\n";
+        let request =
+            json!({"request_id": id, "method": method, "params": params}).to_string() + "\n";
+        if request.len() > MAX_FRAME {
+            return Err("CORE_REQUEST_TOO_LARGE");
+        }
         let stdin = session.stdin.as_mut().ok_or("CORE_UNAVAILABLE")?;
         stdin
             .write_all(request.as_bytes())
@@ -217,12 +252,11 @@ impl CoreProcess {
             .map_err(|_| "CORE_PROTOCOL_ERROR")?;
         let response: Value = serde_json::from_slice(&bytes).map_err(|_| "CORE_PROTOCOL_ERROR")?;
         if response["request_id"] != id
-            || response["ok"] != true
-            || !response["error"].is_null()
-            || response["data"]["core"]["pid"].as_u64() != Some(session.child.id() as u64)
-            || response["data"]["core"]["status"] != "ready"
-            || response["data"]["core"]["version"].as_str() != Some(env!("CARGO_PKG_VERSION"))
-            || response["data"]["core"]["uptime_ms"].as_u64().is_none()
+            || !response["ok"].is_boolean()
+            || (response["ok"] == true
+                && (!response["error"].is_null() || !response["data"].is_object()))
+            || (response["ok"] == false
+                && (!response["data"].is_null() || response["error"]["code"].as_str().is_none()))
         {
             return Err("CORE_PROTOCOL_ERROR");
         }
@@ -352,5 +386,76 @@ mod tests {
             assert_eq!(core.start().unwrap_err(), "CORE_PROTOCOL_ERROR");
             assert!(core.session.is_none());
         }
+    }
+
+    #[test]
+    fn library_writes_survive_process_restart_and_business_errors_preserve_connection() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../.artifacts/library-wire-tests")
+            .join(uuid::Uuid::new_v4().to_string());
+        let original = root.join("원본 폴더");
+        std::fs::create_dir_all(original.join("nested")).unwrap();
+        std::fs::write(original.join("fixture.txt"), "fixture unchanged").unwrap();
+        let path = original
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_owned();
+        let mut core =
+            CoreProcess::new(LaunchSpec::development().with_data(root.join("data"), "development"));
+        let health = core.start().unwrap();
+        assert_eq!(
+            core.library_request("analysis.start", json!({}))
+                .unwrap_err(),
+            "CORE_COMMAND_NOT_ALLOWED"
+        );
+        assert_eq!(
+            core.library_request("library.register", json!({"path": "x".repeat(MAX_FRAME)}))
+                .unwrap_err(),
+            "CORE_REQUEST_TOO_LARGE"
+        );
+        assert_eq!(
+            core.health().unwrap()["data"]["core"]["pid"],
+            health["data"]["core"]["pid"]
+        );
+        let registered = core
+            .library_request("library.register", json!({"path":path}))
+            .unwrap();
+        assert_eq!(registered["ok"], true);
+        let id = registered["data"]["library"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(uuid::Uuid::parse_str(&id).is_ok());
+        let overlap = core
+            .library_request(
+                "library.register",
+                json!({"path": format!("{path}\\nested")}),
+            )
+            .unwrap();
+        assert_eq!(overlap["ok"], false);
+        assert_eq!(overlap["error"]["code"], "LIBRARY_OVERLAP");
+        assert_eq!(
+            core.health().unwrap()["data"]["core"]["pid"],
+            health["data"]["core"]["pid"]
+        );
+        core.stop();
+        core.start().unwrap();
+        let listed = core.library_request("library.list", json!({})).unwrap();
+        assert_eq!(listed["data"]["libraries"][0]["id"], id);
+        assert_eq!(
+            core.library_request("library.unregister", json!({"library_id":id}))
+                .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request("library.list", json!({})).unwrap()["data"]["libraries"],
+            json!([])
+        );
+        assert_eq!(
+            std::fs::read_to_string(original.join("fixture.txt")).unwrap(),
+            "fixture unchanged"
+        );
     }
 }

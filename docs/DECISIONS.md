@@ -26,6 +26,7 @@
 | D-021 | Tauri↔Core는 소유한 자식의 비공개 stdin/stdout 파이프 | OS 상속 핸들로 접근 제한, 네트워크 포트/탐색 토큰 없음. UUID·자식 PID·버전·크기/시간 검증. 향후 외부 MCP/Unity 채널 인증은 별도 |
 | D-022 | 개발 DB는 프로젝트 전용 경로, release는 OS appLocalData/data; Python 단일 쓰기·WAL·환경 표식·OS 잠금 | 실측 재시작/강제 종료/백업/롤백 검증. 자동 DB 교체·원본 변경·분석 재개 금지 |
 | D-023 | Windows x64 Core는 빌드 전용 고정 PyInstaller 폴더형 번들 | CPython/SQLite/마이그레이션 동봉, 자식 PID 검증 유지. Tauri externalBin/resources로 배포하며 설치 파일의 무화면 검사 사용 |
+| D-024 | R03-02 등록은 원본 참조 저장, 해제는 비활성화; 중복 경로 ID 재사용·활성 중첩 거부 | 원본/하위 이력 보존과 명확한 재등록. ROADMAP 단계대로 파일 스캔은 R03-03에서 연결하며 등록/조회/해제로 AI 작업 미생성 |
 
 ## 현재 설계안의 권고 사항 (구현 과정에서 검증 후 확정)
 | ID | 제안 | 검증 포인트 |

@@ -311,6 +311,10 @@ body {
 .folder-selection p { margin: 8px 0; }
 .picked-folder-label { color: var(--muted); }
 .picked-folder-path { overflow-wrap: anywhere; user-select: text; }
+.library-management { margin: 0 8px 16px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.library-management button { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.library-management button:disabled { opacity: 0.65; cursor: wait; }
+.library-management p { margin: 8px 0; }
 
 .library-splitter {
   position: relative;

@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import LibraryTreePanel from "../components/LibraryTreePanel.vue";
 import AssetGallery from "../components/AssetGallery.vue";
 import AssetDetailsPanel from "../components/AssetDetailsPanel.vue";
 import { libraryUi, selectLibraryFolder } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
 import { useWorkspaceLayout } from "../composables/useWorkspaceLayout";
+import LibraryManagement from '../components/LibraryManagement.vue';
+import { libraries, refreshLibraries } from '../stores/libraries';
+
+onMounted(() => { void refreshLibraries(); });
+watch(() => libraries.roots, (roots) => {
+  if (libraries.loaded && libraryUi.selectedFolderId && !roots.some((root) => root.id === libraryUi.selectedFolderId)) selectLibraryFolder(null);
+});
+const emptyMessage = computed(() => libraries.loading ? '등록 폴더를 불러오는 중입니다.'
+  : libraries.error ? '등록 폴더를 확인하지 못했습니다.' : '등록된 폴더가 없습니다.');
 
 const props = withDefaults(defineProps<{ items?: readonly AssetSummary[] }>(), { items: () => [] });
 const selectedId = ref<string | null>(null);
@@ -42,7 +51,10 @@ function moveRegion(event: KeyboardEvent) {
     '--library-panel-width': `${libraryUi.panelWidth}px`,
     '--details-panel-width': libraryUi.detailsCollapsed ? 'auto' : '280px',
   }">
-    <LibraryTreePanel :resizable="layout !== 'compact'" :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder" />
+    <LibraryTreePanel :nodes="libraries.roots" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
+      :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
+      <template #management><LibraryManagement /></template>
+    </LibraryTreePanel>
     <AssetGallery :items="items" :selected-id="selectedId" @select="selectedId = $event" />
     <AssetDetailsPanel :asset="selectedAsset" />
   </div>

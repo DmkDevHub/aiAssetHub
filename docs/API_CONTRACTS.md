@@ -6,9 +6,10 @@
 | 명령 | 주요 입력 | 출력/부작용 |
 |---|---|---|
 | `health.get` | 없음 | Core/DB/버전 실측 상태 |
-| `library.register` | `path`, `display_name?` | library ID; 스캔 시작. **AI 호출 없음** |
+| `library.register` | `path` | 실제 library ID와 등록 상태 저장. 현재 R03-02에서는 스캔/AI 작업 미생성; 스캔은 R03-03 |
+| `library.unregister` | `library_id` | 등록 비활성화; 원본/에셋/태그/이력 보존 |
 | `library.scan` | `library_id`, `recursive` | 스캔 작업 ID; 기본 메타데이터만 |
-| `library.list` | 없음 | 등록 폴더 |
+| `library.list` | `after_id?` | 활성 등록 폴더 페이지와 다음 커서 |
 | `asset.list` | `scope`, `filters`, `sort`, `page` | 실제 에셋 목록 |
 | `asset.get` | `asset_id` | 파일/사용자/분석 상세 |
 | `asset.update_metadata` | `asset_id`, `tags`, `description?` | 보정 저장; 원본 파일 불변 |
@@ -62,6 +63,14 @@
 - `select_library_folder`는 main 창 전용 Tauri 명령이며 프런트엔드 입력 인자를 받지 않는다. 실제 OS 선택기의 단일 폴더 결과만 검증해 `{path: string}`으로 반환하고 취소는 `null`이다. 임의 경로·필터·명령 실행 API를 노출하지 않는다.
 - `FOLDER_PICKER_BUSY`, `FOLDER_LOCAL_ONLY`, `FOLDER_ROOT_NOT_ALLOWED`, `FOLDER_UNAVAILABLE`, `FOLDER_PICK_FAILED`는 고정 코드이며 예외/경로 원문을 오류에 반사하지 않는다. 선택된 경로 자체는 사용자가 확인할 UI에만 표시한다.
 - 이 명령은 Core의 `library.register`가 아니며 등록·DB·스캔·분석 작업을 생성하지 않는다. frontend dialog/fs 범용 권한도 부여하지 않는다. [Tauri dialog Rust API](https://v2.tauri.app/plugin/dialog/)를 사용한다.
+
+## 등록/해제와 활성 목록 (R03-02)
+
+- Tauri `register_library({path})`는 마지막 네이티브 선택 경로와 대조한 후 Core `library.register({path})`만 호출한다. 성공은 `{library: {id, name, path}, created: boolean}`이며 Python DB의 실제 UUID다. 중복/비활성 재등록은 기존 ID를 반환한다.
+- `unregister_library({libraryId})` → `library.unregister({library_id})`는 `{library_id, enabled: false}`를 반환한다. 같은 ID의 해제 재요청은 안전하며 물리 파일·하위 DB 이력을 지우지 않는다. 없거나 잘못된 ID는 성공으로 위장하지 않는다.
+- `list_libraries({afterId: null|UUID})` → `library.list({after_id})`는 `{libraries: [{id,name,path}], next_cursor: UUID|null}`다. 활성 ID 순서이며 페이지는 최대 50개/레코드 합계 12KB다. 한 레코드 6KB를 넘는 경로는 명확히 거부해 기존 16KiB 프레임 한도를 지킨다. UI는 반복/잘못된 커서를 거부하고 최대 200페이지를 읽는다.
+- 사업 규칙 오류는 공통 envelope의 `ok:false`와 고정 코드/문구로 반환하며 정상 Core 세션을 종료하지 않는다. 실제 통신 실패는 기존 세션 수거 정책을 사용한다. 초과 요청은 전송하지 않으며 세션을 유지한다.
+- 등록/해제는 자동 재시도하지 않는다. 응답 불명확 시 UI는 확인된 목록을 유지하고 새로고침을 안내한다. 현재 등록/조회/해제는 파일 스캔·분석 작업을 생성하지 않는다.
 
 ## M01 UI 작업 이벤트 수신 계약 (R01-06)
 

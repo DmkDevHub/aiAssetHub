@@ -2,6 +2,7 @@
 import { onBeforeUnmount, ref } from 'vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { folderDraft, setPickedFolderPath } from '../stores/folderDraft';
+import { libraries, registerLibrary } from '../stores/libraries';
 
 const desktop = isTauri();
 const busy = ref(false);
@@ -51,6 +52,8 @@ onBeforeUnmount(() => { active = false; });
     <template v-if="folderDraft.path">
       <p class="picked-folder-label">선택한 폴더</p>
       <p class="picked-folder-path">{{ folderDraft.path }}</p>
+      <button type="button" class="register-library" :disabled="busy || !libraries.loaded || libraries.loading || libraries.mutating"
+        @click="registerLibrary(folderDraft.path)">선택 폴더 등록</button>
       <button type="button" class="clear-folder-selection" :disabled="busy" @click="clearSelection">선택 지우기</button>
     </template>
     <p v-if="status" role="status">{{ status }}</p>
