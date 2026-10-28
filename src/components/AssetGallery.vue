@@ -4,11 +4,42 @@ import type { AssetSummary } from "../types/assets";
 import { executeUiCommand } from "../stores/operations";
 import type { GalleryViewMode } from "../stores/libraryUi";
 import AssetThumbnail from './AssetThumbnail.vue';
+import { computed, ref, watch } from 'vue';
 
-withDefaults(defineProps<{ items?: readonly AssetSummary[]; selectedId?: string | null }>(), {
+const props = withDefaults(defineProps<{ items?: readonly AssetSummary[]; selectedId?: string | null }>(), {
   items: () => [], selectedId: null,
 });
-defineEmits<{ select: [id: string] }>();
+const emit = defineEmits<{ select: [id: string | null] }>();
+const sort = ref('source');
+const page = ref(1);
+const selection = ref(new Set<string>(props.selectedId ? [props.selectedId] : []));
+const anchor = ref<string|null>(null);
+const ordered = computed(() => {
+  const items=[...props.items];
+  if(sort.value==='name')items.sort((a,b)=>a.name.localeCompare(b.name,'ko') || a.id.localeCompare(b.id));
+  if(sort.value==='kind')items.sort((a,b)=>a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name,'ko'));
+  return items;
+});
+const pages=computed(()=>Math.max(1,Math.ceil(ordered.value.length/60)));
+const visible=computed(()=>ordered.value.slice((page.value-1)*60,page.value*60));
+watch(()=>props.items,()=>{
+  page.value=Math.min(page.value,pages.value);
+  selection.value=new Set([...selection.value].filter((id)=>props.items.some((item)=>item.id===id)));
+  if(anchor.value && !props.items.some((item)=>item.id===anchor.value))anchor.value=null;
+});
+watch(sort,()=>{page.value=1;});
+function choose(event:MouseEvent,id:string){
+  if(event.shiftKey && anchor.value){
+    const start=ordered.value.findIndex((item)=>item.id===anchor.value);
+    const end=ordered.value.findIndex((item)=>item.id===id);
+    const ids=ordered.value.slice(Math.min(start,end),Math.max(start,end)+1).map((item)=>item.id);
+    selection.value=new Set(event.ctrlKey || event.metaKey ? [...selection.value,...ids] : ids);
+  }else if(event.ctrlKey || event.metaKey){
+    if(selection.value.has(id))selection.value.delete(id);else selection.value.add(id);
+    anchor.value=id;
+  }else{selection.value=new Set([id]);anchor.value=id;}
+  emit('select',selection.value.has(id)?id:[...selection.value].at(-1)??null);
+}
 
 function changeView(mode: GalleryViewMode) {
   if (libraryUi.galleryViewMode === mode) return;
@@ -45,6 +76,12 @@ function moveAssetFocus(event: KeyboardEvent) {
           @click="changeView('list')">목록</button>
       </div>
     </header>
+    <div class="gallery-tools">
+      <label>정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">기본순</option><option value="name">이름순</option><option value="kind">유형순</option></select></label>
+      <span class="selection-count">{{ selection.size }}개 선택</span>
+      <button v-if="selection.size" type="button" @click="selection.clear();emit('select',null)">선택 해제</button>
+      <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
+    </div>
 
     <div v-if="items.length === 0" class="gallery-empty" role="status">
       <span class="gallery-empty-mark" aria-hidden="true">◇</span>
@@ -52,11 +89,11 @@ function moveAssetFocus(event: KeyboardEvent) {
       <p>라이브러리가 비어 있습니다.</p>
     </div>
     <ul v-else-if="libraryUi.galleryViewMode === 'grid'" class="asset-grid" aria-label="에셋 그리드" @keydown="moveAssetFocus">
-      <li v-for="item in items" :key="item.id" class="asset-card" :data-asset-id="item.id"
-        :class="{ 'is-selected': selectedId === item.id }">
-        <AssetThumbnail :id="item.id" :kind="item.kind" :exists="item.exists" />
+      <li v-for="item in visible" :key="item.id" class="asset-card" :data-asset-id="item.id"
+        :class="{ 'is-selected': selection.has(item.id) }">
+        <AssetThumbnail :key="`${item.id}:${item.mtimeNs}:${item.exists}`" :id="item.id" :kind="item.kind" :exists="item.exists" />
         <button type="button" class="asset-name asset-select" :title="item.name"
-          :aria-pressed="selectedId === item.id" @click="$emit('select', item.id)">{{ item.name }}</button>
+          :aria-pressed="selection.has(item.id)" @click="choose($event,item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>
         <p v-if="item.scanChange && item.scanChange!=='unchanged'" class="asset-kind">{{ item.scanChange==='new'?'신규':item.scanChange==='changed'?'변경':item.scanChange==='missing'?'누락':'' }}</p>
       </li>
@@ -65,14 +102,19 @@ function moveAssetFocus(event: KeyboardEvent) {
       <table class="asset-list" aria-label="에셋 목록">
         <thead><tr><th scope="col">에셋명</th><th scope="col">유형</th></tr></thead>
         <tbody @keydown="moveAssetFocus">
-          <tr v-for="item in items" :key="item.id" :data-asset-id="item.id"
-            :class="{ 'is-selected': selectedId === item.id }">
+          <tr v-for="item in visible" :key="item.id" :data-asset-id="item.id"
+            :class="{ 'is-selected': selection.has(item.id) }">
             <td><button type="button" class="asset-name asset-select" :title="item.name"
-              :aria-pressed="selectedId === item.id" @click="$emit('select', item.id)">{{ item.name }}</button></td>
+              :aria-pressed="selection.has(item.id)" @click="choose($event,item.id)">{{ item.name }}</button></td>
             <td>{{ item.kind }}</td>
           </tr>
         </tbody>
       </table>
     </div>
+    <nav v-if="pages>1" aria-label="에셋 페이지">
+      <button type="button" :disabled="page===1" @click="page--">이전 페이지</button>
+      <span>{{ page }} / {{ pages }}</span>
+      <button type="button" :disabled="page===pages" @click="page++">다음 페이지</button>
+    </nav>
   </section>
 </template>

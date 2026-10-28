@@ -20,6 +20,7 @@ def thumbnail(database, params):
             if parent == root: break
             if parent.is_symlink() or getattr(parent.stat(), 'st_file_attributes', 0) & 0x400: return {'status':'unavailable'}
         if path.suffix.lower() not in ('.png','.jpg','.jpeg'): return {'status':'unsupported'}
+        if getattr(path.lstat(),'st_file_attributes',0) & 0x400: return {'status':'unavailable'}
         info = path.stat()
         if info.st_size > 50_000_000: return {'status':'too_large'}
         from PIL import Image, ImageOps
@@ -30,7 +31,8 @@ def thumbnail(database, params):
         with warnings.catch_warnings():
             warnings.simplefilter('error', Image.DecompressionBombWarning)
             with Image.open(path) as image:
-                if image.format not in ('PNG','JPEG') or image.width * image.height > 16_000_000: return {'status':'too_large'}
+                if image.format not in ('PNG','JPEG'): return {'status':'unsupported'}
+                if image.width * image.height > 16_000_000: return {'status':'too_large'}
                 width,height = image.size
                 if not target.exists():
                     image = ImageOps.exif_transpose(image)
@@ -44,6 +46,7 @@ def thumbnail(database, params):
                         temporary.write_bytes(payload)
                         os.replace(temporary,target)
                     finally: temporary.unlink(missing_ok=True)
+        if target.stat().st_size > 6500: return {'status':'unavailable'}
         payload = target.read_bytes()
         if len(payload) > 6500: return {'status':'unavailable'}
         return {'status':'ready','width':width,'height':height,'url':'data:image/jpeg;base64,' + base64.b64encode(payload).decode('ascii')}

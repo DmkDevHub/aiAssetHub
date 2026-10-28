@@ -24,4 +24,4 @@ onMounted(() => {
 });
 onBeforeUnmount(() => { active=false; observer?.disconnect(); });
 </script>
-<template><div ref="element" class="asset-format-mark"><img v-if="url && exists!==false" :src="url" alt="" loading="lazy" style="max-width:100%;max-height:120px" /><span v-else>{{ exists===false || status==='missing' ? '파일 없음' : status==='unavailable' ? '미리보기 불가' : status==='too_large' ? '이미지 크기 제한' : !['PNG','JPG','JPEG'].includes(kind) ? `미리보기 미지원 · ${kind}` : kind }}</span></div></template>
+<template><div ref="element" class="asset-format-mark"><img v-if="url && exists!==false" :src="url" alt="" loading="lazy" style="max-width:100%;max-height:120px" /><span v-else>{{ exists===false || status==='missing' ? '파일 없음' : status==='unavailable' ? '미리보기 불가' : status==='too_large' ? '이미지 크기 제한' : status==='unsupported' || !['PNG','JPG','JPEG'].includes(kind) ? `미리보기 미지원 · ${kind}` : kind }}</span></div></template>

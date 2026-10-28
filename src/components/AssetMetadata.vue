@@ -7,7 +7,7 @@ interface Metadata {availability:string;path?:string;size?:number;modified?:numb
 const metadata=ref<Metadata|null>(null);
 const message=ref('');
 let generation=0;
-watch(()=>props.asset.id,async ()=>{
+watch(()=>[props.asset.id,props.asset.mtimeNs,props.asset.exists],async ()=>{
   const token=++generation;
   metadata.value=null; message.value='';
   if (!isTauri() || !props.asset.path) return;

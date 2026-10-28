@@ -135,3 +135,9 @@ npm run tauri build
 - R02-05 기본 설치본: 9,289,722바이트, SHA-256 `5177964f68361be44bf90baaa91856725b195db33ddc3be911939a7e3b235249`. 이후 변경 재빌드 시 해시는 달라진다. 미서명 개발본이며 깨끗한 PC/WebView2 신규 설치·GUI·정식 업그레이드는 미검증이다.
 
 M02 최종 R02-06 설치본은 같은 경로의 `AI Asset Hub_0.5.0_x64-setup.exe`, 9,292,156바이트이며 SHA-256은 `cbe483921a88455f2bcd32177729bae87e4cb74ea69b6ecfb889e5a08dbc02c2`다. 동일한 무화면 설치 검증을 통과했다. 기존 AIAssetHubDev 설치는 자동 업그레이드하지 않았다. GUI·깨끗한 PC·정식 서명 검증 한계는 그대로다.
+
+## M03 개발·배포 갱신
+
+처음에는 `npm run package:core`로 프로젝트 전용 환경과 `requirements-runtime.txt`의 Pillow 13.0.0을 준비한 뒤 `npm run check`/`npm run dev`를 실행한다. 기반 Python 버전과 빌드 가상 환경 버전을 맞춘다. 테스트/개발 Core는 기반 Python에서 전용 site-packages를 로드하며 Windows venv 실행기의 별도 PID를 Core PID로 오인하지 않는다. 전역 Python을 수정하지 않는다. 설치본에는 Pillow와 이미지 DLL을 포함하므로 별도 Python/Pillow 설치가 필요하지 않다.
+
+M03 최종 설치본은 13,439,139바이트, SHA-256 `5442007a81021003c9cbee1091cf9ef061c152d742f11f0b4a7f54e55016b7f9`이며 같은 NSIS 출력 경로에 생성된다. 실제 패키지에서 PNG 등록/스캔/썸네일·원본 보존과 분리된 무인 설치/무화면 Core 검증을 통과했다. 기존 AIAssetHubDev 설치는 보존하며 실제 GUI·깨끗한 PC·정식 서명은 검증하지 않았다.

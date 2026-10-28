@@ -1217,6 +1217,33 @@ const libraryFixture = [
   { id: '12345678-1234-4234-9234-123456789abc', name: '등록된 한글 폴더', path: 'D:\\fixture\\registered' },
   { id: '22345678-1234-4234-9234-123456789abc', name: '새 폴더', path: 'D:\\fixture\\new' },
 ];
+test('gallery Ctrl and Shift selection persists across layouts and can clear', async()=>{
+  await mountWorkspace([...galleryFixture,{id:'fixture-third',name:'세 번째.txt',kind:'TXT'}]);
+  await clickElement('.asset-select');
+  let buttons=[...document.querySelectorAll('.asset-select')];
+  dispatch(buttons[1],new dom.window.MouseEvent('click',{bubbles:true,ctrlKey:true}));await nextTick();
+  assert.equal(document.querySelector('.selection-count').textContent,'2개 선택');
+  dispatch(buttons[2],new dom.window.MouseEvent('click',{bubbles:true,shiftKey:true}));await nextTick();
+  assert.equal(document.querySelector('.selection-count').textContent,'2개 선택');
+  await changeGalleryMode('목록');
+  assert.equal(document.querySelectorAll('.asset-select[aria-pressed="true"]').length,2);
+  const clear=[...document.querySelectorAll('.gallery-tools button')][0];
+  dispatch(clear,new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();
+  assert.equal(document.querySelector('.selection-count').textContent,'0개 선택');
+  assert.ok(document.querySelector('.detail-empty'));
+});
+test('gallery sorting and pagination bound rendering and retain supplied IDs',async()=>{
+  const items=Array.from({length:61},(_,index)=>({id:`fixture-page-${index}`,name:String(100-index),kind:'TXT'}));
+  await mountGallery(items);
+  assert.equal(document.querySelectorAll('.asset-card').length,60);
+  const next=[...document.querySelectorAll('[aria-label="에셋 페이지"] button')][1];
+  dispatch(next,new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();
+  assert.equal(document.querySelectorAll('.asset-card').length,1);
+  const sort=document.querySelector('[aria-label="에셋 정렬"]');sort.value='name';
+  dispatch(sort,new dom.window.Event('change',{bubbles:true}));await nextTick();
+  assert.equal(document.querySelectorAll('.asset-card').length,60);
+  assert.equal(document.querySelector('.asset-card').dataset.assetId,[...items].sort((a,b)=>a.name.localeCompare(b.name,'ko')||a.id.localeCompare(b.id))[0].id);
+});
 test('selected asset metadata renders measured values and a missing file state', async () => {
   app.unmount();
   globalThis.isTauri=true;
@@ -1276,7 +1303,7 @@ const libraryEnvelope = (data) => ({ ok: true, error: null, data });
 
 async function mountLibraryWorkspace(invoke) {
   globalThis.isTauri = true;
-  dom.window.__TAURI_INTERNALS__ = { invoke };
+  dom.window.__TAURI_INTERNALS__ = { invoke: (command,args) => command==='list_assets' ? Promise.resolve(libraryEnvelope({items:[],next_cursor:null})) : invoke(command,args) };
   await mountWorkspace([]);
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();

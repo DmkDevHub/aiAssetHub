@@ -8,7 +8,7 @@ export interface AssetSummary {
   relativePath?: string;
   path?: string;
   size?: number;
-  mtimeNs?: number;
+  mtimeNs?: number | string;
   exists?: boolean;
   scanChange?: string;
 }

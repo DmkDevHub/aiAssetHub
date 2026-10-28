@@ -8,13 +8,10 @@ import type { AssetSummary } from "../types/assets";
 import { useWorkspaceLayout } from "../composables/useWorkspaceLayout";
 import LibraryManagement from '../components/LibraryManagement.vue';
 import { libraries, refreshLibraries } from '../stores/libraries';
-import { assets } from '../stores/assets';
-import { folderNodes, filterFolder } from '../services/assetFolders';
+import { assets, refreshAssets, resetAssets } from '../stores/assets';
+import { folderNodes, filterFolder, type FolderNode } from '../services/assetFolders';
 
-onMounted(() => { void refreshLibraries(); });
-watch(() => libraries.roots, (roots) => {
-  if (libraries.loaded && libraryUi.selectedFolderId && !roots.some((root) => root.id === libraryUi.selectedFolderId)) selectLibraryFolder(null);
-});
+onMounted(() => { void refreshLibraries().then((ok)=>{ if(ok){if(libraries.roots.length)void refreshAssets();else resetAssets();} }); });
 const emptyMessage = computed(() => libraries.loading ? '등록 폴더를 불러오는 중입니다.'
   : libraries.error ? '등록 폴더를 확인하지 못했습니다.' : '등록된 폴더가 없습니다.');
 
@@ -22,6 +19,10 @@ const props = defineProps<{ items?: readonly AssetSummary[] }>();
 const availableItems = computed(() => assets.items.filter((item) => libraries.roots.some((root) => root.id===item.libraryId)));
 const items = computed(() => props.items ?? filterFolder(availableItems.value, libraryUi.selectedFolderId));
 const nodes = computed(() => folderNodes(libraries.roots, availableItems.value));
+watch(nodes,(roots)=>{
+  function contains(items: readonly FolderNode[]): boolean { return items.some((node)=>node.id===libraryUi.selectedFolderId || contains(node.children ?? [])); }
+  if(libraries.loaded && libraryUi.selectedFolderId && !contains(roots))selectLibraryFolder(null);
+});
 const selectedId = ref<string | null>(null);
 const selectedAsset = computed(() => items.value.find((item) => item.id === selectedId.value) ?? null);
 watch(selectedAsset, (asset) => { if (!asset) selectedId.value = null; });

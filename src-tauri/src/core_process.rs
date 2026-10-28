@@ -326,10 +326,44 @@ mod tests {
             .join("../.artifacts/packaged-data")
             .join(uuid::Uuid::new_v4().to_string());
         let mut core =
-            CoreProcess::new(LaunchSpec::packaged(directory).with_data(data, "production"));
+            CoreProcess::new(LaunchSpec::packaged(directory).with_data(data.clone(), "production"));
         let first = core.start().unwrap();
         assert_eq!(first["data"]["database"]["status"], "ready");
         assert_eq!(first["data"]["database"]["schema_version"], 1);
+        let source = data
+            .parent()
+            .unwrap()
+            .join(format!("image-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&source).unwrap();
+        let hex = "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc0000003010100c9fe92ef0000000049454e44ae426082";
+        let png: Vec<u8> = (0..hex.len())
+            .step_by(2)
+            .map(|index| u8::from_str_radix(&hex[index..index + 2], 16).unwrap())
+            .collect();
+        std::fs::write(source.join("fixture.png"), &png).unwrap();
+        let path = source
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_owned();
+        let registered = core
+            .library_request("library.register", json!({"path":path}))
+            .unwrap();
+        let library = registered["data"]["library"]["id"].as_str().unwrap();
+        assert_eq!(
+            core.library_request("library.scan", json!({"library_id":library}))
+                .unwrap()["data"]["processed"],
+            1
+        );
+        let listed = core.library_request("asset.list", json!({})).unwrap();
+        let id = listed["data"]["items"][0]["id"].as_str().unwrap();
+        let preview = core
+            .library_request("asset.thumbnail", json!({"asset_id":id}))
+            .unwrap();
+        assert_eq!(preview["data"]["status"], "ready");
+        assert_eq!(preview["data"]["width"], 1);
+        assert_eq!(std::fs::read(source.join("fixture.png")).unwrap(), png);
         core.stop();
         let next = core.start().unwrap();
         assert_eq!(next["data"]["database"]["status"], "ready");
@@ -448,6 +482,22 @@ mod tests {
             .as_str()
             .unwrap()
             .to_owned();
+        let scanned = core
+            .library_request("library.scan", json!({"library_id":id}))
+            .unwrap();
+        assert_eq!(scanned["data"]["processed"], 1);
+        let listed_assets = core.library_request("asset.list", json!({})).unwrap();
+        let asset_id = listed_assets["data"]["items"][0]["id"].as_str().unwrap();
+        assert_eq!(
+            core.library_request("asset.get", json!({"asset_id":asset_id}))
+                .unwrap()["data"]["size"],
+            17
+        );
+        assert_eq!(
+            core.library_request("asset.thumbnail", json!({"asset_id":asset_id}))
+                .unwrap()["data"]["status"],
+            "unsupported"
+        );
         assert!(uuid::Uuid::parse_str(&id).is_ok());
         let overlap = core
             .library_request(

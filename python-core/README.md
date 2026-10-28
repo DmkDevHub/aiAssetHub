@@ -1,6 +1,6 @@
-# Python Core — M02
+# Python Core — M03
 
-런타임 코드는 Python 3.11 이상 표준 라이브러리만 사용한다. 개발용 health CLI와 Tauri 비공개 파이프 Sidecar·SQLite를 구현했다. Windows 설치본은 Python/SQLite를 동봉한다. PyInstaller는 빌드 전용이며 MCP 서버·파일 수집·AI 분석은 아직 구현 범위가 아니다.
+런타임은 Python 3.11 이상과 고정 Pillow 13.0.0을 사용한다. 개발용 health CLI·Tauri 비공개 파이프·SQLite·명시적 파일 수집·PNG/JPEG 캐시를 구현했다. Windows 설치본은 Python/SQLite/Pillow를 동봉한다. PyInstaller는 빌드 전용이며 AI 분석·MCP·Unity는 후속 범위다.
 
 프로젝트 루트의 PowerShell에서 직접 조회:
 
@@ -16,7 +16,7 @@ Pop-Location
 - 데이터 경로 없이 실행한 일회성 조회의 `data.database.status`는 `not_configured`다. 데스크톱은 백엔드가 정한 `--data-dir`와 `--environment`로 실제 DB에 연결하며 상태·스키마·SQLite 버전·WAL을 실측한다.
 - `--serve`는 상속된 stdin/stdout 파이프에서 16KiB 이하 JSON 줄을 처리한다. EOF로 종료하며 네트워크를 열지 않는다. 사용자가 임의로 Core를 띄워 앱과 같은 DB를 공유하는 방식은 지원하지 않는다.
 - DB를 지정하면 환경 표식·단일 쓰기 잠금을 확인한 뒤 필요한 스키마만 트랜잭션으로 적용한다. 기존 업그레이드는 사전 백업하며 오류/손상/환경 혼용을 자동 복구하지 않는다.
-- 허용 명령은 `health.get`, `library.register`, `library.unregister`, `library.list`다. 각 명령의 정해진 매개변수 이외 필드는 거부하며 파일 스캔·AI·임베딩·네트워크 서버를 시작하지 않는다. 예외·인자·경로·환경 변수·비밀키 원문을 오류/로그에 출력하지 않는다. 등록 경로 자체는 사용자가 확인하는 결과 데이터에만 포함한다.
+- 허용 명령은 `health.get`, `library.register`, `library.unregister`, `library.list`, `library.scan`, `asset.list`, `asset.get`, `asset.thumbnail`다. 스캔은 명시적 library.scan만 수행하고 조회/미리보기/등록으로 분석·스캔을 시작하지 않는다. AI·임베딩·네트워크 서버는 시작하지 않는다. 예외·인자·환경 변수·비밀키 원문은 오류/로그에 출력하지 않는다. 경로는 사용자가 확인하는 결과 데이터에만 포함한다.
 
 R03-02의 등록은 경로를 검증한 뒤 실제 UUID와 참조만 저장하고 중복 ID를 재사용한다. 해제는 enabled 비활성화로 원본·이력을 유지한다. 목록은 활성 UUID 커서 페이지로 조회한다. 쓰기는 데스크톱의 명시적 등록/해제 동작으로 요청하며 스캔은 R03-03 이후 범위다.
 
@@ -26,6 +26,8 @@ R03-02의 등록은 경로를 검증한 뒤 실제 UUID와 참조만 저장하�
 npm run test:core
 npm run check
 ```
+
+새 개발 환경에서는 먼저 `npm run package:core`로 프로젝트 전용 `.artifacts/core-build-venv`와 requirements-runtime.txt의 Pillow를 준비한다. 테스트/개발 Core는 기반 Python 프로세스에서 해당 전용 라이브러리를 로드해 Windows venv 실행기와 자식 PID 차이를 피한다. 기반 Python과 빌드 환경의 Python 버전을 일치시킨다. 전역 Python에 Pillow를 설치하지 않는다.
 
 검사 러너는 기본적으로 `python` 실행 파일을 사용한다. 다른 인터프리터가 필요하면 `AI_ASSET_HUB_PYTHON`에 실행 파일 경로를 지정한다. `-B`로 바이트코드 파일 생성을 막으며 셸 없이 자식 프로세스를 시작한다. Python 실행 실패·타임아웃·테스트 실패는 검사 실패로 반환한다.
 

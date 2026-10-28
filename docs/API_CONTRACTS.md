@@ -8,10 +8,11 @@
 | `health.get` | 없음 | Core/DB/버전 실측 상태 |
 | `library.register` | `path` | 실제 library ID와 등록 상태 저장. 현재 R03-02에서는 스캔/AI 작업 미생성; 스캔은 R03-03 |
 | `library.unregister` | `library_id` | 등록 비활성화; 원본/에셋/태그/이력 보존 |
-| `library.scan` | `library_id`, `recursive` | 스캔 작업 ID; 기본 메타데이터만 |
+| `library.scan` | `library_id` | 명시적 재귀 수집 결과 processed/new/changed/missing/errors/complete; AI 미호출 |
 | `library.list` | `after_id?` | 활성 등록 폴더 페이지와 다음 커서 |
-| `asset.list` | `scope`, `filters`, `sort`, `page` | 실제 에셋 목록 |
-| `asset.get` | `asset_id` | 파일/사용자/분석 상세 |
+| `asset.list` | `after_id?` | 활성 루트의 실제 파일 인덱스 1개/페이지와 다음 UUID 커서; 현재 폴더/정렬은 UI에서 결합 |
+| `asset.get` | `asset_id` | 현재 파일 경로/바이트/수정시각·지원 해상도·present/missing/unavailable. 사용자/분석 상세는 후속 |
+| `asset.thumbnail` | `asset_id` | PNG/JPEG 원본 불변 캐시 data URL 또는 missing/unsupported/too_large/unavailable |
 | `asset.update_metadata` | `asset_id`, `tags`, `description?` | 보정 저장; 원본 파일 불변 |
 | `analysis.preview` | `scope`, `mode`, `model_id` | 대상 ID/수, 전송 내용, 예상 비용 |
 | `analysis.start` | `preview_token?`, `scope`, `mode`, `model_id`, `approval` | 작업 ID; **명시적 실행 요청 필수** |

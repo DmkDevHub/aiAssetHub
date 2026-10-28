@@ -347,6 +347,10 @@ h1 {
 .asset-gallery {
   min-width: 0;
 }
+.gallery-tools { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:16px; font-size:13px; }
+.gallery-tools p { width:100%; margin:0; color:var(--muted); }
+.gallery-tools select,.gallery-tools button,.asset-gallery nav button { padding:6px; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:4px; }
+.asset-gallery nav { display:flex; gap:12px; align-items:center; margin-top:16px; }
 
 .gallery-header {
   display: flex;

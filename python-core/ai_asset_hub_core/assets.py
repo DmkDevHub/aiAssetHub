@@ -14,7 +14,7 @@ class AssetService:
         self.database = database
 
     def scan(self, params):
-        if set(params) != {'library_id'} or not valid_id(params['library_id']):
+        if not isinstance(params,dict) or set(params) != {'library_id'} or not valid_id(params['library_id']):
             raise LibraryError('INVALID_PARAMS')
         row = self.db.execute('SELECT absolute_path FROM library_roots WHERE id=? AND enabled=1', (params['library_id'],)).fetchone()
         if not row:
@@ -23,6 +23,13 @@ class AssetService:
         found, failures = [], []
         def visit(directory):
             try:
+                directory_info=directory.lstat()
+                if directory.is_symlink() or getattr(directory_info,'st_file_attributes',0) & 0x400:
+                    failures.append('REPARSE_POINT')
+                    return
+                if not directory.resolve(strict=True).is_relative_to(root):
+                    failures.append('OUTSIDE_ROOT')
+                    return
                 with os.scandir(directory) as entries:
                     for entry in entries:
                         info = entry.stat(follow_symlinks=False)
@@ -32,6 +39,9 @@ class AssetService:
                             visit(Path(entry.path))
                         elif stat.S_ISREG(info.st_mode):
                             path = Path(entry.path)
+                            if not path.resolve(strict=True).is_relative_to(root):
+                                failures.append('OUTSIDE_ROOT')
+                                continue
                             if len(str(path).encode('utf-8')) > 3000:
                                 failures.append('PATH_TOO_LONG')
                                 continue
@@ -78,7 +88,7 @@ class AssetService:
         return {'processed': len(found), 'errors': len(failures), 'complete': not failures, **counts}
 
     def list(self, params):
-        if set(params) - {'after_id'} or (params.get('after_id') is not None and not valid_id(params['after_id'])):
+        if not isinstance(params,dict) or set(params) - {'after_id'} or (params.get('after_id') is not None and not valid_id(params['after_id'])):
             raise LibraryError('INVALID_PARAMS')
         rows = self.db.execute('''SELECT a.id,a.display_name,f.extension,a.library_root_id,f.relative_path,f.absolute_path,f.size_bytes,f.mtime_ns,f.exists_flag,json_extract(o.metadata_json,'$.scan_change')
             FROM assets a JOIN asset_files f ON f.asset_id=a.id JOIN library_roots l ON l.id=a.library_root_id
@@ -88,10 +98,11 @@ class AssetService:
         for item in items:
             item['kind'] = item['kind'].lstrip('.').upper() or 'FILE'
             item['exists'] = bool(item['exists'])
+            item['mtimeNs'] = str(item['mtimeNs']) # Preserve nanoseconds across the JS integer boundary.
         return {'items': items, 'next_cursor': items[-1]['id'] if len(rows) > 1 else None}
 
     def get(self, params):
-        if set(params) != {'asset_id'} or not valid_id(params['asset_id']): raise LibraryError('INVALID_PARAMS')
+        if not isinstance(params,dict) or set(params) != {'asset_id'} or not valid_id(params['asset_id']): raise LibraryError('INVALID_PARAMS')
         row = self.db.execute('''SELECT f.absolute_path,l.absolute_path FROM asset_files f JOIN assets a ON a.id=f.asset_id
             JOIN library_roots l ON l.id=a.library_root_id WHERE a.id=? AND l.enabled=1''', (params['asset_id'],)).fetchone()
         if not row: return {'availability':'unavailable'}
