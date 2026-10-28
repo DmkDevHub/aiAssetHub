@@ -1217,6 +1217,18 @@ const libraryFixture = [
   { id: '12345678-1234-4234-9234-123456789abc', name: '등록된 한글 폴더', path: 'D:\\fixture\\registered' },
   { id: '22345678-1234-4234-9234-123456789abc', name: '새 폴더', path: 'D:\\fixture\\new' },
 ];
+test('indexed folder hierarchy and filtering use whole path segments', () => {
+  const items = [
+    {id:'fixture-a',name:'a',kind:'TXT',libraryId:libraryFixture[0].id,relativePath:'one\\nested\\a.txt'},
+    {id:'fixture-b',name:'b',kind:'TXT',libraryId:libraryFixture[0].id,relativePath:'one-more\\b.txt'},
+  ];
+  const nodes = components.folderNodes(libraryFixture, items);
+  const folder = nodes[0].children.find((node) => node.name === 'one');
+  assert.equal(folder.children[0].name, 'nested');
+  assert.deepEqual(components.filterFolder(items, folder.id).map((item) => item.id), ['fixture-a']);
+  assert.equal(components.filterFolder(items, null).length, 2);
+  assert.equal(components.filterFolder(items, 'folder:invalid').length, 0);
+});
 const libraryEnvelope = (data) => ({ ok: true, error: null, data });
 
 async function mountLibraryWorkspace(invoke) {

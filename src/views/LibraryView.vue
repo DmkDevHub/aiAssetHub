@@ -9,6 +9,7 @@ import { useWorkspaceLayout } from "../composables/useWorkspaceLayout";
 import LibraryManagement from '../components/LibraryManagement.vue';
 import { libraries, refreshLibraries } from '../stores/libraries';
 import { assets } from '../stores/assets';
+import { folderNodes, filterFolder } from '../services/assetFolders';
 
 onMounted(() => { void refreshLibraries(); });
 watch(() => libraries.roots, (roots) => {
@@ -18,7 +19,8 @@ const emptyMessage = computed(() => libraries.loading ? '등록 폴더를 불러
   : libraries.error ? '등록 폴더를 확인하지 못했습니다.' : '등록된 폴더가 없습니다.');
 
 const props = defineProps<{ items?: readonly AssetSummary[] }>();
-const items = computed(() => props.items ?? assets.items);
+const items = computed(() => props.items ?? filterFolder(assets.items, libraryUi.selectedFolderId));
+const nodes = computed(() => folderNodes(libraries.roots, assets.items));
 const selectedId = ref<string | null>(null);
 const selectedAsset = computed(() => items.value.find((item) => item.id === selectedId.value) ?? null);
 watch(selectedAsset, (asset) => { if (!asset) selectedId.value = null; });
@@ -53,7 +55,7 @@ function moveRegion(event: KeyboardEvent) {
     '--library-panel-width': `${libraryUi.panelWidth}px`,
     '--details-panel-width': libraryUi.detailsCollapsed ? 'auto' : '280px',
   }">
-    <LibraryTreePanel :nodes="libraries.roots" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
+    <LibraryTreePanel :nodes="nodes" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
       :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
       <template #management><LibraryManagement /></template>
     </LibraryTreePanel>

@@ -16,3 +16,4 @@ export { default as CoreConnection } from "../../src/components/CoreConnection.v
 export { default as FolderSelection } from "../../src/components/FolderSelection.vue";
 export { folderDraft, setPickedFolderPath } from "../../src/stores/folderDraft";
 export { libraries, refreshLibraries, registerLibrary, unregisterLibrary, resetLibrarySession } from '../../src/stores/libraries';
+export { folderNodes, filterFolder } from '../../src/services/assetFolders';

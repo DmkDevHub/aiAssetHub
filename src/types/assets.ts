@@ -4,4 +4,10 @@ export interface AssetSummary {
   name: string;
   kind: string;
   analysisText?: string;
+  libraryId?: string;
+  relativePath?: string;
+  path?: string;
+  size?: number;
+  mtimeNs?: number;
+  exists?: boolean;
 }
