@@ -8,6 +8,8 @@
 
 ## 현재 최소 앱 개발 실행 (R00-02~05)
 
+테스트는 D-019에 따라 화면을 직접 조작하지 않는 내부 자동화로 수행한다. `npm run check`는 기존 Node 테스트·프런트엔드 타입 검사·빌드를 실행하며 앱 창이나 브라우저를 열지 않는다. 아래 `dev` 명령은 개발자가 앱을 실행할 때 사용하는 명령이다. 이 문서의 기존 화면 확인 기록은 정책 변경 전 이력이다.
+
 Windows 개발 환경에 Node.js 22.12 이상, Rust stable MSVC, Microsoft C++ Build Tools의 `Desktop development with C++` 워크로드와 Windows SDK, WebView2가 필요하다. [Tauri 공식 사전 요구사항](https://v2.tauri.app/start/prerequisites/)을 참고한다.
 
 ```bash

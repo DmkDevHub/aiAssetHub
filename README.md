@@ -77,4 +77,4 @@ AI-Asset-Hub/
 - `npm run dev`로 개발 앱을 실행하고 `npm run build:installer`로 설치본을 만든다. 설치본은 `src-tauri/target/release/bundle/nsis/`에 생성된다.
 - 개발 환경과 실행 명령, 검증 상태는 [DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고한다.
 - [ROADMAP.md](docs/ROADMAP.md)에서 최초 미완료 작업을 골라 **한 번에 한 작업만** 구현한다.
-- 완료 시 앱 화면에서 실제 결과를 확인하고 자동 테스트 후 문서/변경 이력을 갱신한다.
+- 완료 시 화면 직접 조작 없이 내부 자동화 테스트로 검증하고 결과·미검증 범위와 문서/변경 이력을 갱신한다(D-019). 현재 공통 검사 명령은 `npm run check`다.
