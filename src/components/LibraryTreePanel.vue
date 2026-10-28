@@ -11,7 +11,8 @@ export interface LibraryFolderNode {
 const props = withDefaults(defineProps<{
   nodes?: readonly LibraryFolderNode[];
   selectedId: string | null;
-}>(), { nodes: () => [] });
+  resizable?: boolean;
+}>(), { nodes: () => [], resizable: true });
 const emit = defineEmits<{ select: [id: string | null] }>();
 
 const expanded = ref(new Set<string>());
@@ -142,6 +143,7 @@ function endResize(event: PointerEvent) {
 }
 
 function startResize(event: PointerEvent) {
+  if (!props.resizable) return;
   if (event.button !== 0 || event.isPrimary === false) return;
   stopResize();
   event.preventDefault();
@@ -171,6 +173,7 @@ function handleResizeKey(event: KeyboardEvent) {
 }
 
 onBeforeUnmount(stopResize);
+watch(() => props.resizable, (enabled) => { if (!enabled) stopResize(); });
 </script>
 
 <template>
@@ -186,7 +189,7 @@ onBeforeUnmount(stopResize);
     </ul>
     <p v-if="nodes.length === 0" class="library-empty">등록된 폴더가 없습니다.</p>
   </aside>
-  <div class="library-splitter" :class="{ 'is-resizing': resizing }" role="separator" tabindex="0"
+  <div v-if="resizable" class="library-splitter" :class="{ 'is-resizing': resizing }" role="separator" tabindex="0"
     aria-orientation="vertical" aria-label="라이브러리 패널 너비" aria-controls="library-navigation"
     :aria-valuemin="LIBRARY_PANEL_WIDTH.min" :aria-valuemax="LIBRARY_PANEL_WIDTH.max"
     :aria-valuenow="libraryUi.panelWidth" :aria-valuetext="`${libraryUi.panelWidth}px`"

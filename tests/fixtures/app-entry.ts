@@ -9,3 +9,4 @@ export { setGalleryViewMode } from "../../src/stores/libraryUi";
 export { setDetailsCollapsed } from "../../src/stores/libraryUi";
 export { default as AssetDetailsPanel } from "../../src/components/AssetDetailsPanel.vue";
 export { default as LibraryView } from "../../src/views/LibraryView.vue";
+export { workspaceLayout } from "../../src/composables/useWorkspaceLayout";

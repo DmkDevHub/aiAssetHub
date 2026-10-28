@@ -41,6 +41,19 @@ let router;
 let errors = [];
 let mounted = false;
 let advanceEventClock;
+let workspaceWidth = 1100;
+const resizeObservers = new Set();
+const originalRect = dom.window.HTMLElement.prototype.getBoundingClientRect;
+dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
+  if (this.classList.contains('library-workspace')) return { ...originalRect.call(this), width: workspaceWidth };
+  return originalRect.call(this);
+};
+originalGlobals.set('ResizeObserver', Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver'));
+globalThis.ResizeObserver = class {
+  constructor(callback) { this.callback = callback; this.target = null; }
+  observe(target) { this.target = target; resizeObservers.add(this); }
+  disconnect() { this.target = null; resizeObservers.delete(this); }
+};
 virtualConsole.on("jsdomError", (error) => errors.push(error));
 
 before(async () => {
@@ -75,6 +88,7 @@ beforeEach(async (t) => {
   mounted = false;
   transportCalls = 0;
   errors = [];
+  workspaceWidth = 1100;
   components.setSearchQuery("");
   components.setTheme("dark");
   components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
@@ -655,4 +669,151 @@ test("details render untrusted names and analysis as text without resource loads
   assert.equal(document.querySelector('.detail-asset-name').textContent, text);
   assert.equal(document.querySelector('.detail-analysis').textContent, text);
   assert.equal(document.querySelectorAll('img, script').length, 0);
+});
+
+async function resizeWorkspace(width) {
+  workspaceWidth = width;
+  for (const observer of resizeObservers) {
+    observer.callback([{ target: observer.target, contentRect: { width } }]);
+  }
+  await nextTick();
+}
+
+test("workspace layout reserves gallery width at narrow, medium and wide sizes", () => {
+  const layout = components.workspaceLayout;
+  assert.equal(layout(320, 240, false), 'compact');
+  assert.equal(layout(569, 240, false), 'compact');
+  assert.equal(layout(570, 240, false), 'medium');
+  assert.equal(layout(859, 240, false), 'medium');
+  assert.equal(layout(860, 240, false), 'wide');
+  assert.equal(layout(800, 240, true), 'wide');
+  assert.equal(layout(900, 360, false), 'medium');
+});
+
+test("resize observer changes layout and removes unusable narrow-screen splitter", async () => {
+  assert.equal(document.querySelector('.library-workspace').dataset.layout, 'wide');
+  await resizeWorkspace(768);
+  assert.equal(document.querySelector('.library-workspace').dataset.layout, 'medium');
+  assert.ok(separator());
+  await resizeWorkspace(320);
+  assert.equal(document.querySelector('.library-workspace').dataset.layout, 'compact');
+  assert.equal(separator(), null);
+  assert.ok(document.querySelector('.asset-gallery'));
+  assert.ok(document.querySelector('.detail-toggle'));
+  await resizeWorkspace(1100);
+  assert.equal(separator().getAttribute('aria-valuenow'), '240');
+});
+
+test("shrinking during a drag stops resizing and restores focus to the gallery", async () => {
+  await pointer(separator(), 'pointerdown', 240);
+  await pointer(window, 'pointermove', 280);
+  await nextTick();
+  assert.equal(components.libraryUi.panelWidth, 280);
+  await resizeWorkspace(320);
+  await nextTick();
+  assert.equal(document.activeElement, galleryButton('그리드'));
+  await pointer(window, 'pointermove', 350);
+  await nextTick();
+  assert.equal(components.libraryUi.panelWidth, 280);
+  await resizeWorkspace(1100);
+  assert.equal(separator().getAttribute('aria-valuenow'), '280');
+});
+
+test("resizing and collapse use current width without clearing view or selection", async () => {
+  await mountWorkspace(galleryFixture);
+  await clickElement('.asset-select');
+  await changeGalleryMode('목록');
+  await resizeWorkspace(900);
+  await key(separator(), 'End');
+  assert.equal(document.querySelector('.library-workspace').dataset.layout, 'medium');
+  await clickElement('.detail-toggle');
+  assert.equal(document.querySelector('.library-workspace').dataset.layout, 'wide');
+  await resizeWorkspace(320);
+  assert.equal(document.querySelector('.detail-asset-name').textContent, '나무.png');
+  assert.equal(galleryButton('목록').getAttribute('aria-pressed'), 'true');
+  assert.equal(document.querySelector('#asset-details').hidden, true);
+});
+
+test("F6 cycles actual workspace regions and Shift F6 reverses without trapping Tab", async () => {
+  const tree = document.querySelector('[role="treeitem"]');
+  tree.focus();
+  await key(tree, 'F6');
+  assert.equal(document.activeElement, galleryButton('그리드'));
+  await key(document.activeElement, 'F6');
+  assert.equal(document.activeElement, document.querySelector('.detail-toggle'));
+  await key(document.activeElement, 'F6');
+  assert.equal(document.activeElement, tree);
+  const reverse = new dom.window.KeyboardEvent('keydown', { key: 'F6', shiftKey: true, bubbles: true, cancelable: true });
+  dispatch(tree, reverse);
+  await nextTick();
+  assert.equal(document.activeElement, document.querySelector('.detail-toggle'));
+  const tab = new dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  dispatch(document.activeElement, tab);
+  assert.equal(tab.defaultPrevented, false);
+});
+
+test("F6 prefers selected asset and active detail tab even in compact layout", async () => {
+  await mountWorkspace(galleryFixture);
+  await clickElement('.asset-select');
+  await clickElement('#detail-tab-analysis');
+  await resizeWorkspace(320);
+  const tree = document.querySelector('[role="treeitem"]');
+  tree.focus();
+  await key(tree, 'F6');
+  assert.equal(document.activeElement, document.querySelector('.asset-select[aria-pressed="true"]'));
+  await key(document.activeElement, 'F6');
+  assert.equal(document.activeElement, document.querySelector('#detail-tab-analysis'));
+});
+
+test("workspace observer disconnects on route unmount and ignores invalid measurements", async () => {
+  assert.equal(resizeObservers.size, 1);
+  await resizeWorkspace(Number.NaN);
+  assert.equal(document.querySelector('.library-workspace').dataset.layout, 'wide');
+  await activateLink('[aria-label="주 메뉴"] a');
+  assert.equal(resizeObservers.size, 0);
+  workspaceWidth = 320;
+  await activateLink('.breadcrumbs a');
+  assert.equal(document.querySelector('.library-workspace').dataset.layout, 'compact');
+  assert.equal(resizeObservers.size, 1);
+});
+
+test("gallery arrow and Home End focus navigation does not change the selection", async () => {
+  await mountWorkspace(galleryFixture);
+  await clickElement('.asset-select');
+  for (const mode of ['그리드', '목록']) {
+    await changeGalleryMode(mode);
+    const buttons = [...document.querySelectorAll('.asset-select')];
+    buttons[0].focus();
+    await key(buttons[0], 'ArrowDown');
+    assert.equal(document.activeElement, buttons[1]);
+    await key(buttons[1], 'ArrowRight');
+    assert.equal(document.activeElement, buttons[1]);
+    await key(buttons[1], 'Home');
+    assert.equal(document.activeElement, buttons[0]);
+    await key(buttons[0], 'End');
+    assert.equal(document.activeElement, buttons[1]);
+    await key(buttons[1], 'ArrowLeft');
+    assert.equal(document.activeElement, buttons[0]);
+    assert.equal(buttons[0].getAttribute('aria-pressed'), 'true');
+    assert.equal(buttons[1].getAttribute('aria-pressed'), 'false');
+  }
+});
+
+test("workspace measures on window resize when ResizeObserver is unavailable", async () => {
+  await activateLink('[aria-label="주 메뉴"] a');
+  const Observer = globalThis.ResizeObserver;
+  try {
+    globalThis.ResizeObserver = undefined;
+    workspaceWidth = 320;
+    await activateLink('.breadcrumbs a');
+    assert.equal(document.querySelector('.library-workspace').dataset.layout, 'compact');
+    workspaceWidth = 1100;
+    dispatch(window, new dom.window.Event('resize'));
+    await nextTick();
+    assert.equal(document.querySelector('.library-workspace').dataset.layout, 'wide');
+    assert.equal(resizeObservers.size, 0);
+    await activateLink('[aria-label="주 메뉴"] a');
+  } finally {
+    globalThis.ResizeObserver = Observer;
+  }
 });
