@@ -286,3 +286,71 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual((self.source/'나무.png').read_bytes(),before)
         with patch('ai_asset_hub_core.analysis_input.Path.stat',side_effect=PermissionError('fixture private path')):
             with self.assertRaisesRegex(LibraryError,'FILE_PERMISSION_DENIED'):source_info(self.db,self.id)
+
+    def test_external_adapter_records_reported_usage_without_echoing_credentials(self):
+        import json,threading
+        from unittest.mock import patch
+        from ai_asset_hub_core.inference import infer
+        class Socket:
+            def settimeout(self,value):pass
+        class Response:
+            status=200
+            leak=False
+            def read(self,limit):return json.dumps({'model':'fixture/actual','choices':[{'message':{'content':json.dumps({'description':'fixture-private-key' if self.leak else 'fixture','tags':[]})}}],'usage':{'prompt_tokens':10,'completion_tokens':5,'cost':'0.000002'}}).encode()
+        class Connection:
+            sock=Socket()
+            def __init__(self,*args,**kwargs):pass
+            def connect(self):pass
+            def request(self,method,path,body,headers):
+                self.path=path
+                if headers['Authorization']!='Bearer fixture-private-key':raise AssertionError()
+            def getresponse(self):return Response()
+            def close(self):pass
+        with patch('ai_asset_hub_core.inference.http.client.HTTPSConnection',Connection):
+            output,usage=infer({'kind':'external','provider':'OpenRouter','modelId':'fixture/requested'}, {'image':'fixture-encoded'},threading.Event(),lambda _:None,'fixture-private-key')
+        self.assertEqual(usage['providerReportedCostUsd'],'0.000002');self.assertEqual(usage['responseModel'],'fixture/actual')
+        self.assertNotIn('fixture-private-key',json.dumps((output,usage)))
+        Response.leak=True
+        with patch('ai_asset_hub_core.inference.http.client.HTTPSConnection',Connection):
+            with self.assertRaisesRegex(LibraryError,'INVALID_MODEL_OUTPUT'):
+                infer({'kind':'external','provider':'OpenRouter','modelId':'fixture/requested'},{'image':'fixture-encoded'},threading.Event(),lambda _:None,'fixture-private-key')
+
+    def test_cancel_between_connect_and_send_cannot_reopen_a_connection(self):
+        import threading,http.client
+        from unittest.mock import patch
+        from ai_asset_hub_core.inference import infer
+        canceled=threading.Event();sent=[]
+        class Socket:
+            def __init__(self,connection):self.connection=connection
+            def settimeout(self,value):canceled.set();self.connection.sock=None
+        class Connection:
+            auto_open=1
+            def __init__(self,*args,**kwargs):self.sock=Socket(self)
+            def connect(self):pass
+            def request(self,*args):
+                if self.sock is None and not self.auto_open:raise http.client.NotConnected()
+                sent.append(1)
+            def close(self):pass
+        with patch('ai_asset_hub_core.inference.http.client.HTTPConnection',Connection):
+            with self.assertRaisesRegex(LibraryError,'USER_CANCELED'):
+                infer({'kind':'local','provider':'Ollama','modelId':'fixture','inspection':{}},{'image':'fixture'},canceled,lambda _:None)
+        self.assertEqual(sent,[])
+
+    def test_runtime_connection_failure_is_not_reported_as_a_file_error(self):
+        import json,time
+        from unittest.mock import patch
+        from PIL import Image
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        from ai_asset_hub_core.analysis_engine import AnalysisEngine
+        Image.new('RGB',(16,16),'red').save(self.source/'나무.png')
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0];AssetService(self.db).scan({'library_id':library})
+        caps=json.loads(self.db.connection.execute('SELECT capabilities_json FROM model_registry WHERE id=?',(self.model,)).fetchone()[0]);caps['metadataVersion']='a'*64
+        self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),self.model))
+        plan=self.params();preview=AnalysisPlan(self.db).preview(plan);jobs=AnalysisJobs(self.db)
+        job=jobs.start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
+        engine=AnalysisEngine(self.db)
+        with patch('ai_asset_hub_core.providers.inspect_local',side_effect=OSError('fixture private address')),patch('ai_asset_hub_core.inference.infer') as inference:
+            engine.launch(job);deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+            engine.close();inference.assert_not_called()
+        self.assertEqual(jobs.status({'job_id':job})['errors'][0]['code'],'MODEL_UNAVAILABLE')

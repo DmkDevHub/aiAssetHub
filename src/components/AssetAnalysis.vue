@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue';
 import { invoke,isTauri } from '@tauri-apps/api/core';
 const props=defineProps<{assetId:string;revision?:string|null;lastAttemptState?:string|null;stale?:boolean}>();
-const active=ref<{description:string;tags:string[];provider?:string;modelId?:string;createdAt:string}|null>(null),error=ref('');let generation=0;
+const active=ref<{description:string;tags:string[];provider?:string;modelId?:string;actualModelId?:string;providerReportedCostUsd?:string;createdAt:string}|null>(null),error=ref('');let generation=0;
 const history=ref<{id:string;status:string;createdAt:string;description:string|null;tags:string[];modelId?:string;active:boolean;errorCode?:string}[]>([]),cursor=ref<string|null>(null),historyLoaded=ref(false),historyBusy=ref(false);
 onBeforeUnmount(()=>{generation++;});
 watch(()=>[props.assetId,props.revision],async()=>{
@@ -27,7 +27,7 @@ async function loadHistory(){
   <p v-if="error" role="alert">{{ error }}</p>
   <p v-if="active && lastAttemptState==='failed'" class="analysis-retained" role="status">마지막 분석은 실패했습니다. 이전 성공 결과를 유지합니다.</p>
   <p v-if="active && stale" role="status">원본 변경 또는 검증 정보 미보유로 재확인이 필요한 이전 결과입니다.</p>
-  <template v-if="active"><h3>AI 분석 결과</h3><p>{{ active.description }}</p><p>AI 태그: {{ active.tags.join(', ') || '없음' }}</p><p>출처: {{ active.provider }} · {{ active.modelId }} · {{ active.createdAt }}</p></template>
+  <template v-if="active"><h3>AI 분석 결과</h3><p>{{ active.description }}</p><p>AI 태그: {{ active.tags.join(', ') || '없음' }}</p><p>출처: {{ active.provider }} · {{ active.actualModelId??active.modelId }}{{ active.actualModelId?'':' (요청 프로필, 실제 응답 모델 기록 없음)' }} · {{ active.createdAt }}</p><p v-if="active.providerReportedCostUsd">공급자 보고 비용: {{ active.providerReportedCostUsd }} USD (청구서와 다를 수 있음)</p></template>
   <p v-else-if="!error">저장된 성공 분석 결과가 없습니다.</p>
   <button v-if="!historyLoaded || cursor" type="button" :disabled="historyBusy" @click="loadHistory">{{ historyLoaded?'이전 시도 더 보기':'분석 이력 조회' }}</button>
   <p v-if="historyLoaded && !history.length">저장된 실행 이력이 없습니다.</p>

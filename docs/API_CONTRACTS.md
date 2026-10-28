@@ -118,3 +118,19 @@
 | select_model | model.select | id,modality / selected,profileVersion,inferenceCalled |
 
 목록에 hasCredential(bool), inspection, policy, selected를 포함하며 키/원문 응답/예외를 반환하지 않는다. API 키는 ASCII 1~1024자·공백/제어문자 금지. 모델 ID 160자·공급자 80자, 등록 유형은 text/image/audio. 잘못된 입력은 INVALID_PARAMS, 조건 미충족은 MODEL_POLICY_DENIED/MODEL_UNAVAILABLE/MODEL_CAPABILITY_MISMATCH/BUDGET_EXCEEDED 고정 오류다. 아직 분석 실행 API는 제공하지 않는다.
+
+## M06 분석 명령
+| Tauri | Core | 입력/출력 |
+|---|---|---|
+| preview_analysis | analysis.preview | plan:{mode,scope,library_id,folder_parts,selected_ids,model_id} / targetCount,eligibleCount,unsupportedCount,overLimitCount,formats,missingCount,planToken,estimatedUpperBoundUsd,externalTransfer,paid,snapshot,inferenceCalled:false |
+| start_analysis | analysis.start | request:{plan,plan_token,request_id,confirmed:true,confirm_external,confirm_paid} / 실제 jobId,reused |
+| analysis_status | analysis.status | jobId→job_id / status,total,processed,succeeded,failed,canceled,active,needsRecovery,errors(처음 10개 고정 코드) |
+| analysis_jobs | analysis.jobs | 인자 없음 / 최근 20개 실제 Job |
+| cancel_analysis | analysis.cancel | jobId→job_id / cancelRequested,status |
+| retry_analysis_plan | analysis.retry_plan | jobId→job_id / 과거 plan,requiresReview:true(새 Job 생성 없음) |
+| asset_analysis | asset.analysis | assetId→asset_id / 활성 성공 결과·요청/실제 응답 모델·원본 해시·공급자 보고 비용 또는 null |
+| asset_analysis_history | asset.analysis.history | assetId→asset_id,afterId→after_id / 최신순 run 1개,다음 cursor(UUID) |
+
+mode는 all/unanalyzed/completed/failed/selected, scope는 folder/library/all이다. all 범위는 library_id=null·folder_parts=[], library 범위는 실제 활성 루트 UUID·빈 parts, folder는 실제 루트와 디렉터리 구성요소를 사용한다. selected_ids는 최대 200개 실제 활성 UUID이며 선택 범위와 교차한다. 범위 대상은 최대 1000개다. eligibleCount는 실제 stat·확장자·파일 크기를 통과한 이미지 후보 수이며 디코드 성공 보장이 아니다. missingCount는 권한/경로 포함 원본 확인 실패 수다.
+
+미리보기 토큰은 실제 대상 stat/모델·한도·가격 상한을 결합한다. 승인된 동일 request_id·동일 payload 재전송은 기존 Job을 반환하고 예약·추론을 추가하지 않는다. 중단된 Job은 needsRecovery로 표시하며 조회/재연결만으로 재개하지 않는다. 정상 입력 준비를 마치지 못해 해시를 확정하지 않은 경우 inputFingerprint는 빈 값이며 해시를 추측하지 않는다. 토큰은 추정 결과와 승인 조건을 일치시키기 위한 값이고 사용자 인증을 대체하지 않는다.

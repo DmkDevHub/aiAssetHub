@@ -61,20 +61,24 @@ class AnalysisEngine:
                     db.execute('COMMIT')
                 except Exception:db.execute('ROLLBACK');raise
                 try:
-                    checked=ModelService(database).validate({'id':snapshot['registryId'],'modality':'image'},reserved=True)
+                    try:checked=ModelService(database).validate({'id':snapshot['registryId'],'modality':'image'},reserved=True)
+                    except OSError:raise LibraryError('MODEL_POLICY_DENIED') from None
                     if not checked['compatible']:raise LibraryError(checked['reason'])
                     if checked['snapshot']['profileVersion']!=snapshot['profileVersion']:raise LibraryError('MODEL_CHANGED')
                     prepared=prepare_image(database,asset_id,versions[asset_id])
                     from .providers import inspect_local,inspect_external
                     if snapshot['kind']=='local':
-                        current=inspect_local(snapshot['modelId'])
+                        try:current=inspect_local(snapshot['modelId'])
+                        except Exception:raise LibraryError('MODEL_UNAVAILABLE') from None
                         if current.get('status')!='available' or not snapshot['inspection'].get('metadataVersion') or current.get('metadataVersion')!=snapshot['inspection']['metadataVersion']:raise LibraryError('MODEL_CHANGED')
                     else:
-                        current=inspect_external(snapshot['modelId'])
+                        try:current=inspect_external(snapshot['modelId'])
+                        except Exception:raise LibraryError('MODEL_UNAVAILABLE') from None
                         if current.get('status')!='available' or any(current.get(k)!=snapshot['inspection'].get(k) for k in ('pricing','contextLength','modalities','costClass')):raise LibraryError('MODEL_CHANGED')
                     db.execute('UPDATE analysis_runs SET input_fingerprint=? WHERE id=?',(prepared['fingerprint'],run))
                     if control['cancel'].is_set():raise LibraryError('USER_CANCELED')
-                    key=ModelService(database).vault.read(snapshot['registryId']) if snapshot['kind']=='external' else None
+                    try:key=ModelService(database).vault.read(snapshot['registryId']) if snapshot['kind']=='external' else None
+                    except OSError:raise LibraryError('MODEL_POLICY_DENIED') from None
                     usage['providerRequestAttempted']=True
                     def register(connection):
                         control['connection']=connection

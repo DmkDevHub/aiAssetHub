@@ -319,3 +319,11 @@ Node 109개·Python 71개·타입/빌드 통과. 이전 성공 후 재분석 대
 
 ## R06-11 내부 검증
 Node 110개·Python 74개·타입/빌드 통과. PNG+WAV+FBX 범위에서 이미지 모델 호출은 1회·미지원 2개 오류 기록, 미지원/20MB 초과만 있는 범위는 Job 0개. 투명 픽셀의 숨은 RGB는 파생 JPEG에서 흰색으로 합성하고 원본을 보존, 권한 오류의 원문 경로 레드랙션 확인. 오디오/3D 실제 AI 추론·3D 렌더는 명시적 미지원이며 기술 메타데이터 표시만 제공한다.
+
+## R06-12 / M06 최종 검증
+- `npm run check`: Node 110개·Python 77개 통과, 타입 검사·Vite 빌드 성공. `cargo test --lib --locked -- --include-ignored`: 실제 패키지 포함 13개 통과. `cargo clippy --all-targets --locked -- -D warnings` 통과. 총 200개 내부 테스트.
+- `npm run build:installer` 및 `scripts/verify-installer.ps1 -AnalysisModel qwen3-vl:2b` 통과. 전용 임시 설치본에서 Tauri의 무화면 CLI로 Core/DB/PID를 검증하고, 설치된 Sidecar에 Python 없는 PATH·비공개 JSON 파이프로 실제 이미지 분석 명령을 보냈다. 44.05초에 completed, 실제 설명은 흰 배경의 빨간 사각형을 식별했다.
+- 원본 SHA256 불변·실제 응답 모델 기록·DB v3·Core 정상 종료·같은 DB로 Core 재시작 후 동일 결과/Job 1개 유지·stderr 없음·임시 설치 제거·원래 설치 보존 확인. 최종 Sidecar SHA256은 설치본 보고와 개발 번들이 일치한다. 보고 파일 `.artifacts/m06-installed-analysis.json`, 로그 `.artifacts/m06-installed-check.log`.
+- 원본/기존 사용자 AppData는 검증에 사용하지 않았다. 실제 앱 창·브라우저·화면 조작은 미실행이며 UI는 내부 DOM/상태/이벤트로 검증했다. 실제 GUI·깨끗한 PC·대규모 라이브러리/모델 성능·외부 유료 추론/청구서는 미검증이다. 오디오/3D는 기술 메타데이터와 제한/오류만 제공하며 AI 성공으로 표시하지 않는다.
+- 설치 파일 13616738 bytes, SHA256 `d2b4175992620873796ea8733404e402d855d9637a82ae45d01fe211fd8e6e11`. 기존 NSIS Korean `choowHowToInstall` 문자열 경고 1개 유지.
+- 개발 검증용 Ollama CLI v0.40.12: `C:/Users/kdm/AppData/Local/AIAssetHubTools/ollama-v0.40.12/ollama.exe`, 모델 경로 `.artifacts/tools/ollama-models`. 사용자 설치/다운로드 승인으로 루프백 127.0.0.1:11434·클라우드 비활성 환경에서 실행했다. 앱이 런타임/모델을 자동 설치·다운로드하지 않는다.

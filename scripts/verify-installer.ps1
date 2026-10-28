@@ -1,3 +1,4 @@
+param([string]$AnalysisModel = '')
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskNsis = Join-Path $taskRoot 'src-tauri/target/release/nsis/x64'
@@ -55,6 +56,11 @@ if ((Get-Item -LiteralPath $taskStderr).Length -ne 0) { throw 'Unexpected instal
 if (Get-Process -Id $taskHealth.data.core.pid -ErrorAction SilentlyContinue) { throw 'Core remained alive after verification.' }
 $taskResult = @{ installation = $taskInstallDir; core_pid = $taskHealth.data.core.pid; database = $taskHealth.data.database; sidecar_sha256 = (Get-FileHash -LiteralPath $taskInstalledCore).Hash; gui_opened = $false }
 $taskResult | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $taskRoot '.artifacts/r02-05-installed-result.json') -Encoding UTF8
+if ($AnalysisModel) {
+    $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+    & $taskHarnessPython (Join-Path $taskRoot 'scripts/verify-local-analysis.py') --model $AnalysisModel --sidecar $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m06-installed-analysis.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed real model analysis verification failed.' }
+}
 # Retain test reports/data; uninstall only the isolated verification payload.
 $taskUninstaller = Join-Path $taskInstallDir 'uninstall.exe'
 $taskProcess = Start-Process -FilePath $taskUninstaller -ArgumentList '/S' -PassThru -WindowStyle Hidden
