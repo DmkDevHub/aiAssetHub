@@ -6,3 +6,6 @@ export { default as LibraryTreePanel } from "../../src/components/LibraryTreePan
 export { libraryUi, selectLibraryFolder, setLibraryPanelWidth, LIBRARY_PANEL_WIDTH } from "../../src/stores/libraryUi";
 export { default as AssetGallery } from "../../src/components/AssetGallery.vue";
 export { setGalleryViewMode } from "../../src/stores/libraryUi";
+export { setDetailsCollapsed } from "../../src/stores/libraryUi";
+export { default as AssetDetailsPanel } from "../../src/components/AssetDetailsPanel.vue";
+export { default as LibraryView } from "../../src/views/LibraryView.vue";

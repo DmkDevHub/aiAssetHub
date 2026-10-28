@@ -80,6 +80,7 @@ beforeEach(async (t) => {
   components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
   components.selectLibraryFolder(null);
   components.setGalleryViewMode("grid");
+  components.setDetailsCollapsed(false);
   document.body.innerHTML = '<div id="app"></div>';
   router = components.createAppRouter(createMemoryHistory());
   await router.push("/library");
@@ -544,5 +545,114 @@ test("long and markup-like asset metadata stays literal in both layouts", async 
   await changeGalleryMode("목록");
   assert.equal(document.querySelector('.asset-name').title, name);
   assert.equal(document.querySelector('tbody tr').cells[1].textContent, kind);
+  assert.equal(document.querySelectorAll('img, script').length, 0);
+});
+
+async function mountWorkspace(items) {
+  app.unmount();
+  mounted = false;
+  const data = ref(items);
+  app = createApp({ render: () => h(components.LibraryView, { items: data.value }) });
+  app.config.errorHandler = (error) => errors.push(error);
+  app.config.warnHandler = (message) => errors.push(new Error(message));
+  app.mount("#app");
+  mounted = true;
+  await nextTick();
+  return data;
+}
+
+async function clickElement(selector) {
+  dispatch(document.querySelector(selector), new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+  await nextTick();
+}
+
+test("production details start empty and collapse control has a real target", async () => {
+  assert.match(document.querySelector('.detail-empty').textContent, /에셋을 선택/);
+  assert.equal(document.querySelector('[role="tablist"]'), null);
+  assert.equal(document.querySelector('.detail-toggle').getAttribute('aria-controls'), 'asset-details');
+  await clickElement('.detail-toggle');
+  assert.equal(document.querySelector('#asset-details').hidden, true);
+  assert.equal(document.querySelector('.detail-toggle').getAttribute('aria-expanded'), 'false');
+  await clickElement('.detail-toggle');
+  assert.equal(document.querySelector('#asset-details').hidden, false);
+});
+
+test("supplied gallery selection drives details in both grid and list", async () => {
+  await mountWorkspace(galleryFixture);
+  await clickElement('.asset-card .asset-select');
+  assert.equal(document.querySelector('.detail-asset-name').textContent, '나무.png');
+  assert.deepEqual([...document.querySelectorAll('#asset-details dd')].map((node) => node.textContent), ['나무.png', 'PNG']);
+  assert.equal(document.querySelector('.asset-select').getAttribute('aria-pressed'), 'true');
+  await changeGalleryMode('목록');
+  assert.equal(document.querySelector('.asset-select').getAttribute('aria-pressed'), 'true');
+  await clickElement('tbody tr:last-child .asset-select');
+  assert.equal(document.querySelector('.detail-asset-name').textContent, '돌 모델.fbx');
+  assert.equal(document.querySelectorAll('.asset-select[aria-pressed="true"]').length, 1);
+});
+
+test("detail tabs support roving keyboard activation with linked panels", async () => {
+  await mountWorkspace(galleryFixture);
+  await clickElement('.asset-select');
+  const info = document.querySelector('#detail-tab-info');
+  const analysis = document.querySelector('#detail-tab-analysis');
+  await key(info, 'ArrowRight');
+  assert.equal(document.activeElement, analysis);
+  assert.equal(analysis.getAttribute('aria-selected'), 'true');
+  assert.equal(info.tabIndex, -1);
+  assert.equal(document.querySelector('#detail-panel-info').hidden, true);
+  assert.equal(document.querySelector('#detail-panel-analysis').hidden, false);
+  assert.match(document.querySelector('.detail-analysis').textContent, /제공된 분석 결과가 없습니다/);
+  await key(analysis, 'ArrowRight');
+  assert.equal(document.activeElement, info);
+  await key(info, 'End');
+  assert.equal(document.activeElement, analysis);
+  await key(analysis, 'Home');
+  assert.equal(document.activeElement, info);
+  await key(info, 'ArrowLeft');
+  assert.equal(document.activeElement, analysis);
+});
+
+test("selection changes reset the tab and removed assets clear stale details", async () => {
+  const data = await mountWorkspace([{ ...galleryFixture[0], analysisText: 'fixture 분석문' }, galleryFixture[1]]);
+  await clickElement('.asset-select');
+  await clickElement('#detail-tab-analysis');
+  assert.equal(document.querySelector('.detail-analysis').textContent, 'fixture 분석문');
+  await clickElement('.asset-card:last-child .asset-select');
+  assert.equal(document.querySelector('#detail-tab-info').getAttribute('aria-selected'), 'true');
+  assert.match(document.querySelector('.detail-analysis').textContent, /제공된 분석 결과가 없습니다/);
+  data.value = [galleryFixture[0]];
+  await nextTick();
+  assert.ok(document.querySelector('.detail-empty'));
+  assert.equal(document.querySelector('.detail-asset-name'), null);
+  assert.equal(document.querySelectorAll('.asset-select[aria-pressed="true"]').length, 0);
+});
+
+test("collapsed details retain selection and tab while data updates remain current", async () => {
+  const data = await mountWorkspace(galleryFixture);
+  await clickElement('.asset-select');
+  await clickElement('#detail-tab-analysis');
+  await clickElement('.detail-toggle');
+  data.value = [{ ...galleryFixture[0], analysisText: '갱신된 fixture 결과' }];
+  await nextTick();
+  await clickElement('.detail-toggle');
+  assert.equal(document.querySelector('#detail-tab-analysis').getAttribute('aria-selected'), 'true');
+  assert.equal(document.querySelector('.detail-analysis').textContent, '갱신된 fixture 결과');
+});
+
+test("details collapse preference survives actual route navigation", async () => {
+  await clickElement('.detail-toggle');
+  await activateLink('[aria-label="주 메뉴"] a');
+  await activateLink('.breadcrumbs a');
+  assert.equal(document.querySelector('#asset-details').hidden, true);
+  assert.equal(document.querySelector('.detail-toggle').textContent, '상세 펼치기');
+});
+
+test("details render untrusted names and analysis as text without resource loads", async () => {
+  const text = '<img src=x onerror="alert(1)"><script>secret()</script>';
+  await mountWorkspace([{ id: 'fixture-details', name: text, kind: text, analysisText: text }]);
+  await clickElement('.asset-select');
+  await clickElement('#detail-tab-analysis');
+  assert.equal(document.querySelector('.detail-asset-name').textContent, text);
+  assert.equal(document.querySelector('.detail-analysis').textContent, text);
   assert.equal(document.querySelectorAll('img, script').length, 0);
 });

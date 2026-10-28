@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { libraryUi, setGalleryViewMode } from "../stores/libraryUi";
+import type { AssetSummary } from "../types/assets";
 
-export interface GalleryItem {
-  id: string;
-  name: string;
-  kind: string;
-}
-
-withDefaults(defineProps<{ items?: readonly GalleryItem[] }>(), { items: () => [] });
+withDefaults(defineProps<{ items?: readonly AssetSummary[]; selectedId?: string | null }>(), {
+  items: () => [], selectedId: null,
+});
+defineEmits<{ select: [id: string] }>();
 </script>
 
 <template>
@@ -31,9 +29,11 @@ withDefaults(defineProps<{ items?: readonly GalleryItem[] }>(), { items: () => [
       <p>라이브러리가 비어 있습니다.</p>
     </div>
     <ul v-else-if="libraryUi.galleryViewMode === 'grid'" class="asset-grid" aria-label="에셋 그리드">
-      <li v-for="item in items" :key="item.id" class="asset-card" :data-asset-id="item.id">
+      <li v-for="item in items" :key="item.id" class="asset-card" :data-asset-id="item.id"
+        :class="{ 'is-selected': selectedId === item.id }">
         <div class="asset-format-mark" aria-hidden="true">{{ item.kind }}</div>
-        <p class="asset-name" :title="item.name">{{ item.name }}</p>
+        <button type="button" class="asset-name asset-select" :title="item.name"
+          :aria-pressed="selectedId === item.id" @click="$emit('select', item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>
       </li>
     </ul>
@@ -41,8 +41,10 @@ withDefaults(defineProps<{ items?: readonly GalleryItem[] }>(), { items: () => [
       <table class="asset-list" aria-label="에셋 목록">
         <thead><tr><th scope="col">에셋명</th><th scope="col">유형</th></tr></thead>
         <tbody>
-          <tr v-for="item in items" :key="item.id" :data-asset-id="item.id">
-            <td><span class="asset-name" :title="item.name">{{ item.name }}</span></td>
+          <tr v-for="item in items" :key="item.id" :data-asset-id="item.id"
+            :class="{ 'is-selected': selectedId === item.id }">
+            <td><button type="button" class="asset-name asset-select" :title="item.name"
+              :aria-pressed="selectedId === item.id" @click="$emit('select', item.id)">{{ item.name }}</button></td>
             <td>{{ item.kind }}</td>
           </tr>
         </tbody>

@@ -7,6 +7,7 @@ const state = reactive({
   panelWidth: Number(LIBRARY_PANEL_WIDTH.initial),
   selectedFolderId: null as string | null,
   galleryViewMode: "grid" as GalleryViewMode,
+  detailsCollapsed: false,
 });
 
 export const libraryUi = readonly(state);
@@ -22,4 +23,8 @@ export function selectLibraryFolder(id: string | null) {
 
 export function setGalleryViewMode(mode: GalleryViewMode) {
   if (mode === "grid" || mode === "list") state.galleryViewMode = mode;
+}
+
+export function setDetailsCollapsed(collapsed: boolean) {
+  state.detailsCollapsed = collapsed;
 }
