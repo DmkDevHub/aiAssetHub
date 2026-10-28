@@ -203,3 +203,39 @@ class AnalysisTests(unittest.TestCase):
         for sql in ("DELETE FROM analysis_results","DELETE FROM analysis_runs","UPDATE analysis_runs SET status='running'","UPDATE analysis_jobs SET model_snapshot_json='{}'"):
             with self.assertRaises(sqlite3.IntegrityError):self.db.connection.execute(sql)
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_results').fetchone()[0],1)
+
+    def test_user_edits_during_failed_reanalysis_preserve_the_previous_ai_result(self):
+        import json,time,threading
+        from unittest.mock import patch
+        from PIL import Image
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        from ai_asset_hub_core.analysis_engine import AnalysisEngine
+        from ai_asset_hub_core.analysis_results import AssetAnalysis
+        from ai_asset_hub_core.annotations import AnnotationService
+        Image.new('RGB',(16,16),'red').save(self.source/'나무.png')
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0];AssetService(self.db).scan({'library_id':library})
+        caps=json.loads(self.db.connection.execute('SELECT capabilities_json FROM model_registry WHERE id=?',(self.model,)).fetchone()[0]);caps['metadataVersion']='a'*64
+        self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),self.model))
+        annotations=AnnotationService(self.db);annotations.tags({'asset_id':self.id,'add':['shared','user-only'],'remove':[]})
+        jobs=AnalysisJobs(self.db);engine=AnalysisEngine(self.db)
+        def start():
+            plan=self.params();preview=AnalysisPlan(self.db).preview(plan)
+            return jobs.start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
+        def wait(job):
+            deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+        with patch('ai_asset_hub_core.providers.inspect_local',return_value={'status':'available','metadataVersion':'a'*64}),patch('ai_asset_hub_core.inference.infer',return_value=({'description':'AI original','tags':['shared','ai-only']},{'providerRequestAttempted':True})):
+            job=start();engine.launch(job);wait(job)
+        old=AssetAnalysis(self.db).get({'asset_id':self.id})['active']
+        entered=threading.Event();release=threading.Event()
+        def failing(*args):entered.set();release.wait(3);raise LibraryError('API_TIMEOUT')
+        with patch('ai_asset_hub_core.providers.inspect_local',return_value={'status':'available','metadataVersion':'a'*64}),patch('ai_asset_hub_core.inference.infer',side_effect=failing):
+            job=start();engine.launch(job);self.assertTrue(entered.wait(3))
+            annotations.save({'asset_id':self.id,'title':'User renamed','description':'Edited while running'})
+            annotations.tags({'asset_id':self.id,'add':['edited'],'remove':['shared']})
+            release.set();wait(job);engine.close()
+        self.assertEqual(AssetAnalysis(self.db).get({'asset_id':self.id})['active']['id'],old['id'])
+        self.assertEqual(annotations.get({'asset_id':self.id})['description'],'Edited while running')
+        self.assertEqual(set(annotations.get({'asset_id':self.id})['tags']),{'user-only','edited'})
+        self.assertEqual(AssetService(self.db).list({})['items'][0]['name'],'User renamed')
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_results').fetchone()[0],1)

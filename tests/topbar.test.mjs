@@ -1797,3 +1797,11 @@ test('failed attempt history is distinct from the retained active description',a
  for(let i=0;i<2;i++){dispatch(document.querySelector('.asset-analysis button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();}
  assert.equal(document.querySelectorAll('.analysis-history li').length,2);assert.match(document.querySelector('.asset-analysis').textContent,/previous successful description/);assert.match(document.querySelector('.analysis-history').textContent,/API_TIMEOUT/);
 });
+
+test('user metadata and AI results remain visibly separate after a failed attempt',async()=>{
+ app.unmount();globalThis.isTauri=true;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command)=>command==='asset_annotations'?{ok:true,data:{tags:['user-tag'],title:'User title',description:'User notes'}}:{ok:true,data:{active:{description:'AI description',tags:['ai-tag'],provider:'Ollama',modelId:'fixture',createdAt:'fixture'}}}};
+ app=createApp({render:()=>h('div',[h(components.AssetAnnotations,{assetId:'fixture'}),h(components.AssetAnalysis,{assetId:'fixture',lastAttemptState:'failed'})])});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(document.querySelector('.annotation-form textarea').value,'User notes');assert.match(document.querySelector('.user-annotations').textContent,/user-tag/);assert.doesNotMatch(document.querySelector('.user-annotations').textContent,/AI description/);
+ assert.match(document.querySelector('.asset-analysis').textContent,/ai-tag/);assert.match(document.querySelector('.analysis-retained').textContent,/이전 성공 결과를 유지/);
+});

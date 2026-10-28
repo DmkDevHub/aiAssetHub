@@ -46,7 +46,9 @@ async function save() {
 }
 </script>
 <template>
-  <section aria-label="사용자 태그" class="user-annotations">
+  <section aria-label="사용자 수정 정보와 태그" class="user-annotations">
+    <h3>사용자 수정 정보</h3>
+    <p>사용자가 저장한 표시명·설명·태그입니다. AI 결과와 별도로 보존됩니다.</p>
     <form class="annotation-form" @submit.prevent="save">
       <label>표시명 <input v-model="title" maxlength="128" :disabled="busy || !loaded" placeholder="비워 두면 파일명 사용" /></label>
       <label>사용자 설명 <textarea v-model="description" maxlength="1024" :disabled="busy || !loaded" /></label>
