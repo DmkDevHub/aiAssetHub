@@ -1651,3 +1651,19 @@ test('local model inspection is a separate explicit action with measured status'
  await new Promise(r=>setImmediate(r));await nextTick();
  assert.deepEqual(calls,['list_models','inspect_model','list_models']);assert.match(document.querySelector('.model-list').textContent,/unavailable/);
 });
+
+test('external model inspection sends only explicit consent and displays unknown authentication',async()=>{
+ app.unmount();globalThis.isTauri=true;let sent;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+  if(command==='inspect_model'){sent=args;return {ok:true};}
+  return {ok:true,data:{items:[{id:'fixture',provider:'OpenRouter',kind:'external',modelId:'fixture/model',modalities:['text'],enabled:false,inspection:{status:'available',costClass:'paid',authentication:'not_tested'}}],next_cursor:null}};
+ }};
+ app=createApp(components.ModelsView);app.config.errorHandler=e=>errors.push(e);app.mount('#app');
+ await new Promise(r=>setImmediate(r));await nextTick();
+ dispatch(document.querySelector('.model-list button'),new MouseEvent('click',{bubbles:true}));
+ await new Promise(r=>setImmediate(r));await nextTick();assert.equal(sent.allowExternal,false);
+ const consent=document.querySelector('.models-page input[type=checkbox]');consent.checked=true;dispatch(consent,new Event('change',{bubbles:true}));await nextTick();
+ dispatch(document.querySelector('.model-list button'),new MouseEvent('click',{bubbles:true}));
+ await new Promise(r=>setImmediate(r));await nextTick();assert.equal(sent.allowExternal,true);
+ assert.match(document.querySelector('.model-list').textContent,/paid/);assert.match(document.querySelector('.model-list').textContent,/not_tested/);
+});

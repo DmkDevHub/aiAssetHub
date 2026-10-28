@@ -46,17 +46,29 @@ class ModelService:
             FROM model_registry m JOIN model_providers p ON p.id=m.provider_id
             WHERE m.id>? ORDER BY m.id LIMIT 11''',(params.get('after_id') or '',)).fetchall()
         items=[{'id':r[0],'provider':r[1],'kind':r[2],'modelId':r[3],'modalities':json.loads(r[4]),'enabled':bool(r[5]),'inspection':json.loads(r[6])} for r in rows[:10]]
-        return {'items':items,'next_cursor':items[-1]['id'] if len(rows)>10 else None}
+        bounded=[];size=0
+        for item in items:
+            length=len(json.dumps(item,ensure_ascii=False).encode('utf-8'))
+            if length>10000:raise LibraryError('DB_UNAVAILABLE')
+            if bounded and size+length>12000:break
+            bounded.append(item);size+=length
+        return {'items':bounded,'next_cursor':bounded[-1]['id'] if len(rows)>len(bounded) else None}
 
     def inspect(self, params):
-        if not isinstance(params,dict) or set(params)!={'id'} or not valid_id(params['id']): raise LibraryError('INVALID_PARAMS')
+        if not isinstance(params,dict) or set(params)-{'id','allow_external'} or not valid_id(params.get('id')) or not isinstance(params.get('allow_external',False),bool): raise LibraryError('INVALID_PARAMS')
         row=self.db.execute('SELECT p.name,p.kind,m.model_id FROM model_registry m JOIN model_providers p ON p.id=m.provider_id WHERE m.id=?',(params['id'],)).fetchone()
         if not row: raise LibraryError('INVALID_PARAMS')
-        from .providers import inspect_local
+        from .providers import inspect_local, inspect_external
         result={'status':'unsupported_provider','modalities':[]}
         if row[0].casefold()=='ollama' and row[1]=='local':
             try: result=inspect_local(row[2])
             except Exception: result={'status':'unavailable','modalities':[]}
+        if row[1]=='external' and row[0].casefold()=='openrouter':
+            if not params.get('allow_external',False):result={'status':'external_consent_required','modalities':[]}
+            else:
+                try:result=inspect_external(row[2])
+                except Exception:result={'status':'unavailable','modalities':[]}
+        result['metadataRequestAttempted']=row[0].casefold()=='ollama' and row[1]=='local' and not row[2].endswith(':cloud') or row[0].casefold()=='openrouter' and row[1]=='external' and params.get('allow_external',False)
         from datetime import datetime, timezone
         result.update(checkedAt=datetime.now(timezone.utc).isoformat(),inferenceCalled=False,verified=result['status']=='available')
         self.db.execute('UPDATE model_registry SET capabilities_json=?,enabled=0 WHERE id=?',(json.dumps(result),params['id']))

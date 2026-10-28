@@ -71,3 +71,23 @@ class ModelTests(unittest.TestCase):
             self.assertEqual(metadata(url),{'fixture':True})
             with self.assertRaises(Exception):metadata(url+'/redirect')
         finally:server.shutdown();server.server_close();thread.join()
+
+    def test_external_requires_consent_and_classifies_verified_prices(self):
+        from unittest.mock import patch
+        profile=self.profile();profile.update(provider_name='OpenRouter',kind='external',model_id='fixture/exact-model')
+        identifier=self.service.register(profile)['id']
+        with patch('ai_asset_hub_core.providers.metadata') as request:
+            self.assertEqual(self.service.inspect({'id':identifier})['status'],'external_consent_required');request.assert_not_called()
+        data={'data':[{'id':profile['model_id'],'architecture':{'input_modalities':['image','text']},'pricing':{'prompt':'0','completion':'0'}}]}
+        with patch('ai_asset_hub_core.providers.metadata',return_value=data) as request:
+            result=self.service.inspect({'id':identifier,'allow_external':True})
+            self.assertEqual(result['costClass'],'free');self.assertFalse(result['inferenceCalled'])
+            self.assertEqual(result['authentication'],'not_tested')
+            request.assert_called_once_with('https://openrouter.ai/api/v1/models',key=None)
+        data['data'][0]['pricing']['prompt']='0.001'
+        with patch('ai_asset_hub_core.providers.metadata',return_value=data):
+            self.assertEqual(self.service.inspect({'id':identifier,'allow_external':True})['costClass'],'paid')
+        data['data'][0]['pricing']['prompt']='NaN'
+        with patch('ai_asset_hub_core.providers.metadata',return_value=data):
+            self.assertEqual(self.service.inspect({'id':identifier,'allow_external':True})['status'],'unavailable')
+        self.assertFalse(self.service.list({})['items'][0]['enabled'])

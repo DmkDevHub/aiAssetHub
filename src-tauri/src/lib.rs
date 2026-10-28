@@ -11,13 +11,17 @@ type CoreState = Arc<Mutex<CoreProcess>>;
 async fn inspect_model(
     state: tauri::State<'_, CoreState>,
     id: String,
+    allow_external: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         state
             .lock()
             .map_err(|_| "CORE_UNAVAILABLE")?
-            .library_request("model.inspect", serde_json::json!({"id":id}))
+            .library_request(
+                "model.inspect",
+                serde_json::json!({"id":id,"allow_external":allow_external.unwrap_or(false)}),
+            )
     })
     .await
     .map_err(|_| "CORE_UNAVAILABLE".to_string())?

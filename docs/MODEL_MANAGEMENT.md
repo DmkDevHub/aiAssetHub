@@ -32,3 +32,6 @@
 
 ## M05 초기 어댑터
 로컬 Ollama 메타데이터 `POST http://127.0.0.1:11434/api/show`만 명시적으로 검사한다. 생성/모델 로드/다운로드 호출은 하지 않으며 등록 입력과 실제 capabilities를 구분한다. 고정 URL·환경 프록시 배제·리다이렉트 거부·0.5초 소켓/1.5초 총 읽기 제한·2MB 응답 제한을 적용한다. 상태 확인은 모델 추론 성공을 보증하지 않는다. [Ollama 공식 API](https://docs.ollama.com/api/introduction), [메타데이터 문서](https://docs.ollama.com/api-reference/show-model-details). 메타데이터 조회에는 기존 Python 표준 HTTP 라이브러리를 사용하며 생성 SDK 선택은 실제 추론 구현 단계에 결정한다.
+
+## 외부 메타데이터 검사
+OpenRouter의 고정 `GET https://openrouter.ai/api/v1/models` 카탈로그에서 입력한 정확한 모델 ID를 찾는다. 외부 전송 동의가 필요한 별도 버튼이며 에셋/프롬프트/생성 요청은 보내지 않는다. [공식 모델 API](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties)의 입력 유형·pricing을 검사하고 모든 명시된 가격이 0인 경우만 무료로 판정한다. 키 없는 카탈로그 조회는 authentication=not_tested로 표시한다. 메타데이터 요청 시도와 추론 호출 여부를 구분하며 네트워크 실패를 숨기지 않는다.
