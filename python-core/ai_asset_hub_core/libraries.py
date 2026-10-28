@@ -130,6 +130,7 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'CORE_INTERRUPTED': 'Core 종료로 중단된 작업을 사용자가 정리했습니다.',
     'UNSUPPORTED_FORMAT': '현재 분석 경로에서 지원하지 않는 파일 형식입니다.',
     'INPUT_TOO_LARGE': '분석 입력 크기 또는 픽셀 한도를 초과했습니다.',
     'INVALID_IMAGE': '이미지를 해석할 수 없습니다.',

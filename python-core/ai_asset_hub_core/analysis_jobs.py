@@ -49,3 +49,23 @@ class AnalysisJobs:
         if params!={}:raise LibraryError('INVALID_PARAMS')
         rows=self.db.execute('SELECT id,status,requested_count,created_at FROM analysis_jobs ORDER BY created_at DESC,rowid DESC LIMIT 20').fetchall()
         return {'items':[{'id':r[0],'status':r[1],'total':r[2],'createdAt':r[3]} for r in rows]}
+
+    def cancel_orphan(self, params):
+        status=self.status(params)
+        if status['status'] not in ('queued','running'):return {'cancelRequested':False,'status':status['status']}
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            self.db.execute("UPDATE analysis_runs SET status='canceled',error_json='{\"code\":\"CORE_INTERRUPTED\"}' WHERE job_id=? AND status='running'",(params['job_id'],))
+            self.db.execute("UPDATE analysis_job_items SET status='canceled',error_code='CORE_INTERRUPTED',ended_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE job_id=? AND status IN ('queued','running')",(params['job_id'],))
+            self.db.execute("UPDATE analysis_jobs SET status='canceled',ended_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",(params['job_id'],))
+            self.db.execute('COMMIT')
+        except Exception:self.db.execute('ROLLBACK');raise
+        return {'cancelRequested':True,'status':'canceled'}
+
+    def retry_plan(self, params):
+        status=self.status(params)
+        if status['status'] in ('queued','running'):raise LibraryError('ANALYSIS_BUSY')
+        row=self.db.execute('SELECT scope_json FROM analysis_jobs WHERE id=?',(params['job_id'],)).fetchone()
+        old=json.loads(row[0])
+        if not isinstance(old.get('plan'),dict):raise LibraryError('INVALID_PARAMS')
+        return {'plan':old['plan'],'previousJobId':params['job_id'],'requiresReview':True}

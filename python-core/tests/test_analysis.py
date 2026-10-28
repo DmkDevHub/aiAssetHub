@@ -155,3 +155,37 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual((status['processed'],status['succeeded'],status['failed']),(3,2,1))
         self.assertEqual(status['status'],'failed');self.assertEqual(status['errors'][0]['code'],'API_RATE_LIMIT')
         self.assertEqual(len(calls),3);self.assertEqual(jobs.list({})['items'][0]['id'],job)
+
+    def test_orphan_cancel_and_retry_require_explicit_new_review(self):
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        jobs=AnalysisJobs(self.db);plan=self.params();preview=AnalysisPlan(self.db).preview(plan)
+        job=jobs.start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
+        self.assertTrue(jobs.status({'job_id':job})['needsRecovery'])
+        with self.assertRaises(LibraryError):jobs.retry_plan({'job_id':job})
+        self.assertEqual(jobs.cancel_orphan({'job_id':job})['status'],'canceled')
+        retry=jobs.retry_plan({'job_id':job});self.assertEqual(retry['plan'],plan);self.assertTrue(retry['requiresReview'])
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],1)
+        self.assertEqual(jobs.status({'job_id':job})['canceled'],1)
+        self.assertFalse(jobs.cancel_orphan({'job_id':job})['cancelRequested'])
+
+    def test_active_cancel_stops_queue_and_records_canceled_attempt(self):
+        import json,time,threading
+        from unittest.mock import patch
+        from PIL import Image
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        from ai_asset_hub_core.analysis_engine import AnalysisEngine
+        for name in ('나무.png','second.png'):Image.new('RGB',(16,16),'red').save(self.source/name)
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0];AssetService(self.db).scan({'library_id':library})
+        caps=json.loads(self.db.connection.execute('SELECT capabilities_json FROM model_registry WHERE id=?',(self.model,)).fetchone()[0]);caps['metadataVersion']='a'*64
+        self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),self.model))
+        plan=self.params();preview=AnalysisPlan(self.db).preview(plan);jobs=AnalysisJobs(self.db)
+        job=jobs.start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
+        entered=threading.Event();calls=[]
+        def inference(*args):
+            calls.append(1);entered.set();args[2].wait(3);raise LibraryError('USER_CANCELED')
+        engine=AnalysisEngine(self.db)
+        with patch('ai_asset_hub_core.providers.inspect_local',return_value={'status':'available','metadataVersion':'a'*64}),patch('ai_asset_hub_core.inference.infer',side_effect=inference):
+            engine.launch(job);self.assertTrue(entered.wait(3));self.assertTrue(engine.cancel(job));engine.close()
+        status=jobs.status({'job_id':job});self.assertEqual(status['status'],'canceled');self.assertEqual(status['canceled'],2)
+        self.assertEqual(len(calls),1);self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_active_results').fetchone()[0],0)
+        self.assertEqual(self.db.connection.execute('SELECT status FROM analysis_runs').fetchone()[0],'canceled')

@@ -8,6 +8,39 @@ use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
 #[tauri::command]
+async fn cancel_analysis(
+    state: tauri::State<'_, CoreState>,
+    job_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request("analysis.cancel", serde_json::json!({"job_id":job_id}))
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+#[tauri::command]
+async fn retry_analysis_plan(
+    state: tauri::State<'_, CoreState>,
+    job_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request("analysis.retry_plan", serde_json::json!({"job_id":job_id}))
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn analysis_jobs(state: tauri::State<'_, CoreState>) -> Result<serde_json::Value, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -600,7 +633,9 @@ pub fn run() {
             start_analysis,
             analysis_status,
             asset_analysis,
-            analysis_jobs
+            analysis_jobs,
+            cancel_analysis,
+            retry_analysis_plan
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

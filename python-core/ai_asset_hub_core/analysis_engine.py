@@ -24,10 +24,11 @@ class AnalysisEngine:
         with self.lock:control=self.controls.get(identifier)
         if not control:return False
         control['cancel'].set();connection=control['connection']
-        if connection and connection.sock:
-            try:connection.sock.shutdown(socket.SHUT_RDWR)
+        connection_socket=control.get('socket') or (connection.sock if connection else None)
+        if connection_socket:
+            try:connection_socket.shutdown(socket.SHUT_RDWR)
             except OSError:pass
-            connection.close()
+            if connection:connection.close()
         return True
 
     def close(self):
@@ -75,7 +76,9 @@ class AnalysisEngine:
                     if control['cancel'].is_set():raise LibraryError('USER_CANCELED')
                     key=ModelService(database).vault.read(snapshot['registryId']) if snapshot['kind']=='external' else None
                     usage['providerRequestAttempted']=True
-                    def register(connection):control['connection']=connection
+                    def register(connection):
+                        control['connection']=connection
+                        if connection.sock:control['socket']=connection.sock
                     output,usage=infer(snapshot,prepared,control['cancel'],register,key)
                     if control['cancel'].is_set():raise LibraryError('USER_CANCELED')
                     if not isinstance(output,dict) or set(output)!={'description','tags'} or not isinstance(output['description'],str) or not 1<=len(output['description'].strip())<=2048:raise LibraryError('INVALID_MODEL_OUTPUT')

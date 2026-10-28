@@ -12,7 +12,7 @@ sys.path.insert(0,str(ROOT/'python-core'))
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--model',required=True);parser.add_argument('--report',required=True)
+    parser=argparse.ArgumentParser();parser.add_argument('--model',required=True);parser.add_argument('--report',required=True);parser.add_argument('--cancel-after',type=float,default=None)
     args=parser.parse_args()
     from PIL import Image,ImageDraw
     from ai_asset_hub_core.runtime import CoreRuntime
@@ -35,18 +35,21 @@ def main():
         preview=call('analysis.preview',plan)
         job=call('analysis.start',{'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
         deadline=time.monotonic()+300;started=time.monotonic()
+        cancel_sent=False
         while True:
             status=call('analysis.status',{'job_id':job})
             if status['status'] in ('completed','failed','canceled'):break
+            if args.cancel_after is not None and not cancel_sent and time.monotonic()-started>=args.cancel_after:
+                call('analysis.cancel',{'job_id':job});cancel_sent=True
             if time.monotonic()>deadline:raise RuntimeError('VERIFICATION_TIMEOUT')
             time.sleep(1)
         active=call('asset.analysis',{'asset_id':asset})['active']
         report={'model':args.model,'registryId':model,'jobId':job,'assetId':asset,'status':status,'active':active,
                 'elapsedSeconds':round(time.monotonic()-started,2),'sourceUnchanged':hashlib.sha256(path.read_bytes()).hexdigest()==before,
-                'database':app.health()['database'],'guiOpened':False}
+                'database':app.health()['database'],'cancelRequested':cancel_sent,'guiOpened':False}
         Path(args.report).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
         print(json.dumps({'status':status['status'],'elapsedSeconds':report['elapsedSeconds'],'sourceUnchanged':report['sourceUnchanged']}),flush=True)
-        if status['status']!='completed' or not active or not report['sourceUnchanged']:raise RuntimeError('REAL_ANALYSIS_FAILED')
+        if status['status']!=('canceled' if args.cancel_after is not None else 'completed') or args.cancel_after is None and not active or not report['sourceUnchanged']:raise RuntimeError('REAL_ANALYSIS_FAILED')
     finally:app.close();runtime.close()
 
 

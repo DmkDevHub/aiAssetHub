@@ -16,6 +16,7 @@ def infer(snapshot, prepared, canceled, register_connection, key=None):
     register_connection(connection)
     try:
         connection.connect()
+        register_connection(connection)
         if canceled.is_set():raise LibraryError('USER_CANCELED')
         connection.sock.settimeout(180)
         headers={'Content-Type':'application/json'}

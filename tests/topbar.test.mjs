@@ -1754,3 +1754,34 @@ test('job list restores measured batch progress without opening the analysis dia
  assert.equal(document.querySelector('[role=dialog]'),null);assert.match(document.querySelector('.asset-gallery [role=status]').textContent,/2\/3/);
  assert.equal(components.operations.find(o=>o.id==='fixture-batch').progress.processed,2);
 });
+
+test('cancel is a separate explicit action and reports actual terminal state',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;let canceled=false;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{
+  calls.push(command);
+  if(command==='analysis_jobs')return {ok:true,data:{items:[{id:'fixture-cancel',status:'running',total:2,createdAt:'fixture'}]}};
+  if(command==='cancel_analysis'){canceled=true;return {ok:true,data:{cancelRequested:true,status:'running'}};}
+  if(command==='list_assets')return {ok:true,data:{items:[],next_cursor:null}};
+  return {ok:true,data:{status:canceled?'canceled':'running',total:2,processed:canceled?2:0,succeeded:0,failed:0,canceled:canceled?2:0,needsRecovery:false,errors:[]}};
+ }};
+ dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='최근 분석 작업 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();dispatch(document.querySelector('.analysis-job-list button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(canceled,false);
+ dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='분석 취소 요청'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(canceled,true);assert.ok(!calls.includes('start_analysis'));
+ assert.match(document.querySelector('.asset-gallery').textContent,/canceled/);
+});
+
+test('retry reloads old conditions for a new review without automatically starting',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+  calls.push([command,args]);
+  if(command==='analysis_jobs')return {ok:true,data:{items:[{id:'fixture-retry',status:'canceled',total:1,createdAt:'fixture'}]}};
+  if(command==='analysis_status')return {ok:true,data:{status:'canceled',total:1,processed:1,succeeded:0,failed:0,canceled:1,needsRecovery:false,errors:[]}};
+  if(command==='list_assets')return {ok:true,data:{items:[],next_cursor:null}};
+  if(command==='retry_analysis_plan')return {ok:true,data:{plan:{mode:'selected',scope:'all',library_id:null,folder_parts:[],selected_ids:['old-selected-asset'],model_id:'fixture-model'}}};
+  if(command==='list_models')return {ok:true,data:{items:[{id:'fixture-model',modelId:'fixture',enabled:true,selected:true,inspection:{modalities:['image']}}],next_cursor:null}};
+  if(command==='preview_analysis')return {ok:true,data:{targetCount:1,missingCount:0,planToken:'a'.repeat(64),estimatedUpperBoundUsd:'0',externalTransfer:false,paid:false}};
+  throw new Error('start must not be called');
+ }};
+ dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='최근 분석 작업 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();dispatch(document.querySelector('.analysis-job-list button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='같은 조건으로 재검토'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const preview=calls.find(c=>c[0]==='preview_analysis');assert.deepEqual(preview[1].plan.selected_ids,['old-selected-asset']);assert.ok(!calls.some(c=>c[0]==='start_analysis'));assert.equal(document.querySelector('.analysis-start').disabled,false);
+});

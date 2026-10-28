@@ -245,6 +245,8 @@ impl CoreProcess {
                 | "analysis.start"
                 | "analysis.status"
                 | "analysis.jobs"
+                | "analysis.cancel"
+                | "analysis.retry_plan"
                 | "asset.analysis"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
