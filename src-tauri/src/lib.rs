@@ -8,6 +8,28 @@ use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
 #[tauri::command]
+async fn batch_asset_tags(
+    state: tauri::State<'_, CoreState>,
+    asset_ids: Vec<String>,
+    add: Vec<String>,
+    remove: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.tags.batch",
+                serde_json::json!({"asset_ids":asset_ids,"add":add,"remove":remove}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn save_asset_annotation(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -304,7 +326,8 @@ pub fn run() {
             get_asset,
             asset_annotations,
             edit_asset_tags,
-            save_asset_annotation
+            save_asset_annotation,
+            batch_asset_tags
         ])
         .build(tauri::generate_context!())
         .expect("AI Asset Hub 실행 실패")

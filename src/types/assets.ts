@@ -1,5 +1,6 @@
 /** Display data supplied by a caller; this type does not load files or invent metadata. */
 export interface AssetSummary {
+  userTags?: readonly string[];
   id: string;
   name: string;
   kind: string;

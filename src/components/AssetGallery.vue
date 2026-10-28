@@ -3,6 +3,7 @@ import { libraryUi, setGalleryViewMode } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
 import { executeUiCommand } from "../stores/operations";
 import type { GalleryViewMode } from "../stores/libraryUi";
+import BulkTags from './BulkTags.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, watch } from 'vue';
 
@@ -83,6 +84,7 @@ function moveAssetFocus(event: KeyboardEvent) {
       <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
     </div>
 
+    <BulkTags v-if="selection.size" :asset-ids="[...selection]" />
     <div v-if="items.length === 0" class="gallery-empty" role="status">
       <span class="gallery-empty-mark" aria-hidden="true">◇</span>
       <h2>표시할 에셋이 없습니다.</h2>
@@ -95,6 +97,7 @@ function moveAssetFocus(event: KeyboardEvent) {
         <button type="button" class="asset-name asset-select" :title="item.name"
           :aria-pressed="selection.has(item.id)" @click="choose($event,item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>
+        <p v-if="item.userTags?.length" class="asset-tags">{{ item.userTags.join(", ") }}</p>
         <p v-if="item.scanChange && item.scanChange!=='unchanged'" class="asset-kind">{{ item.scanChange==='new'?'신규':item.scanChange==='changed'?'변경':item.scanChange==='missing'?'누락':'' }}</p>
       </li>
     </ul>

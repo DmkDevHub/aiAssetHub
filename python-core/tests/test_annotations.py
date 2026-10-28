@@ -49,3 +49,17 @@ class AnnotationTests(unittest.TestCase):
         self.assertEqual(AssetService(self.db).list({})['items'][0]['name'],'나무.png')
         with self.assertRaises(LibraryError): self.service.save({'asset_id':self.id,'title':'a'*129,'description':''})
         self.assertEqual((self.source/'나무.png').read_bytes(),b'original')
+
+    def test_batch_tags_are_atomic_and_keep_unrelated_tags(self):
+        from uuid import uuid4
+        other=str(uuid4()); library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        self.db.connection.execute('INSERT INTO assets(id,library_root_id,display_name) VALUES (?,?,?)',(other,library,'other'))
+        self.service.tags({'asset_id':self.id,'add':['keep'],'remove':[]})
+        result=self.service.batch({'asset_ids':[self.id,other],'add':['숲'],'remove':[]})
+        self.assertEqual(result,{'updated':2})
+        self.assertEqual(self.service.get({'asset_id':self.id})['tags'],['keep','숲'])
+        with self.assertRaises(LibraryError):
+            self.service.batch({'asset_ids':[self.id,str(uuid4())],'add':['rollback'],'remove':['keep']})
+        self.assertEqual(self.service.get({'asset_id':self.id})['tags'],['keep','숲'])
+        self.service.batch({'asset_ids':[self.id,other],'add':[],'remove':['숲']})
+        self.assertEqual(self.service.get({'asset_id':other})['tags'],[])

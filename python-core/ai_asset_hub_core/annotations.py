@@ -52,19 +52,30 @@ class AnnotationService:
     def tags(self, params):
         if not isinstance(params, dict) or set(params) != {'asset_id', 'add', 'remove'}:
             raise LibraryError('INVALID_PARAMS')
-        self.require_asset(params['asset_id'])
+        self.batch({'asset_ids':[params['asset_id']], 'add':params['add'], 'remove':params['remove']})
+        return self.get({'asset_id':params['asset_id']})
+
+    def batch(self, params):
+        if not isinstance(params, dict) or set(params) != {'asset_ids', 'add', 'remove'}:
+            raise LibraryError('INVALID_PARAMS')
+        identifiers = params['asset_ids']
+        if not isinstance(identifiers, list) or not 1 <= len(identifiers) <= 100 or not all(isinstance(i,str) for i in identifiers) or len(set(identifiers)) != len(identifiers):
+            raise LibraryError('INVALID_PARAMS')
         add, remove = self.labels(params['add']), self.labels(params['remove'])
         self.db.execute('BEGIN IMMEDIATE')
         try:
-            for normalized in remove:
-                self.db.execute("DELETE FROM asset_tags WHERE asset_id=? AND source='user' AND tag_id IN (SELECT id FROM tags WHERE normalized_label=?)", (params['asset_id'], normalized))
-            for normalized, label in add.items():
-                self.db.execute('INSERT OR IGNORE INTO tags(id,label,normalized_label) VALUES (?,?,?)', (str(uuid4()), label, normalized))
-                self.db.execute("INSERT OR IGNORE INTO asset_tags(asset_id,tag_id,source) SELECT ?,id,'user' FROM tags WHERE normalized_label=?", (params['asset_id'], normalized))
-            if self.db.execute("SELECT count(*) FROM asset_tags WHERE asset_id=? AND source='user'", (params['asset_id'],)).fetchone()[0] > 32:
-                raise LibraryError('INVALID_PARAMS')
+            for identifier in identifiers:
+                self.require_asset(identifier)
+                for normalized in remove:
+                    self.db.execute("DELETE FROM asset_tags WHERE asset_id=? AND source='user' AND tag_id IN (SELECT id FROM tags WHERE normalized_label=?)", (identifier, normalized))
+                for normalized, label in add.items():
+                    self.db.execute('INSERT OR IGNORE INTO tags(id,label,normalized_label) VALUES (?,?,?)', (str(uuid4()), label, normalized))
+                    self.db.execute("INSERT OR IGNORE INTO asset_tags(asset_id,tag_id,source) SELECT ?,id,'user' FROM tags WHERE normalized_label=?", (identifier, normalized))
+                labels = self.get({'asset_id':identifier})['tags']
+                if len(labels) > 32 or sum(map(len,labels)) > 512:
+                    raise LibraryError('INVALID_PARAMS')
             self.db.execute('COMMIT')
         except Exception:
             self.db.execute('ROLLBACK')
             raise
-        return self.get({'asset_id': params['asset_id']})
+        return {'updated':len(identifiers)}

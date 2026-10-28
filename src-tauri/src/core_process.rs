@@ -232,6 +232,7 @@ impl CoreProcess {
                 | "asset.annotations"
                 | "asset.tags"
                 | "asset.annotate"
+                | "asset.tags.batch"
         ) {
             return Err("CORE_COMMAND_NOT_ALLOWED");
         }

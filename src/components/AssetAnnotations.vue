@@ -27,7 +27,7 @@ async function edit(add: string[], remove: string[]) {
     const result = await invoke<{ok:boolean;data:{tags:string[];title?:string;description?:string}}>('edit_asset_tags', {assetId:props.assetId,add,remove});
     if (token !== generation) return;
     if (!result.ok || !Array.isArray(result.data?.tags)) throw new Error();
-    tags.value = result.data.tags; input.value = '';
+    tags.value = result.data.tags; input.value = ''; await refreshAssets();
   } catch { if(token === generation) error.value = '태그를 저장하지 못했습니다. 최대 32개, 각 64자까지 입력하세요.'; }
   finally { if(token === generation) busy.value = false; }
 }

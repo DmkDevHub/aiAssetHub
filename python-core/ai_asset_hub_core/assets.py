@@ -97,6 +97,7 @@ class AssetService:
             WHERE l.enabled=1 AND a.id>? ORDER BY a.id LIMIT 2''', (params.get('after_id') or '',)).fetchall()
         items = [dict(zip(('id','name','kind','libraryId','relativePath','path','size','mtimeNs','exists','scanChange'), row)) for row in rows[:1]]
         for item in items:
+            item['userTags'] = [row[0] for row in self.db.execute("SELECT t.label FROM tags t JOIN asset_tags at ON at.tag_id=t.id WHERE at.asset_id=? AND at.source='user' ORDER BY t.normalized_label", (item['id'],))]
             item['kind'] = item['kind'].lstrip('.').upper() or 'FILE'
             item['exists'] = bool(item['exists'])
             item['mtimeNs'] = str(item['mtimeNs']) # Preserve nanoseconds across the JS integer boundary.

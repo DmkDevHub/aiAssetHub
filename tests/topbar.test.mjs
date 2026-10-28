@@ -1463,7 +1463,7 @@ test('user tags load, submit and delete through fixed Core commands', async () =
   assert.deepEqual(calls[1][1].add,['숲']);
   dispatch(document.querySelector('.user-annotations li button'),new MouseEvent('click',{bubbles:true}));
   await new Promise(resolve => setImmediate(resolve)); await nextTick();
-  assert.deepEqual(calls[2][1].remove,['숲']);
+  assert.deepEqual(calls.filter(c=>c[0]==='edit_asset_tags')[1][1].remove,['숲']);
   assert.equal(document.querySelectorAll('.user-annotations li').length,0);
 });
 test('user tag write failure is visible and keeps saved tags', async () => {
@@ -1485,4 +1485,24 @@ test('user title and description load and save explicitly', async () => {
   await new Promise(resolve=>setImmediate(resolve)); await nextTick();
   assert.equal(calls[1][0],'save_asset_annotation'); assert.equal(calls[1][1].title,'나무');
   assert.match(document.querySelector('.annotation-form').textContent,/저장했습니다/);
+});
+
+test('gallery multi-selection submits only selected asset IDs for batch tags', async () => {
+  const calls=[];
+  await mountGallery([{id:'first',name:'one',kind:'TXT'},{id:'second',name:'two',kind:'TXT'}]);
+  globalThis.isTauri=true;
+  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+    calls.push([command,args]);
+    if(command==='list_assets')return {ok:true,data:{items:[],next_cursor:null}};
+    return {ok:true,data:{updated:args.assetIds.length}};
+  }};
+  const buttons=document.querySelectorAll('.asset-select');
+  dispatch(buttons[0],new MouseEvent('click',{bubbles:true}));
+  dispatch(buttons[1],new MouseEvent('click',{bubbles:true,ctrlKey:true})); await nextTick();
+  const input=document.querySelector('.bulk-tags input'); input.value='한글';
+  dispatch(input,new Event('input',{bubbles:true})); await nextTick();
+  dispatch(document.querySelector('.bulk-tags'),new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setImmediate(resolve)); await nextTick();
+  assert.deepEqual(calls[0],['batch_asset_tags',{assetIds:['first','second'],add:['한글'],remove:[]}]);
+  assert.match(document.querySelector('.bulk-tags').textContent,/2개 에셋의 사용자 태그/);
 });
