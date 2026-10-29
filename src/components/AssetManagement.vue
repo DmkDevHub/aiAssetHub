@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount } from 'vue';
+import {collectionsChanged} from '../stores/collections';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 const props = defineProps<{assetId:string}>();
 type Management = {favorite:boolean;rating:number|null;status:string;notes:string;assetVersion:string;createdDate:string;modifiedDate:string};
@@ -27,7 +28,7 @@ async function save() {
     if(token!==generation)return;
     if(result.error?.code==='METADATA_CONFLICT'){conflict.value=true;message.value='다른 변경이 저장되었습니다. 초안을 확인한 후 다시 불러오세요.';return;}
     if(!result.ok)throw new Error();
-    value.value=result.data.value;revision.value=result.data.revision;message.value='저장했습니다.';
+    value.value=result.data.value;revision.value=result.data.revision;message.value='저장했습니다.';collectionsChanged();
   } catch {if(token===generation)message.value='저장하지 못했습니다. 입력값을 확인하세요.';}
   finally {if(token===generation)busy.value=false;}
 }

@@ -458,3 +458,17 @@ R08A-04: `npm run test:core` Python 111개 통과. 실제 파일 UUID·내용 �
 - `AI_ASSET_HUB_SIDECAR_DIR=.../src-tauri/binaries/core/ai-asset-hub-core`를 지정한 `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1`: 패키지 포함 13개 통과. `.artifacts/r08b-rust-serial.log`. 개발 Python 없는 패키지에서 관리/구성/관계/후보/이력 명령 및 재시작 보존을 확인했다. 앞선 빌드 동시·병렬 실행은 3개 Core 시작 CORE_TIMEOUT으로 실패했고 빌드 종료 후 직렬 재실행은 모두 통과했다. 제품의 기존 시작 제한 시간은 변경하지 않았다.
 - 최종 합계 272개 내부 테스트 통과. `npm run build:installer` 및 `scripts/verify-installer.ps1 -Mcp` 통과. `.artifacts/r08b-installer-build.log`, `r08b-installed-check.log`, `m08-installed-host.json`. 격리 설치본의 v4/실제 PID·Python 없는 PATH·5개 MCP 조회·최신/레거시 프로토콜·종료/명시 재시작·원본/Job/벡터 보존·검증 설치본 제거와 기존 설치 보존을 확인했다. 설치/패키지 Sidecar SHA256 b69e5deebebed41de81e350923bbc1a24a1cc869910c43df9a9616e8abb20733 일치.
 - 설치 파일 23,664,549 bytes. 기존 NSIS Korean choowHowToInstall 문자열 경고 유지. 실제 GUI·OS 화면/시각 배치·깨끗한 PC·대규모 성능은 미검증이다. 화면 직접 조작·사용자 원본 수정·외부 AI/임베딩 호출·원격 push는 수행하지 않았다.
+
+## M08C 전체 내부 검증 (2026-10-29)
+- 최종 `npm run check`: Node 137개·Python 152개(19.077초), vue-tsc/tsc·Vite 빌드 통과. `.artifacts/r08c-final-check.log`. 각 항목의 초기 검증은 r08c01/02/03/04/05-check.log, R08C-03 페이지/응답 한도 보완은 r08c03-core-final.log에 기록했다.
+- 그룹 CRUD/복수 소속: 실제 ID·입력 한도·버전 충돌·후반 SQL 실패 원자성·삭제 시 원본/에셋/활성 결과 보존·DB 재개방을 검증했다. 기존 v4→현재 v6 업그레이드/백업, 새 스키마 합계 41개, 실패 마이그레이션 롤백·기존 메타데이터 보존 회귀도 통과했다.
+- 그룹 계층: 실제 부모·자기/조상 순환·부모 삭제 시 하위 그룹 최상위 승격/버전/이력·실패 롤백을 검증했다. DOM의 DND 및 키보드 선택은 검토 후 명시 적용하며 취소·실패 시 기존 계층이 보존된다. 실제 화면 드래그는 수행하지 않았다.
+- 그룹 검색: 키워드/태그/형식/폴더/분석 필터를 페이지 전에 적용, 202개 fixture에서 200개/2개 커서 경계·중복 없음, 의미 검색 랭킹 전 그룹 필터, 검색 실패 시 다른 그룹으로 대체하지 않음을 검증했다. 최대 32개 소속·긴 Unicode 이름도 응답 16KiB 미만이다.
+- 일괄 지정: 최대 100개 대상의 전후 소속/버전·그룹 버전 검토는 쓰기를 만들지 않는다. 명시 승인·선택 변경 시 검토 폐기·중복 방지·stale plan 거부·후반 SQL 실패 시 전체 롤백과 각 에셋 변경 이력을 검증했다. 검토 행은 2개씩 페이지다.
+- 패키지: 배포/구매 단위 구분, 에셋↔패키지 다대다, null 미확인/문자열 0 무료·금액/통화/실제 날짜, 최초 소속 당시 기록의 불변·해제/재연결/수정/삭제/재개방 보존을 검증했다. 하나의 패키지를 여러 에셋에 연결한 뒤 삭제해도 각각의 원본/에셋/버전이 보존된다.
+- 상속/예외: 공유 기본값 실시간 참조, 동일 값의 근거 병합·다른 값은 conflict, 사용자 에셋 버전 우선·개별 값/null 미확인/상속 복귀, 두 DB 연결의 공유 버전 변경 후 stale 예외 거부, 저장 실패/재스캔/재개방/늦은 UI 응답/편집 중 공유 갱신의 초안 보존을 검증했다. 선언된 엔진/라이선스명은 호환성/권리 검증으로 표시하지 않는다.
+- `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` 통과. `.artifacts/r08c-clippy.log`.
+- `AI_ASSET_HUB_SIDECAR_DIR=.../src-tauri/binaries/core/ai-asset-hub-core`에서 `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1`: 패키지 포함 13개 통과(7.62초). `.artifacts/r08c-rust.log`. Python 없는 PATH의 패키지에서 실제 그룹 생성/이동/소속/검색/일괄 적용·패키지 생성/공유값/상속/예외와 Core 재시작 보존을 확인했다. 최종 합계 302개 내부 테스트 통과.
+- 최종 npm 검증의 첫 실행은 설치본 컴파일과 CPU 경합 중 테스트 실행기의 30초 제한으로 중단되어 전체 통과로 처리하지 않았다. 빌드 종료 후 동일 명령 재실행은 152개 모두 통과했다. 제품/테스트 제한 시간은 변경하지 않았다.
+- `npm run build:installer` 및 `scripts/verify-installer.ps1 -Mcp` 통과. `.artifacts/r08c-installer-build.log`, `r08c-installed-check.log`, `m08-installed-host.json`. v6/실제 PID·Python 없는 PATH·5개 읽기 도구·최신 2026-07-28/레거시 2025-11-25·종료/명시 재시작·원본/Job/벡터 보존·격리 설치본 제거·기존 설치 보존 확인. Core Sidecar SHA256 c2e5d567bbe0caa1a4c7b143f2fdd14d4aa4538c5a33703882a45205dc0b4afe 일치. 새 005/006을 포함한 마이그레이션과 8개 메타데이터/컬렉션 모듈을 번들했다.
+- 설치 파일 23,756,869 bytes. 기존 NSIS Korean choowHowToInstall 문자열 경고 유지. 실제 GUI/OS 시각 배치·깨끗한 PC·대규모 성능은 미검증. 실제 화면 조작·사용자 원본 이동/수정/삭제·AI/임베딩 호출·원격 push는 수행하지 않았다. 제작 주체/출처 객체·권리/새 구매 이력은 M08D, 전체 상세 탭/검색 확장은 M08E 범위다.

@@ -939,6 +939,53 @@ async fn package_assign(
 }
 
 #[tauri::command]
+async fn package_defaults(
+    state: tauri::State<'_, CoreState>,
+    package_id: String,
+    value: serde_json::Value,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.packages.defaults", serde_json::json!({"package_id":package_id,"value":value,"expected_revision":expected_revision}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn package_effective(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.packages.effective",
+                serde_json::json!({"asset_id":asset_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn package_override(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    value: serde_json::Value,
+    expected_revision: u64,
+    expected_packages: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.packages.override", serde_json::json!({"asset_id":asset_id,"value":value,"expected_revision":expected_revision,"expected_packages":expected_packages}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_annotations(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -1237,6 +1284,9 @@ pub fn run() {
             package_delete,
             package_membership,
             package_assign,
+            package_defaults,
+            package_effective,
+            package_override,
             asset_annotations,
             edit_asset_tags,
             save_asset_annotation,

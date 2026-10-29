@@ -72,3 +72,87 @@ class PackageTests(unittest.TestCase):
             seen.extend(p['id'] for p in page['items']);cursor=page['next_cursor']
             if cursor is None:break
         self.assertEqual(set(seen),set(ids))
+
+    def test_shared_defaults_are_live_and_asset_overrides_win_without_snapshot_rewrite(self):
+        service=Packages(self.db);p=service.package_create({'value':self.value()})
+        first=service.package_assign(dict(asset_id=self.id,package_ids=[p['id']],expected_revision=0))['items'][0]['purchaseSnapshot']
+        service.package_defaults(dict(package_id=p['id'],value={'engine':'Unity','sourceUrl':'https://example.com/pack','licenseLabel':'Declared fixture'},expected_revision=1))
+        current=service.package_effective({'asset_id':self.id})
+        self.assertEqual(current['fields']['engine'],dict(value='Unity',source='package',status='inherited',packageIds=[p['id']]))
+        result=service.package_override(dict(asset_id=self.id,value={'engine':'Godot','licenseLabel':None},expected_revision=0,expected_packages=current['packageVersions']))
+        self.assertEqual(result['fields']['engine']['value'],'Godot')
+        self.assertEqual(result['fields']['licenseLabel']['status'],'cleared')
+        service.package_defaults(dict(package_id=p['id'],value={'engine':'Unreal','licenseLabel':'Changed'},expected_revision=2))
+        current=service.package_effective({'asset_id':self.id})
+        self.assertEqual(current['fields']['engine']['value'],'Godot')
+        self.assertIsNone(current['fields']['licenseLabel']['value'])
+        self.assertEqual(service.package_membership({'asset_id':self.id})['items'][0]['purchaseSnapshot'],first)
+        result=service.package_override(dict(asset_id=self.id,value={},expected_revision=1,expected_packages=current['packageVersions']))
+        self.assertEqual(result['fields']['engine']['value'],'Unreal')
+
+    def test_different_package_values_conflict_identical_values_coalesce_and_management_version_wins(self):
+        from ai_asset_hub_core.asset_management import AssetManagement
+        service=Packages(self.db);a=service.package_create({'value':self.value('a')});b=service.package_create({'value':self.value('b')})
+        service.package_defaults(dict(package_id=a['id'],value={'engine':'Unity'},expected_revision=1))
+        service.package_defaults(dict(package_id=b['id'],value={'engine':'Godot'},expected_revision=1))
+        service.package_assign(dict(asset_id=self.id,package_ids=[a['id'],b['id']],expected_revision=0))
+        field=service.package_effective({'asset_id':self.id})['fields']['engine']
+        self.assertEqual(field['status'],'conflict');self.assertIsNone(field['value'])
+        service.package_defaults(dict(package_id=b['id'],value={'engine':'Unity'},expected_revision=2))
+        field=service.package_effective({'asset_id':self.id})['fields']['engine']
+        self.assertEqual(field['status'],'inherited');self.assertEqual(len(field['packageIds']),2)
+        manager=AssetManagement(self.db);value=manager.read({'asset_id':self.id})['value'];value['assetVersion']='individual-v2'
+        manager.save_management(dict(asset_id=self.id,value=value,expected_revision=0))
+        self.assertEqual(service.package_effective({'asset_id':self.id})['fields']['assetVersion']['value'],'individual-v2')
+
+    def test_shared_version_or_membership_change_rejects_stale_override_and_late_failure_rolls_back(self):
+        service=Packages(self.db);p=service.package_create({'value':self.value()})
+        service.package_assign(dict(asset_id=self.id,package_ids=[p['id']],expected_revision=0))
+        state=service.package_effective({'asset_id':self.id})
+        params=dict(asset_id=self.id,value={'engine':'user draft'},expected_revision=0,expected_packages=state['packageVersions'])
+        other=Database(self.base/'db.sqlite')
+        try:Packages(other).package_defaults(dict(package_id=p['id'],value={'engine':'changed'},expected_revision=1))
+        finally:other.close()
+        with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):service.package_override(params)
+        params['expected_packages']=service.package_effective({'asset_id':self.id})['packageVersions']
+        self.db.connection.execute("CREATE TRIGGER fixture_override_failure BEFORE INSERT ON metadata_decision_history WHEN NEW.field='package_overrides' BEGIN SELECT RAISE(ABORT,'fixture'); END;")
+        with self.assertRaises(sqlite3.IntegrityError):service.package_override(params)
+        self.assertEqual(service.package_effective({'asset_id':self.id})['revision'],0)
+        self.db.connection.execute('DROP TRIGGER fixture_override_failure')
+        service.package_override(params)
+        with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):service.package_override(params)
+
+    def test_default_validation_and_no_implicit_ai_or_network(self):
+        service=Packages(self.db);p=service.package_create({'value':self.value()})
+        for value in ({'sourceUrl':'file:///private'},{'sourceUrl':'https://user:secret@example.com'},{'engine':'x'*129},{'licenseLabel':True},{'unrecognized':'value'}):
+            with self.assertRaises(LibraryError):service.package_defaults(dict(package_id=p['id'],value=value,expected_revision=1))
+        self.assertEqual(service.package(p['id'])['revision'],1)
+        state=service.package_effective({'asset_id':self.id})
+        self.assertEqual(state['fields']['engine']['status'],'unknown')
+        for table in ('analysis_jobs','asset_embeddings'):self.assertEqual(self.db.connection.execute('SELECT count(*) FROM '+table).fetchone()[0],0)
+
+    def test_override_survives_rescan_reopen_and_keeps_original_bytes(self):
+        from ai_asset_hub_core.assets import AssetService
+        service=Packages(self.db)
+        service.package_override(dict(asset_id=self.id,value={'engine':'user engine'},expected_revision=0,expected_packages=[]))
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        AssetService(self.db).scan({'library_id':library})
+        self.db.close();self.db=Database(self.base/'db.sqlite')
+        state=Packages(self.db).package_effective({'asset_id':self.id})
+        self.assertEqual(state['fields']['engine']['value'],'user engine')
+        self.assertEqual((self.source/'나무.png').read_bytes(),b'original')
+
+    def test_one_package_contains_multiple_assets_and_delete_preserves_each_asset(self):
+        from ai_asset_hub_core.assets import AssetService
+        service=Packages(self.db);p=service.package_create({'value':self.value()})
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        (self.source/'second.wav').write_bytes(b'second original');AssetService(self.db).scan({'library_id':library})
+        ids=[r[0] for r in self.db.connection.execute('SELECT id FROM assets')]
+        for asset in ids:service.package_assign(dict(asset_id=asset,package_ids=[p['id']],expected_revision=0))
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_package_members').fetchone()[0],2)
+        service.package_delete(dict(package_id=p['id'],expected_revision=1))
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM assets').fetchone()[0],2)
+        for asset in ids:
+            self.assertEqual(service.package_membership({'asset_id':asset})['ids'],[])
+            self.assertEqual(service.package_membership({'asset_id':asset})['revision'],2)
+        self.assertEqual((self.source/'second.wav').read_bytes(),b'second original')

@@ -4,6 +4,7 @@ import unicodedata
 from uuid import uuid4
 from .libraries import LibraryError, valid_id
 from .annotations import AnnotationService
+from .metadata_values import MetadataError
 
 
 class Collections(AnnotationService):
@@ -31,6 +32,9 @@ class Collections(AnnotationService):
         self.db.execute('BEGIN IMMEDIATE')
         try:
             result=operation();self.db.execute('COMMIT');return result
+        except MetadataError as error:
+            self.db.execute('ROLLBACK')
+            raise LibraryError('METADATA_CONFLICT' if str(error)=='METADATA_CONFLICT' else 'INVALID_PARAMS') from None
         except Exception:
             self.db.execute('ROLLBACK');raise
 

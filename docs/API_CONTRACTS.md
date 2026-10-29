@@ -177,3 +177,26 @@ criteria는 library_id(UUID/null),folder_parts(구성요소 배열),kind(대문�
 각 저장은 해당 필드의 revision을 비교하고 성공 시 value/revision을 반환한다. 불일치는 METADATA_CONFLICT이며 투영·결정·이력을 모두 보존한다. 값 계약은 METADATA_SCHEMA.md의 R08B 절을 따른다. 후보는 2개, 이력은 1개씩 실제 ID 커서로 페이지 처리한다. 이력은 field/revision/action/actor(user)/createdAt/before/after를 반환하며 각 값의 직렬화가 6,000바이트를 넘으면 truncated/preview를 명시한다. DB 원문은 유지한다.
 
 asset.annotations는 tagsRevision도 반환한다. asset.tags는 expected_revision을 선택적으로 받으며 현재 UI는 반드시 전달한다. 기존 호출의 명시적 add/remove 및 batch 명령은 쓰기 잠금 안에서 최신 태그에 적용되고 각 에셋의 user_tags 이력을 기록한다. 이전 기본 텍스트 API의 레거시 호환 경로는 유지한다. 새로운 편집 UI는 읽은 revision을 항상 전달하며 충돌 시 초안을 유지하고 명시적 다시 불러오기를 제공한다.
+## M08C 그룹·패키지 고정 명령
+
+Tauri 인자는 camelCase, Core 인자는 snake_case이며 기존 안전 응답 봉투를 사용한다. 임의 함수 호출/SQL 실행 또는 MCP 쓰기 도구를 추가하지 않는다.
+
+| Tauri | Core | 입력 |
+| --- | --- | --- |
+| group_list | asset.groups.list | after_id |
+| group_create / group_update | asset.groups.create / update | value / group_id,value,expected_revision |
+| group_delete / group_move | asset.groups.delete / move | group_id,expected_revision / group_id,parent_id,expected_revision |
+| group_membership / group_assign | asset.groups.membership / assign | asset_id / asset_id,group_ids,expected_revision |
+| group_query | asset.groups.query | group_id,query,criteria,after_id |
+| group_batch_preview | asset.groups.batch_preview | asset_ids,add,remove,after_id |
+| group_batch_apply | asset.groups.batch_apply | plan,confirmed=true |
+| package_list | asset.packages.list | after_id |
+| package_create / package_update | asset.packages.create / update | value / package_id,value,expected_revision |
+| package_delete | asset.packages.delete | package_id,expected_revision |
+| package_membership / package_assign | asset.packages.membership / assign | asset_id / asset_id,package_ids,expected_revision |
+| package_defaults | asset.packages.defaults | package_id,value,expected_revision |
+| package_effective / package_override | asset.packages.effective / override | asset_id / asset_id,value,expected_revision,expected_packages |
+
+그룹/패키지 목록은 2개씩 UUID 커서, 그룹 검색은 필터 적용 후 200개씩 UUID 커서다. 전체 그룹/패키지 목록 로드 실패 시 확인되지 않은 항목을 빈 목록으로 저장하지 않는다. 소속 조회는 아직 목록에서 로드하지 않은 ID도 포함하고 클라이언트는 이를 보존한다. 요약 이름은 64자로 줄여 전송 크기를 제한한다.
+
+일괄 검토는 최대 100개 실제 활성 에셋의 소속 버전과 추가/해제 그룹 버전을 포함하는 plan, 이전/이후 소속 2개씩, next_cursor를 반환한다. 검토만으로 기록을 변경하지 않는다. 적용 시 plan을 DB 현재 상태에서 다시 계산해 전체 일치해야 하며, 하나라도 충돌/실패하면 전체 롤백한다. 기본 값 계약·불변 구매 당시 기록·다중 패키지 충돌 규칙은 METADATA_SCHEMA.md를 따른다. 선언된 금액/통화/라이선스명은 검증된 구매·권리 증명으로 표시하지 않는다.

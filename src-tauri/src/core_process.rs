@@ -253,6 +253,9 @@ impl CoreProcess {
                 | "asset.packages.delete"
                 | "asset.packages.membership"
                 | "asset.packages.assign"
+                | "asset.packages.defaults"
+                | "asset.packages.effective"
+                | "asset.packages.override"
                 | "asset.annotations"
                 | "asset.tags"
                 | "asset.annotate"
@@ -521,6 +524,82 @@ mod tests {
             )
             .unwrap();
         assert_eq!(history["data"]["items"][0]["field"], "relations");
+        let group = core
+            .library_request(
+                "asset.groups.create",
+                json!({"value":{"name":"fixture group","description":"logical"}}),
+            )
+            .unwrap();
+        let group_id = group["data"]["id"].as_str().unwrap();
+        let child = core
+            .library_request(
+                "asset.groups.create",
+                json!({"value":{"name":"child","description":""}}),
+            )
+            .unwrap();
+        let child_id = child["data"]["id"].as_str().unwrap();
+        assert_eq!(
+            core.library_request(
+                "asset.groups.move",
+                json!({"group_id":child_id,"parent_id":group_id,"expected_revision":1})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request(
+                "asset.groups.assign",
+                json!({"asset_id":id,"group_ids":[group_id],"expected_revision":0})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request(
+                "asset.groups.query",
+                json!({"group_id":group_id,"query":"","criteria":{},"after_id":null})
+            )
+            .unwrap()["data"]["ids"],
+            json!([id])
+        );
+        let plan = core
+            .library_request(
+                "asset.groups.batch_preview",
+                json!({"asset_ids":[id],"add":[child_id],"remove":[],"after_id":null}),
+            )
+            .unwrap();
+        assert_eq!(
+            core.library_request(
+                "asset.groups.batch_apply",
+                json!({"plan":plan["data"]["plan"],"confirmed":true})
+            )
+            .unwrap()["data"]["updated"],
+            1
+        );
+        let package = core.library_request("asset.packages.create", json!({"value":{"name":"fixture package","description":"declared","unit":"distribution","version":"v1","purchase":{"amount":null,"currency":"","date":""}}})).unwrap();
+        let package_id = package["data"]["id"].as_str().unwrap();
+        assert_eq!(
+            core.library_request(
+                "asset.packages.defaults",
+                json!({"package_id":package_id,"value":{"engine":"Unity"},"expected_revision":1})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request(
+                "asset.packages.assign",
+                json!({"asset_id":id,"package_ids":[package_id],"expected_revision":0})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        let inherited = core
+            .library_request("asset.packages.effective", json!({"asset_id":id}))
+            .unwrap();
+        assert_eq!(inherited["data"]["fields"]["engine"]["value"], "Unity");
+        let overridden = core.library_request("asset.packages.override", json!({"asset_id":id,"value":{"engine":"Godot"},"expected_revision":0,"expected_packages":inherited["data"]["packageVersions"]})).unwrap();
+        assert_eq!(overridden["data"]["fields"]["engine"]["value"], "Godot");
         let conflict = core.library_request("asset.annotate", json!({"asset_id":id,"title":"stale","description":"","aliases":[],"expected_revision":0})).unwrap();
         assert_eq!(conflict["error"]["code"], "METADATA_CONFLICT");
         core.stop();
@@ -531,6 +610,20 @@ mod tests {
             .library_request("asset.annotations", json!({"asset_id":id}))
             .unwrap();
         assert_eq!(reopened["data"], saved["data"]);
+        assert_eq!(
+            core.library_request("asset.groups.membership", json!({"asset_id":id}))
+                .unwrap()["data"]["ids"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            core.library_request("asset.packages.effective", json!({"asset_id":id}))
+                .unwrap()["data"],
+            overridden["data"]
+        );
+
         assert_eq!(
             core.library_request("asset.management", json!({"asset_id":id}))
                 .unwrap()["data"],

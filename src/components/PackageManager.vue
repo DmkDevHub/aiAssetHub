@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PackageDefaults from './PackageDefaults.vue';
 import {ref,watch,onBeforeUnmount} from 'vue';
 import {invoke,isTauri} from '@tauri-apps/api/core';
 import {collectionsChanged} from '../stores/collections';
@@ -53,6 +54,7 @@ watch(()=>props.assetId,()=>{generation++;busy.value=false;loaded.value=false;pa
     <button type="button" @click="edit()">새 패키지</button>
     <form @submit.prevent="save()"><label>패키지명 <input v-model="name" maxlength="128" required /></label><label>설명 <textarea v-model="description" maxlength="512" /></label><label>관리 단위 <select v-model="unit"><option value="distribution">배포 단위</option><option value="purchase">구매 단위</option></select></label><label>패키지 버전 <input v-model="version" maxlength="64" /></label><label>기록 금액 <input v-model="amount" maxlength="17" placeholder="미확인: 비움 / 무료: 0" /></label><label>통화 <input v-model="currency" maxlength="3" placeholder="KRW" /></label><label>구매일 <input v-model="purchaseDate" type="date" /></label><button :disabled="conflict||!name.trim()">{{ selected?'패키지 수정':'패키지 생성' }}</button></form>
     <template v-if="selected"><label><input v-model="confirmed" type="checkbox" />선택한 패키지 삭제 확인</label><button type="button" :disabled="!confirmed||conflict" @click="save(true)">패키지 삭제</button></template>
+    <PackageDefaults v-if="selected" :package-id="selected.id" :revision="selected.revision" :defaults="selected.defaults" @saved="value=>{packages=packages.map(p=>p.id===value.id?{...p,...value}:p);if(selected?.id===value.id)selected={...selected,...value};}" />
    </template>
   </fieldset><p role="status">{{ message }}</p>
  </section>

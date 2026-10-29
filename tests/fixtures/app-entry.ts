@@ -49,3 +49,7 @@ export {default as BulkGroups} from '../../src/components/BulkGroups.vue';
 export {collectionUi,selectGroup,resetCollections} from '../../src/stores/collections';
 
 export {default as PackageManager} from '../../src/components/PackageManager.vue';
+
+export {default as PackageDefaults} from '../../src/components/PackageDefaults.vue';
+export {default as AssetPackageMetadata} from '../../src/components/AssetPackageMetadata.vue';
+export {collectionsChanged} from '../../src/stores/collections';

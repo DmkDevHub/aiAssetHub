@@ -2074,3 +2074,32 @@ test('package memberships retain saved snapshots and drafts on conflict',async()
  app=createApp(components.PackageManager,{assetId:'asset'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();const check=document.querySelector('.package-manager li input');check.checked=false;dispatch(check,new Event('change',{bubbles:true}));await nextTick();
  dispatch([...document.querySelectorAll('.package-manager button')].find(b=>b.textContent==='패키지 소속 저장'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[1].expectedRevision,2);assert.equal(check.checked,false);assert.match(document.querySelector('.package-manager pre').textContent,/KRW/);assert.equal([...document.querySelectorAll('.package-manager button')].find(b=>b.textContent==='패키지 소속 저장').disabled,true);
 });
+
+
+test('shared package defaults are explicit and preserve draft on conflict',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:false,error:{code:'METADATA_CONFLICT',message:'private'}};}};
+ app=createApp(components.PackageDefaults,{packageId:'pack',revision:4,defaults:{engine:'Unity'}});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();const input=document.querySelector('.package-defaults input');input.value='Godot';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,0);
+ dispatch(document.querySelector('.package-defaults'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[1].expectedRevision,4);assert.equal(calls.at(-1)[1].value.engine,'Godot');assert.equal(input.value,'Godot');assert.equal(document.querySelector('.package-defaults button').disabled,true);assert.doesNotMatch(document.body.textContent,/private/);
+});
+
+test('asset package exceptions distinguish inherited cleared and conflicting values and protect dirty drafts',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ const state={fields:{assetVersion:{value:'v1',status:'inherited',source:'package',packageIds:['p']},engine:{value:null,status:'conflict',source:'package',packageIds:['p','q']},sourceUrl:{value:null,status:'unknown',source:'unknown',packageIds:[]},licenseLabel:{value:null,status:'unknown',source:'unknown',packageIds:[]}},overrides:{},revision:2,packageVersions:[{id:'p',revision:4},{id:'q',revision:5}]};
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return command==='package_effective'?{ok:true,data:state}:{ok:false,error:{code:'METADATA_CONFLICT'}};}};
+ app=createApp(components.AssetPackageMetadata,{assetId:'asset'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.querySelector('.asset-package-metadata').textContent,/conflict/);
+ const select=document.querySelector('.asset-package-metadata select');select.value='set';dispatch(select,new Event('change',{bubbles:true}));await nextTick();const input=document.querySelector('.asset-package-metadata input');input.value='Godot';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,1);
+ dispatch(document.querySelector('.asset-package-metadata form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.at(-1)[1].expectedPackages,state.packageVersions);assert.equal(input.value,'Godot');assert.equal(document.querySelector('.asset-package-metadata fieldset button').disabled,true);
+ components.collectionsChanged();await nextTick();assert.equal(input.value,'Godot');assert.equal(calls.length,2);
+});
+
+
+test('package readers discard a late response after switching the selected asset',async()=>{
+ for(const [name,read,make,selector] of [
+ ['PackageManager','package_list',label=>({items:[{id:label,name:label,unit:'distribution'}],next_cursor:null}),'.package-manager li'],
+ ['AssetPackageMetadata','package_effective',label=>({fields:{assetVersion:{value:label,status:'inherited',source:'package',packageIds:[]}},overrides:{},revision:0,packageVersions:[]}),'.asset-package-metadata']]){
+  app.unmount();globalThis.isTauri=true;const id=ref('old');let resolveOld;let first=true;
+  dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{if(command!==read)return {ok:true,data:{ids:[],revision:0,items:[]}};if(first){first=false;return await new Promise(resolve=>{resolveOld=resolve;});}return {ok:true,data:make('new-package-value')};}};
+  app=createApp({render:()=>h(components[name],{assetId:id.value})});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();id.value='new';await nextTick();await new Promise(r=>setImmediate(r));await nextTick();resolveOld({ok:true,data:make('old-package-value')});await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.querySelector(selector).textContent,/new-package-value/);assert.doesNotMatch(document.querySelector(selector).textContent,/old-package-value/);
+ }
+});

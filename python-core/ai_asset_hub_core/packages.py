@@ -92,3 +92,62 @@ class Packages(Collections):
             self.log('package',before['id'],before['revision']+1,'delete',before,None)
             return {'deleted':before['id'],'affectedAssets':len(assets)}
         return self.transaction(operation)
+
+    def shared_values(self,value):
+        from urllib.parse import urlsplit
+        if not isinstance(value,dict) or set(value)-{'engine','sourceUrl','licenseLabel'}:raise LibraryError('INVALID_PARAMS')
+        result={}
+        for key,raw in value.items():
+            text=None if raw is None else self.text(raw,{'engine':128,'sourceUrl':512,'licenseLabel':256}[key])
+            if key=='sourceUrl' and text:
+                try:
+                    parts=urlsplit(text)
+                    if parts.scheme!='https' or not parts.hostname or parts.username or parts.password or any(c.isspace() for c in text):raise ValueError()
+                    parts.port
+                except ValueError:raise LibraryError('INVALID_PARAMS') from None
+            result[key]=text or None
+        return result
+
+    def package_defaults(self, params):
+        self.keys(params,'package_id value expected_revision');value=self.shared_values(params['value'])
+        def operation():
+            before=self.package(params['package_id']);self.revision(params['expected_revision'],before['revision'])
+            self.db.execute('UPDATE asset_packages SET defaults_json=?,revision=revision+1 WHERE id=?',(json.dumps(value,ensure_ascii=False),before['id']))
+            result=self.package(before['id']);self.log('package',before['id'],result['revision'],'defaults',before,result);return result
+        return self.transaction(operation)
+
+    def package_effective(self, params):
+        self.keys(params,'asset_id');self.require_asset(params['asset_id']);asset=params['asset_id']
+        packages=[self.package(i) for i in self.membership_value(asset,'package')['ids']]
+        state=self.metadata.effective(asset,'package_overrides')
+        overrides=state['value'] if state['source']=='user' and isinstance(state['value'],dict) else {}
+        management_state=self.metadata.effective(asset,'management')
+        management=management_state['value'] if management_state['source']=='user' and isinstance(management_state['value'],dict) else {}
+        fields={}
+        for field in ('assetVersion','engine','sourceUrl','licenseLabel'):
+            if field in overrides:
+                fields[field]={'value':overrides[field],'source':'user','status':'cleared' if overrides[field] is None else 'confirmed','packageIds':[]};continue
+            if field=='assetVersion' and management.get('assetVersion'):
+                fields[field]={'value':management['assetVersion'],'source':'user','status':'confirmed','packageIds':[]};continue
+            values=[(p['id'],p['version'] if field=='assetVersion' else p['defaults'].get(field)) for p in packages]
+            values=[(i,v) for i,v in values if v]
+            unique={v for _,v in values}
+            fields[field]={'value':next(iter(unique)) if len(unique)==1 else None,
+                           'source':'package' if unique else 'unknown','status':'conflict' if len(unique)>1 else 'inherited' if unique else 'unknown',
+                           'packageIds':[i for i,_ in values]}
+        return {'fields':fields,'overrides':overrides,'revision':state['revision'],
+                'packageVersions':[{'id':p['id'],'revision':p['revision']} for p in packages]}
+
+    def package_override(self, params):
+        self.keys(params,'asset_id value expected_revision expected_packages');value=self.shared_values(params['value'])
+        expected=params['expected_packages']
+        if not isinstance(expected,list) or len(expected)>16:raise LibraryError('INVALID_PARAMS')
+        for item in expected:
+            self.keys(item,'id revision')
+            if not valid_id(item['id']) or type(item['revision']) is not int or item['revision']<1:raise LibraryError('INVALID_PARAMS')
+        def operation():
+            current=self.package_effective({'asset_id':params['asset_id']})
+            if current['packageVersions']!=params['expected_packages']:raise LibraryError('METADATA_CONFLICT')
+            self.metadata._decide(params['asset_id'],'package_overrides','set',params['expected_revision'],True,value,None)
+            return self.package_effective({'asset_id':params['asset_id']})
+        return self.transaction(operation)
