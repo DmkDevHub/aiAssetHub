@@ -19,3 +19,6 @@ Python Core `taxonomy.py`의 `asset-types.v1`: A01~A14 대분류 14개, 중분�
 
 
 R08A-02: classification_axes.py가 역할/스타일/장르/시점/차원/엔진의 독립 값·한영 이름·다중 선택·미분류를 검증한다. 사용 중 항목의 비활성은 새 버전·명시 승인·같은 축의 활성 대체값을 요구하고 구버전을 보존한다. 현재는 순수 계약이며 DB 참조 개수 검증은 저장 계층에서 연결한다. 엔진 값은 호환 성공을 뜻하지 않는다.
+
+
+R08A-03: metadata_values.py의 Claim/FieldState는 파일/파서 관측·AI 제안·사용자 결정을 분리한다. 사용자 set/clear/adopt만 명시 승인·기대 revision 일치 후 적용한다. clear는 빈 값 확정으로 유지해 새 AI 제안이 부활하지 않으며 adopt는 실제 선택한 claim만 다시 적용한다. 관측은 AI보다 우선하고 과거 제안/결정 이력은 보존한다.
