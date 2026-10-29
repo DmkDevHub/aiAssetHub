@@ -91,6 +91,7 @@ beforeEach(async (t) => {
   workspaceWidth = 1100;
   delete dom.window.__TAURI_INTERNALS__;
   globalThis.isTauri = false;
+  components.resetCollections();
   components.setSearchQuery("");
   components.setTheme("dark");
   components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
@@ -2055,4 +2056,21 @@ test('group browsing filters with Core criteria and never falls back to unrelate
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);assert.equal(command,'group_query');return {ok:true,data:{ids:['b'],next_cursor:null}};}};
  components.selectGroup('actual-group');await nextTick();await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,1);assert.match(document.querySelector('.asset-card').textContent,/beta/);assert.equal(calls.at(-1)[1].groupId,'actual-group');assert.equal(calls.at(-1)[1].criteria.group_id,'actual-group');
  dom.window.__TAURI_INTERNALS__={invoke:async()=>{throw new Error('private');}};components.setSearchQuery('failure');await nextTick();await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,0);assert.match(document.querySelector('.library-workspace').textContent,/그룹 검색을 완료하지 못했습니다/);components.resetCollections();
+});
+
+
+test('package creation sends declared purchase unit and distinguishes unknown and zero price',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return command==='package_list'?{ok:true,data:{items:[],next_cursor:null}}:{ok:true,data:{id:'real-package',...args.value,defaults:{},revision:1}};}};
+ app=createApp(components.PackageManager);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();assert.equal(calls.length,0);
+ dispatch(document.querySelector('.package-manager > button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const inputs=document.querySelectorAll('.package-manager form input');inputs[0].value='Pack';dispatch(inputs[0],new Event('input',{bubbles:true}));await nextTick();
+ dispatch(document.querySelector('.package-manager form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[0],'package_create');assert.equal(calls.at(-1)[1].value.purchase.amount,null);assert.equal(calls.at(-1)[1].value.unit,'distribution');assert.match(document.querySelector('.package-manager li').textContent,/real-package/);
+});
+
+test('package memberships retain saved snapshots and drafts on conflict',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='package_list')return {ok:true,data:{items:[{id:'pack',name:'Pack',unit:'purchase'}],next_cursor:null}};if(command==='package_membership')return {ok:true,data:{ids:['pack'],revision:2,items:[{id:'pack',name:'Pack',purchaseSnapshot:{purchase:{amount:'0',currency:'KRW'}},recordedAt:'fixture-date'}]}};return {ok:false,error:{code:'METADATA_CONFLICT'}};}};
+ app=createApp(components.PackageManager,{assetId:'asset'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();const check=document.querySelector('.package-manager li input');check.checked=false;dispatch(check,new Event('change',{bubbles:true}));await nextTick();
+ dispatch([...document.querySelectorAll('.package-manager button')].find(b=>b.textContent==='패키지 소속 저장'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[1].expectedRevision,2);assert.equal(check.checked,false);assert.match(document.querySelector('.package-manager pre').textContent,/KRW/);assert.equal([...document.querySelectorAll('.package-manager button')].find(b=>b.textContent==='패키지 소속 저장').disabled,true);
 });

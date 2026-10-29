@@ -23,6 +23,7 @@ run(python, ['-m', 'PyInstaller', '--noconfirm', '--onedir', '--console', '--nou
   '--workpath', join(artifacts, 'pyinstaller-work'), '--specpath', artifacts,
   '--paths', join(root, 'python-core'), '--add-data', `${join(root, 'db', 'migrations')}:migrations`,
   '--hidden-import', 'ai_asset_hub_core.collections',
+  '--hidden-import', 'ai_asset_hub_core.packages',
   '--hidden-import', 'ai_asset_hub_core.metadata_store',
   '--hidden-import', 'ai_asset_hub_core.asset_management',
   '--hidden-import', 'ai_asset_hub_core.asset_composition',

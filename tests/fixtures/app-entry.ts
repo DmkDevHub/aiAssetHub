@@ -47,3 +47,5 @@ export {default as GroupManager} from '../../src/components/GroupManager.vue';
 
 export {default as BulkGroups} from '../../src/components/BulkGroups.vue';
 export {collectionUi,selectGroup,resetCollections} from '../../src/stores/collections';
+
+export {default as PackageManager} from '../../src/components/PackageManager.vue';

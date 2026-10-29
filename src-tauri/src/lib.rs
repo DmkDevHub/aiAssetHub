@@ -835,6 +835,110 @@ async fn group_batch_apply(
 }
 
 #[tauri::command]
+async fn package_list(
+    state: tauri::State<'_, CoreState>,
+    after_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.packages.list",
+                serde_json::json!({"after_id":after_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn package_create(
+    state: tauri::State<'_, CoreState>,
+    value: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request("asset.packages.create", serde_json::json!({"value":value}))
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn package_update(
+    state: tauri::State<'_, CoreState>,
+    package_id: String,
+    value: serde_json::Value,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.packages.update", serde_json::json!({"package_id":package_id,"value":value,"expected_revision":expected_revision}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn package_delete(
+    state: tauri::State<'_, CoreState>,
+    package_id: String,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.packages.delete",
+                serde_json::json!({"package_id":package_id,"expected_revision":expected_revision}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn package_membership(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.packages.membership",
+                serde_json::json!({"asset_id":asset_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn package_assign(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    package_ids: Vec<String>,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.packages.assign", serde_json::json!({"asset_id":asset_id,"package_ids":package_ids,"expected_revision":expected_revision}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_annotations(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -1127,6 +1231,12 @@ pub fn run() {
             group_query,
             group_batch_preview,
             group_batch_apply,
+            package_list,
+            package_create,
+            package_update,
+            package_delete,
+            package_membership,
+            package_assign,
             asset_annotations,
             edit_asset_tags,
             save_asset_annotation,

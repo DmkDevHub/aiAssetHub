@@ -247,6 +247,12 @@ impl CoreProcess {
                 | "asset.groups.query"
                 | "asset.groups.batch_preview"
                 | "asset.groups.batch_apply"
+                | "asset.packages.list"
+                | "asset.packages.create"
+                | "asset.packages.update"
+                | "asset.packages.delete"
+                | "asset.packages.membership"
+                | "asset.packages.assign"
                 | "asset.annotations"
                 | "asset.tags"
                 | "asset.annotate"
@@ -406,7 +412,7 @@ mod tests {
             CoreProcess::new(LaunchSpec::packaged(directory).with_data(data.clone(), "production"));
         let first = core.start().unwrap();
         assert_eq!(first["data"]["database"]["status"], "ready");
-        assert_eq!(first["data"]["database"]["schema_version"], 5);
+        assert_eq!(first["data"]["database"]["schema_version"], 6);
         verify_model_registry(&mut core);
         let source = data
             .parent()
@@ -550,7 +556,7 @@ mod tests {
             CoreProcess::new(LaunchSpec::development().with_data(prod.clone(), environment));
         let health = core.start().unwrap();
         assert_eq!(health["data"]["database"]["status"], "ready");
-        assert_eq!(health["data"]["database"]["schema_version"], 5);
+        assert_eq!(health["data"]["database"]["schema_version"], 6);
         core.stop();
         assert!(prod.join("asset_hub.sqlite").is_file());
         assert_eq!(core.start().unwrap()["data"]["database"]["status"], "ready");

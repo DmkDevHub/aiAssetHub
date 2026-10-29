@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {collectionUi} from '../stores/collections';
+import PackageManager from '../components/PackageManager.vue';
 import GroupManager from '../components/GroupManager.vue';
 import LibraryTreePanel from "../components/LibraryTreePanel.vue";
 import AssetGallery from "../components/AssetGallery.vue";
@@ -127,7 +128,7 @@ function moveRegion(event: KeyboardEvent) {
   }">
     <LibraryTreePanel :nodes="nodes" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
       :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
-      <template #management><LibraryManagement /><GroupManager /></template>
+      <template #management><LibraryManagement /><GroupManager /><PackageManager /></template>
     </LibraryTreePanel>
     <AssetGallery :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" @select="selectedId = $event">
       <template #filters><p v-if="collectionUi.groupId">그룹 필터: {{ collectionUi.groupId }}</p><label>검색 방식 <select v-model="searchMode" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
