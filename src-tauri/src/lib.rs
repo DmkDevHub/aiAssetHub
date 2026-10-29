@@ -648,6 +648,27 @@ async fn save_asset_relations(
 }
 
 #[tauri::command]
+async fn asset_metadata_history(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    before_id: Option<u64>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.metadata.history",
+                serde_json::json!({"asset_id":asset_id,"before_id":before_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_annotations(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -672,16 +693,18 @@ async fn edit_asset_tags(
     asset_id: String,
     add: Vec<String>,
     remove: Vec<String>,
+    expected_revision: Option<u64>,
 ) -> Result<serde_json::Value, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let mut params = serde_json::json!({"asset_id":asset_id,"add":add,"remove":remove});
+        if let Some(revision) = expected_revision {
+            params["expected_revision"] = serde_json::json!(revision);
+        }
         state
             .lock()
             .map_err(|_| "CORE_UNAVAILABLE")?
-            .library_request(
-                "asset.tags",
-                serde_json::json!({"asset_id":asset_id,"add":add,"remove":remove}),
-            )
+            .library_request("asset.tags", params)
     })
     .await
     .map_err(|_| "CORE_UNAVAILABLE".to_string())?
@@ -927,6 +950,7 @@ pub fn run() {
             asset_link_candidates,
             get_asset_relations,
             save_asset_relations,
+            asset_metadata_history,
             asset_annotations,
             edit_asset_tags,
             save_asset_annotation,

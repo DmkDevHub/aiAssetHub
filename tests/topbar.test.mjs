@@ -1965,3 +1965,44 @@ test('relations select real candidates, send direction and retain draft after re
  dispatch([...document.querySelectorAll('.asset-relations button')].find(b=>b.textContent==='관계 저장'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.at(-1)[1].value,[{targetId:'real-target',kind:'derived_from'}]);assert.equal(calls.at(-1)[1].expectedRevision,4);
  assert.match(document.querySelector('.asset-relations').textContent,/real-target/);assert.match(document.querySelector('.asset-relations [role=status]').textContent,/파생 순환/);assert.doesNotMatch(document.body.textContent,/private details/);
 });
+
+
+test('metadata history pages actual versions, escapes values and preserves rows on failed paging',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];let fail=false;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(fail)throw new Error('private detail');return {ok:true,data:{items:[{id:args.beforeId===null?2:1,field:'management',revision:args.beforeId===null?2:1,action:'set',actor:'user',createdAt:'fixture-date',before:null,after:{value:'<img src=x onerror=bad>'}}],next_cursor:args.beforeId===null?2:null}};}};
+ app=createApp(components.AssetMetadataHistory,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();assert.equal(calls.length,0);
+ const click=async(text)=>{dispatch([...document.querySelectorAll('.asset-metadata-history button')].find(b=>b.textContent===text),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();};
+ await click('변경 이력 보기');assert.match(document.querySelector('.asset-metadata-history').textContent,/버전 2/);assert.equal(document.querySelector('.asset-metadata-history img'),null);
+ fail=true;await click('이전 변경 더 보기');assert.equal(document.querySelectorAll('.asset-metadata-history li').length,1);assert.doesNotMatch(document.body.textContent,/private detail/);
+ fail=false;await click('이전 변경 더 보기');assert.equal(calls.at(-1)[1].beforeId,2);assert.equal(document.querySelectorAll('.asset-metadata-history li').length,2);assert.match(document.querySelector('.asset-metadata-history').textContent,/버전 1/);
+});
+
+test('metadata editors ignore stale reads when selected asset changes',async()=>{
+ for(const [name,command,make,selector] of [
+ ['AssetManagement','get_asset_management',label=>({value:{favorite:false,rating:null,status:'unreviewed',notes:label,assetVersion:'',createdDate:'',modifiedDate:''},revision:0}),'.asset-management textarea'],
+ ['AssetComposition','get_asset_composition',label=>({value:{files:[{fileId:label,role:'source'}],components:[]},revision:0,availability:'available',files:[{fileId:label,role:'source',name:label,owned:true,available:true}],components:[]}),'.asset-composition li'],
+ ['AssetRelations','get_asset_relations',label=>({value:[{targetId:label,kind:'related'}],revision:0,items:[{targetId:label,kind:'related',name:label,available:true}]}),'.asset-relations li']]){
+  app.unmount();globalThis.isTauri=true;let resolveOld;const id=ref('old');
+  dom.window.__TAURI_INTERNALS__={invoke:async(c,args)=>{assert.equal(c,command);return args.assetId==='old'?await new Promise(resolve=>{resolveOld=resolve;}):{ok:true,data:make('new-value')};}};
+  app=createApp({render:()=>h(components[name],{assetId:id.value})});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();id.value='new';await nextTick();await new Promise(r=>setImmediate(r));await nextTick();
+  resolveOld({ok:true,data:make('old-value')});await new Promise(r=>setImmediate(r));await nextTick();const node=document.querySelector(selector);assert.match(typeof node.value==='string'?node.value:node.textContent,/new-value/);assert.doesNotMatch(typeof node.value==='string'?node.value:node.textContent,/old-value/);
+ }
+});
+
+test('file and relationship editors block repeated conflict saves while retaining drafts',async()=>{
+ for(const [name,get,save,state,section,label] of [
+ ['AssetComposition','get_asset_composition','save_asset_composition',{value:{files:[{fileId:'file',role:'source'}],components:[]},revision:1,availability:'available',files:[{fileId:'file',role:'source',name:'preserved-file',owned:true,available:true}],components:[]},'.asset-composition','파일 구성 저장'],
+ ['AssetRelations','get_asset_relations','save_asset_relations',{value:[{targetId:'target',kind:'related'}],revision:1,items:[{targetId:'target',kind:'related',name:'preserved-target',available:true}]},'.asset-relations','관계 저장']]){
+  app.unmount();globalThis.isTauri=true;let saves=0;
+  dom.window.__TAURI_INTERNALS__={invoke:async(c)=>{if(c===get)return {ok:true,data:state};assert.equal(c,save);saves++;return {ok:false,error:{code:'METADATA_CONFLICT'}};}};
+  app=createApp(components[name],{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+  const button=[...document.querySelectorAll(section+' button')].find(b=>b.textContent===label);dispatch(button,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(button.disabled,true);assert.match(document.querySelector(section).textContent,/preserved-/);assert.equal(saves,1);
+ }
+});
+
+test('tag editing sends revision and preserves text drafts on a concurrent tag edit',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return command==='asset_annotations'?{ok:true,data:{tags:['kept'],title:'title',description:'description',aliases:[],revision:2,tagsRevision:3}}:{ok:false,error:{code:'METADATA_CONFLICT'}};}};
+ app=createApp(components.AssetAnnotations,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();const title=document.querySelector('.annotation-form input');title.value='draft';dispatch(title,new Event('input',{bubbles:true}));await nextTick();
+ dispatch(document.querySelector('.user-annotations li button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[1].expectedRevision,3);assert.equal(title.value,'draft');assert.match(document.querySelector('.user-annotations').textContent,/kept/);assert.equal(document.querySelector('.annotation-form button').disabled,true);
+});

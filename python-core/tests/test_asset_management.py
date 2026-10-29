@@ -134,3 +134,86 @@ class ManagementTests(unittest.TestCase):
         with self.assertRaises(LibraryError):service.save_relations(dict(asset_id=self.id,value=[link],expected_revision=1))
         saved=service.save_relations(dict(asset_id=self.id,value=[],expected_revision=1))
         self.assertEqual(saved['revision'],2);self.assertEqual(saved['value'],[])
+
+    def test_history_before_after_conflict_and_two_connection_edit(self):
+        import sqlite3
+        service,value=self.service_and_value()
+        other=Database(self.base/'db.sqlite')
+        try:
+            value['notes']='first'
+            service.save_management(dict(asset_id=self.id,value=value,expected_revision=0))
+            value['notes']='second'
+            AssetManagement(other).save_management(dict(asset_id=self.id,value=value,expected_revision=1))
+            with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):
+                service.save_management(dict(asset_id=self.id,value=value,expected_revision=1))
+        finally: other.close()
+        page=service.history(dict(asset_id=self.id,before_id=None))
+        record=page['items'][0]
+        self.assertEqual((record['field'],record['revision'],record['action'],record['actor']),('management',2,'set','user'))
+        self.assertEqual(record['before']['value']['notes'],'first')
+        self.assertEqual(record['after']['value']['notes'],'second')
+        old=service.history(dict(asset_id=self.id,before_id=page['next_cursor']))
+        self.assertEqual(old['items'][0]['revision'],1);self.assertIsNone(old['next_cursor'])
+        self.assertIsNone(old['items'][0]['before'])
+        for sql in ('DELETE FROM metadata_decision_history','UPDATE metadata_decision_history SET revision=9'):
+            with self.assertRaises(sqlite3.IntegrityError):self.db.connection.execute(sql)
+        for cursor in (True,0,-1,'1',999999):
+            with self.assertRaises(LibraryError):service.history(dict(asset_id=self.id,before_id=cursor))
+
+    def test_tags_have_atomic_history_and_revision_conflicts(self):
+        service=AssetManagement(self.db)
+        result=service.tags(dict(asset_id=self.id,add=['first'],remove=[],expected_revision=0))
+        self.assertEqual(result['tagsRevision'],1)
+        with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):
+            service.tags(dict(asset_id=self.id,add=['second'],remove=['first'],expected_revision=0))
+        self.assertEqual(service.get({'asset_id':self.id})['tags'],['first'])
+        self.assertEqual(service.history(dict(asset_id=self.id,before_id=None))['items'][0]['after']['value'],['first'])
+
+    def test_rescan_and_new_analysis_claim_preserve_all_user_edits_and_active_result(self):
+        import test_analysis
+        service,value=self.service_and_value();value['notes']='confirmed'
+        service.save_management(dict(asset_id=self.id,value=value,expected_revision=0))
+        service.save(dict(asset_id=self.id,title='confirmed title',description='confirmed description',aliases=['alias'],expected_revision=0))
+        composition=service.composition({'asset_id':self.id})['value']
+        service.save_composition(dict(asset_id=self.id,value=composition,expected_revision=0))
+        service.save_relations(dict(asset_id=self.id,value=[],expected_revision=0))
+        test_analysis.AnalysisTests.history(self,self.id,'completed',active=True)
+        result=self.db.connection.execute('SELECT analysis_result_id FROM asset_active_results WHERE asset_id=?',(self.id,)).fetchone()[0]
+        service.metadata.propose(self.id,'basic_text','ai',{'title':'AI title'},result,'fixture.v1')
+        service.metadata.propose(self.id,'management','ai',{'notes':'AI notes'},result,'fixture.v1')
+        baseline=self.db.connection.execute('SELECT * FROM metadata_decisions ORDER BY field').fetchall()
+        count=self.db.connection.execute('SELECT count(*) FROM metadata_decision_history').fetchone()[0]
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        AssetService(self.db).scan({'library_id':library})
+        test_analysis.AnalysisTests.history(self,self.id,'failed')
+        self.assertEqual(self.db.connection.execute('SELECT * FROM metadata_decisions ORDER BY field').fetchall(),baseline)
+        self.assertEqual(service.get({'asset_id':self.id})['title'],'confirmed title')
+        self.assertEqual(service.read({'asset_id':self.id})['value']['notes'],'confirmed')
+        self.assertEqual(self.db.connection.execute('SELECT analysis_result_id FROM asset_active_results WHERE asset_id=?',(self.id,)).fetchone()[0],result)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM metadata_decision_history').fetchone()[0],count)
+
+    def test_fixed_dispatch_history_and_transport_budget(self):
+        import json
+        from ai_asset_hub_core.application import CoreApplication
+        service,value=self.service_and_value();value['notes']='😀'*1024
+        app=CoreApplication(self.db)
+        request=lambda method,params:app.handle({'request_id':'12345678-1234-4234-9234-123456789abc','method':method,'params':params})
+        for revision in (0,1):
+            result=request('asset.management.save',dict(asset_id=self.id,value=value,expected_revision=revision))
+            self.assertTrue(result['ok'],result)
+        for method,params in [('asset.management',dict(asset_id=self.id)),('asset.composition',dict(asset_id=self.id)),('asset.relations',dict(asset_id=self.id)),('asset.link.candidates',dict(asset_id=self.id,kind='file',after_id=None)),('asset.metadata.history',dict(asset_id=self.id,before_id=None))]:
+            result=request(method,params);self.assertTrue(result['ok'],result)
+            self.assertLess(len(json.dumps(result,ensure_ascii=False).encode()),16384)
+        self.assertIsNone(app._analysis);self.assertIsNone(app._embedding)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
+
+    def test_large_history_is_explicitly_truncated_without_mutating_storage(self):
+        import json
+        service=AssetManagement(self.db)
+        text='😀'*3000
+        service.metadata.decide(self.id,'fixture_large','set',expected_revision=0,confirmed=True,value=text)
+        result=service.history(dict(asset_id=self.id,before_id=None))
+        self.assertTrue(result['items'][0]['after']['truncated'])
+        self.assertLess(len(json.dumps(result,ensure_ascii=False).encode()),16384)
+        saved=self.db.connection.execute("SELECT after_json FROM metadata_decision_history WHERE field='fixture_large'").fetchone()[0]
+        self.assertEqual(json.loads(saved)['value'],text)

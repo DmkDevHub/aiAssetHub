@@ -28,7 +28,8 @@ class AnnotationService:
         original = self.db.execute('SELECT display_name FROM assets WHERE id=?', (params['asset_id'],)).fetchone()[0]
         return {'tags': tags, 'title': row[0] or '' if row else '', 'description': row[1] or '' if row else '',
                 'aliases': value.get('aliases', []) if isinstance(value, dict) else [],
-                'originalName': original, 'revision': state['revision']}
+                'originalName': original, 'revision': state['revision'],
+                'tagsRevision': self.metadata.effective(params['asset_id'], 'user_tags')['revision']}
 
     def save(self, params):
         legacy = {'asset_id', 'title', 'description'}
@@ -89,12 +90,16 @@ class AnnotationService:
         return result
 
     def tags(self, params):
-        if not isinstance(params, dict) or set(params) != {'asset_id', 'add', 'remove'}:
+        keys = {'asset_id', 'add', 'remove'}
+        if not isinstance(params, dict) or set(params) not in (keys, keys | {'expected_revision'}):
             raise LibraryError('INVALID_PARAMS')
-        self.batch({'asset_ids':[params['asset_id']], 'add':params['add'], 'remove':params['remove']})
+        if 'expected_revision' in params and (type(params['expected_revision']) is not int or params['expected_revision'] < 0):
+            raise LibraryError('INVALID_PARAMS')
+        self.batch({'asset_ids':[params['asset_id']], 'add':params['add'], 'remove':params['remove']},
+                   expected=params.get('expected_revision') if 'expected_revision' in params else None)
         return self.get({'asset_id':params['asset_id']})
 
-    def batch(self, params):
+    def batch(self, params, expected=None):
         if not isinstance(params, dict) or set(params) != {'asset_ids', 'add', 'remove'}:
             raise LibraryError('INVALID_PARAMS')
         identifiers = params['asset_ids']
@@ -113,7 +118,12 @@ class AnnotationService:
                 labels = self.get({'asset_id':identifier})['tags']
                 if len(labels) > 32 or sum(map(len,labels)) > 512:
                     raise LibraryError('INVALID_PARAMS')
+                revision = self.metadata.effective(identifier, 'user_tags')['revision']
+                self.metadata._decide(identifier, 'user_tags', 'set', revision if expected is None else expected, True, labels, None)
             self.db.execute('COMMIT')
+        except MetadataError as error:
+            self.db.execute('ROLLBACK')
+            raise LibraryError('METADATA_CONFLICT' if str(error) == 'METADATA_CONFLICT' else 'INVALID_PARAMS') from None
         except Exception:
             self.db.execute('ROLLBACK')
             raise

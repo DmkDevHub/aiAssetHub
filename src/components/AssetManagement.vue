@@ -9,6 +9,7 @@ let generation=0;
 onBeforeUnmount(()=>{generation++;});
 async function load() {
   const token=++generation; loaded.value=false; conflict.value=false; message.value=''; busy.value=true;
+  value.value={favorite:false,rating:null,status:'unreviewed',notes:'',assetVersion:'',createdDate:'',modifiedDate:''};revision.value=0;
   if(!isTauri()){busy.value=false;return;}
   try {
     const result=await invoke<{ok:boolean;data:{value:Management;revision:number}}>('get_asset_management',{assetId:props.assetId});

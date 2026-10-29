@@ -151,6 +151,13 @@ class AssetManagement(AnnotationService):
             if not file or not file[2] or file[3] != row[1] or row[0] not in {f for f, _ in pairs}:
                 raise LibraryError('INVALID_PARAMS')
         def project():
+            # Recheck mutable evidence under the same write lock as the decision.
+            for file_id, _ in pairs:
+                if not self.file(file_id): raise LibraryError('INVALID_PARAMS')
+            for identifier in components:
+                row = self.db.execute('SELECT file_id,input_fingerprint FROM asset_components WHERE id=?', (identifier,)).fetchone()
+                file = self.file(row[0]) if row else None
+                if not file or not file[2] or file[3] != row[1]: raise LibraryError('INVALID_PARAMS')
             self.db.execute('DELETE FROM asset_file_members WHERE asset_id=?', (params['asset_id'],))
             self.db.executemany('INSERT INTO asset_file_members VALUES (?,?,?)', [(params['asset_id'], f, r) for f, r in sorted(pairs)])
         return self.commit(params, 'composition', value, self.composition, project)
@@ -207,3 +214,26 @@ class AssetManagement(AnnotationService):
             if count != len(nodes): raise LibraryError('INVALID_PARAMS')
 
         return self.commit(params, 'relations', links, self.relations, validate_graph)
+
+    def history(self, params):
+        if not isinstance(params, dict) or set(params) != {'asset_id', 'before_id'}: raise LibraryError('INVALID_PARAMS')
+        self.require_asset(params['asset_id'])
+        before = params['before_id']
+        if before is not None and (type(before) is not int or before < 1 or not self.db.execute(
+                'SELECT 1 FROM metadata_decision_history WHERE id=? AND asset_id=?', (before, params['asset_id'])).fetchone()):
+            raise LibraryError('INVALID_PARAMS')
+        rows = self.db.execute('''SELECT id,field,revision,action,before_json,after_json,created_at
+            FROM metadata_decision_history WHERE asset_id=? AND (? IS NULL OR id<?) ORDER BY id DESC LIMIT 2''',
+                               (params['asset_id'], before, before)).fetchall()
+
+        def bounded(raw):
+            value = json.loads(raw) if raw else None
+            if len(json.dumps(value, ensure_ascii=False).encode('utf-8')) <= 6000: return value
+            preview = raw[:2000]
+            while len(json.dumps({'truncated': True, 'preview': preview}, ensure_ascii=False).encode('utf-8')) > 6000:
+                preview = preview[:len(preview)//2]
+            return {'truncated': True, 'preview': preview}
+
+        return {'items': [{'id': r[0], 'field': r[1], 'revision': r[2], 'action': r[3],
+                           'before': bounded(r[4]), 'after': bounded(r[5]), 'createdAt': r[6], 'actor': 'user'} for r in rows[:1]],
+                'next_cursor': rows[0][0] if len(rows) > 1 else None}

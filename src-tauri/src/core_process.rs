@@ -236,6 +236,7 @@ impl CoreProcess {
                 | "asset.link.candidates"
                 | "asset.relations"
                 | "asset.relations.save"
+                | "asset.metadata.history"
                 | "asset.annotations"
                 | "asset.tags"
                 | "asset.annotate"
@@ -458,6 +459,52 @@ mod tests {
             .unwrap();
         assert_eq!(saved["data"]["aliases"], json!(["Tree", "숲 나무"]));
         assert_eq!(saved["data"]["originalName"], "fixture.png");
+        let management = json!({"favorite":true,"rating":5,"status":"approved","notes":"한글 메모","assetVersion":"v1","createdDate":"2024-02-29","modifiedDate":"2026-10-29"});
+        let managed = core
+            .library_request(
+                "asset.management.save",
+                json!({"asset_id":id,"value":management,"expected_revision":0}),
+            )
+            .unwrap();
+        assert_eq!(managed["data"]["revision"], 1);
+        let composition = core
+            .library_request("asset.composition", json!({"asset_id":id}))
+            .unwrap();
+        assert_eq!(composition["data"]["availability"], "available");
+        assert_eq!(
+            core.library_request(
+                "asset.composition.save",
+                json!({"asset_id":id,"value":composition["data"]["value"],"expected_revision":0})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request(
+                "asset.relations.save",
+                json!({"asset_id":id,"value":[],"expected_revision":0})
+            )
+            .unwrap()["ok"],
+            true
+        );
+        assert_eq!(
+            core.library_request(
+                "asset.link.candidates",
+                json!({"asset_id":id,"kind":"file","after_id":null})
+            )
+            .unwrap()["data"]["items"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        let history = core
+            .library_request(
+                "asset.metadata.history",
+                json!({"asset_id":id,"before_id":null}),
+            )
+            .unwrap();
+        assert_eq!(history["data"]["items"][0]["field"], "relations");
         let conflict = core.library_request("asset.annotate", json!({"asset_id":id,"title":"stale","description":"","aliases":[],"expected_revision":0})).unwrap();
         assert_eq!(conflict["error"]["code"], "METADATA_CONFLICT");
         core.stop();
@@ -468,6 +515,16 @@ mod tests {
             .library_request("asset.annotations", json!({"asset_id":id}))
             .unwrap();
         assert_eq!(reopened["data"], saved["data"]);
+        assert_eq!(
+            core.library_request("asset.management", json!({"asset_id":id}))
+                .unwrap()["data"],
+            managed["data"]
+        );
+        assert_eq!(
+            core.library_request("asset.composition", json!({"asset_id":id}))
+                .unwrap()["data"]["value"],
+            composition["data"]["value"]
+        );
     }
 
     #[test]

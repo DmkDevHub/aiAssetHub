@@ -40,3 +40,5 @@ export {default as AssetManagement} from '../../src/components/AssetManagement.v
 export {default as AssetComposition} from '../../src/components/AssetComposition.vue';
 
 export {default as AssetRelations} from '../../src/components/AssetRelations.vue';
+
+export {default as AssetMetadataHistory} from '../../src/components/AssetMetadataHistory.vue';

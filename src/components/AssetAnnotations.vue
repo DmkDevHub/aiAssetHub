@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { refreshAssets } from '../stores/assets';
 const title = ref(''), description = ref(''), notice = ref('');
+const tagsRevision=ref(0);
 const aliases = ref(''), originalName = ref(''), revision = ref(0), conflict = ref(false);
 const props = defineProps<{assetId: string; userTags?: readonly string[]}>();
 const tags = ref<string[]>([]), input = ref(''), error = ref(''), busy = ref(false), loaded = ref(false);
@@ -14,25 +15,27 @@ async function load(id: string) {
   aliases.value = ''; originalName.value = ''; revision.value = 0; conflict.value = false;
   if (!isTauri()) { busy.value = false; return; }
   try {
-    const result = await invoke<{ok:boolean;data:{tags:string[];title?:string;description?:string;aliases?:string[];originalName?:string;revision?:number}}>('asset_annotations', {assetId:id});
+    const result = await invoke<{ok:boolean;data:{tags:string[];title?:string;description?:string;aliases?:string[];originalName?:string;revision?:number;tagsRevision?:number}}>('asset_annotations', {assetId:id});
     if (token !== generation) return;
     if (!result.ok || !Array.isArray(result.data?.tags)) throw new Error();
     loaded.value = true; tags.value = result.data.tags; title.value = result.data.title ?? ''; description.value = result.data.description ?? '';
     aliases.value = (result.data.aliases ?? []).join('\n'); originalName.value = result.data.originalName ?? '';
-    revision.value = result.data.revision ?? 0;
+    revision.value = result.data.revision ?? 0; tagsRevision.value=result.data.tagsRevision ?? 0;
   } catch { if(token === generation) error.value = '사용자 정보를 불러오지 못했습니다.'; }
   finally { if(token === generation) busy.value = false; }
 }
 watch(() => props.assetId, load, {immediate:true});
 watch(() => props.userTags, value => { if(value) tags.value = [...value]; });
 async function edit(add: string[], remove: string[]) {
-  if (busy.value || !loaded.value || !isTauri()) return;
+  if (busy.value || !loaded.value || conflict.value || !isTauri()) return;
   const token = generation;
   busy.value = true; error.value = '';
   try {
-    const result = await invoke<{ok:boolean;data:{tags:string[];title?:string;description?:string}}>('edit_asset_tags', {assetId:props.assetId,add,remove});
+    const result = await invoke<{ok:boolean;data:{tags:string[];tagsRevision?:number};error?:{code:string}}>('edit_asset_tags', {assetId:props.assetId,add,remove,expectedRevision:tagsRevision.value});
     if (token !== generation) return;
+    if(result.error?.code==='METADATA_CONFLICT'){conflict.value=true;error.value='다른 태그 변경이 저장되었습니다. 초안을 확인한 후 다시 불러오세요.';return;}
     if (!result.ok || !Array.isArray(result.data?.tags)) throw new Error();
+    tagsRevision.value=result.data.tagsRevision ?? tagsRevision.value;
     tags.value = result.data.tags; input.value = ''; await refreshAssets();
   } catch { if(token === generation) error.value = '태그를 저장하지 못했습니다. 최대 32개·합계 512자, 각 64자까지 입력하세요.'; }
   finally { if(token === generation) busy.value = false; }
@@ -73,10 +76,10 @@ async function save() {
     </form>
     <button v-if="!loaded && !busy" type="button" @click="load(assetId)">사용자 정보 다시 불러오기</button>
     <h3>사용자 태그</h3>
-    <ul><li v-for="tag in tags" :key="tag">{{ tag }} <button type="button" :disabled="busy || !loaded" :aria-label="`${tag} 태그 삭제`" @click="edit([], [tag])">삭제</button></li></ul>
+    <ul><li v-for="tag in tags" :key="tag">{{ tag }} <button type="button" :disabled="busy || !loaded || conflict" :aria-label="`${tag} 태그 삭제`" @click="edit([], [tag])">삭제</button></li></ul>
     <form class="tag-form" @submit.prevent="input.trim() && edit([input.trim()], [])">
       <label>새 태그 <input v-model="input" maxlength="64" :disabled="busy || !loaded" /></label>
-      <button :disabled="busy || !loaded || !input.trim()">추가</button>
+      <button :disabled="busy || !loaded || conflict || !input.trim()">추가</button>
     </form>
     <p v-if="error" role="alert">{{ error }}</p>
   </section>

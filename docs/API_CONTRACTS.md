@@ -162,3 +162,18 @@ criteria는 library_id(UUID/null),folder_parts(구성요소 배열),kind(대문�
 - v4 metadata_decisions의 basic_text 필드에 title/description/aliases 객체와 revision·이력을 저장하고 기존 주석/표시명·설명 FTS 투영을 같은 트랜잭션으로 갱신한다. 충돌은 고정 METADATA_CONFLICT로 전체 롤백한다. UI는 초안을 유지하며 명시적 ‘초안을 버리고 다시 불러오기’ 전에는 재저장을 막는다.
 - 기존 3필드 요청은 별칭을 보존하며 현재 revision으로 저장한다. 구형 호출에는 낙관적 충돌 검사가 없고 새 UI는 항상 기대 revision을 보낸다. 메타데이터 전반의 충돌/이력 UI는 R08B-05 범위다.
 - 별칭 검색 색인/필터는 M08E 범위. 벡터 입력은 기존 AI 결과만 사용하며 편집으로 벡터를 생성/변경하지 않는다. 기존 MCP get_asset.user에는 기본 정보의 추가 필드가 포함되며 쓰기 도구/내부 결정 이력을 노출하지 않는다.
+# M08B 사용자 메타데이터 고정 명령
+
+모두 기존 Core 요청/응답 봉투를 사용하며 MCP 읽기 도구에 쓰기를 노출하지 않는다. 등록·스캔·조회·메타데이터 저장은 AI/임베딩 작업을 생성하지 않는다. Tauri 인자는 camelCase, Core 인자는 snake_case다.
+
+| Tauri 명령 | Core 메서드 | Core 입력 |
+| --- | --- | --- |
+| get_asset_management / save_asset_management | asset.management / asset.management.save | asset_id / asset_id,value,expected_revision |
+| get_asset_composition / save_asset_composition | asset.composition / asset.composition.save | asset_id / asset_id,value,expected_revision |
+| get_asset_relations / save_asset_relations | asset.relations / asset.relations.save | asset_id / asset_id,value,expected_revision |
+| asset_link_candidates | asset.link.candidates | asset_id,kind(file/component/asset/incoming),after_id(UUID 또는 null) |
+| asset_metadata_history | asset.metadata.history | asset_id,before_id(해당 에셋의 이력 정수 ID 또는 null) |
+
+각 저장은 해당 필드의 revision을 비교하고 성공 시 value/revision을 반환한다. 불일치는 METADATA_CONFLICT이며 투영·결정·이력을 모두 보존한다. 값 계약은 METADATA_SCHEMA.md의 R08B 절을 따른다. 후보는 2개, 이력은 1개씩 실제 ID 커서로 페이지 처리한다. 이력은 field/revision/action/actor(user)/createdAt/before/after를 반환하며 각 값의 직렬화가 6,000바이트를 넘으면 truncated/preview를 명시한다. DB 원문은 유지한다.
+
+asset.annotations는 tagsRevision도 반환한다. asset.tags는 expected_revision을 선택적으로 받으며 현재 UI는 반드시 전달한다. 기존 호출의 명시적 add/remove 및 batch 명령은 쓰기 잠금 안에서 최신 태그에 적용되고 각 에셋의 user_tags 이력을 기록한다. 이전 기본 텍스트 API의 레거시 호환 경로는 유지한다. 새로운 편집 UI는 읽은 revision을 항상 전달하며 충돌 시 초안을 유지하고 명시적 다시 불러오기를 제공한다.
