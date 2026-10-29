@@ -1487,6 +1487,74 @@ test('user title and description load and save explicitly', async () => {
   assert.match(document.querySelector('.annotation-form').textContent,/저장했습니다/);
 });
 
+test('basic text separates original name and aliases and only submits on save', async () => {
+  const calls=[];
+  await mountAnnotations(async (command,args) => {
+    calls.push([command,args]);
+    return {ok:true,data:{tags:[],title:'display',description:'notes',aliases:['Tree','숲'],originalName:'<img src=x>.png',revision:3}};
+  });
+  assert.match(document.querySelector('.original-name').textContent,/<img src=x>\.png/);
+  assert.equal(document.querySelector('.original-name img'),null);
+  const aliases=document.querySelector('.alias-input');
+  assert.equal(aliases.value,'Tree\n숲'); aliases.value='별칭\n second ';
+  dispatch(aliases,new Event('input',{bubbles:true})); await nextTick();
+  assert.equal(calls.length,1);
+  dispatch(document.querySelector('.annotation-form'),new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setImmediate(resolve)); await nextTick();
+  assert.deepEqual(calls[1],['save_asset_annotation',{assetId:'12345678-1234-4234-9234-123456789abc',title:'display',description:'notes',aliases:['별칭','second'],expectedRevision:3}]);
+  assert.equal(document.querySelector('.annotation-form input').maxLength,128);
+  assert.equal(document.querySelector('.annotation-form textarea').maxLength,1024);
+});
+
+test('basic text conflict preserves draft and requires explicit discard before reloading', async () => {
+  const calls=[];
+  await mountAnnotations(async (command,args) => {
+    calls.push([command,args]);
+    return command==='asset_annotations'?{ok:true,data:{tags:[],title:'server',aliases:['stored'],revision:2}}:
+      {ok:false,error:{code:'METADATA_CONFLICT',message:'PRIVATE raw error'}};
+  });
+  const aliases=document.querySelector('.alias-input'); aliases.value='unsaved';
+  dispatch(aliases,new Event('input',{bubbles:true}));
+  dispatch(document.querySelector('.annotation-form'),new Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setImmediate(resolve));await nextTick();
+  assert.equal(aliases.value,'unsaved');assert.equal(document.querySelector('.annotation-form button').disabled,true);
+  assert.doesNotMatch(document.body.textContent,/PRIVATE/);
+  assert.equal(calls.length,2);
+  const reload=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('초안을 버리고'));
+  dispatch(reload,new MouseEvent('click',{bubbles:true}));
+  await new Promise(resolve=>setImmediate(resolve));await nextTick();
+  assert.equal(document.querySelector('.alias-input').value,'stored');assert.equal(calls.length,3);
+});
+
+test('basic text save failure preserves draft and successful save advances revision', async () => {
+  const calls=[];let attempt=0;
+  await mountAnnotations(async (command,args) => {
+    calls.push([command,args]);
+    if(command==='asset_annotations')return {ok:true,data:{tags:[],aliases:['stored'],revision:4}};
+    if(command==='save_asset_annotation')return ++attempt===1?{ok:false,error:{code:'INVALID_PARAMS',message:'PRIVATE'}}:
+      {ok:true,data:{aliases:['normalized'],revision:5}};
+    return {ok:true,data:{items:[],next_cursor:null}};
+  });
+  const aliases=document.querySelector('.alias-input');aliases.value='draft';dispatch(aliases,new Event('input',{bubbles:true}));
+  const submit=async()=>{dispatch(document.querySelector('.annotation-form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();};
+  await submit();assert.equal(aliases.value,'draft');assert.doesNotMatch(document.body.textContent,/PRIVATE/);
+  await submit();assert.equal(aliases.value,'normalized');
+  await submit();assert.equal(calls.filter(c=>c[0]==='save_asset_annotation')[2][1].expectedRevision,5);
+});
+
+test('basic text ignores a late save result after changing selection', async () => {
+  app.unmount();globalThis.isTauri=true;let finish;
+  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>command==='save_asset_annotation'?new Promise(r=>{finish=r;}):
+    {ok:true,data:{tags:[],title:args.assetId,aliases:[args.assetId],originalName:args.assetId+'.png',revision:0}}};
+  const props=ref({assetId:'first'});app=createApp({render:()=>h(components.AssetAnnotations,props.value)});
+  app.config.errorHandler=error=>errors.push(error);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+  dispatch(document.querySelector('.annotation-form'),new Event('submit',{bubbles:true,cancelable:true}));await nextTick();
+  props.value={assetId:'second'};await nextTick();await new Promise(r=>setImmediate(r));await nextTick();
+  finish({ok:true,data:{aliases:['old-result'],revision:9}});await new Promise(r=>setImmediate(r));await nextTick();
+  assert.equal(document.querySelector('.alias-input').value,'second');assert.match(document.querySelector('.original-name').textContent,/second.png/);
+  assert.doesNotMatch(document.body.textContent,/저장했습니다/);
+});
+
 test('gallery multi-selection submits only selected asset IDs for batch tags', async () => {
   const calls=[];
   await mountGallery([{id:'first',name:'one',kind:'TXT'},{id:'second',name:'two',kind:'TXT'}]);

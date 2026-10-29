@@ -154,3 +154,11 @@ criteria는 library_id(UUID/null),folder_parts(구성요소 배열),kind(대문�
 | mcp_audit | mcp.audit | afterId→after_id / 최근 10개 items,next_cursor |
 
 이 두 명령은 Host에 노출하지 않는다. Host 도구 5개의 인자·반환값은 MCP.md에 정의하며 Core의 별도 고정 읽기 dispatch를 통과한다. 조회 결과 외의 DB 변경은 Core 감사 기록만 허용한다. Host 도구는 SQL/임의 Core 명령·AI 실행·임의 원본 파일 경로 인자를 받지 않는다. Bridge 실행 설정의 data-dir는 별도 세션 발견 경로다.
+
+
+## R08B-01 기본 텍스트 편집 확장
+- asset.annotations 결과에 aliases(string[]), originalName(string), revision(int)을 추가한다. 원본 이름은 스캔으로 기록한 assets.display_name으로 읽기 전용이다. 표시명 override와 별개이며 파일명 변경 명령은 없다.
+- Tauri save_asset_annotation의 aliases/expectedRevision을 Core asset.annotate의 aliases/expected_revision으로 함께 보낸다. 표시명 128자·설명 1024자. 별칭은 최대 16개·각 64자·중복 제거 후 합계 512자, NFKC/양끝 공백 정리·casefold 중복 제거(첫 표기 보존), 제어문자/서로게이트 거부다. 빈 배열은 명시적 비움이다.
+- v4 metadata_decisions의 basic_text 필드에 title/description/aliases 객체와 revision·이력을 저장하고 기존 주석/표시명·설명 FTS 투영을 같은 트랜잭션으로 갱신한다. 충돌은 고정 METADATA_CONFLICT로 전체 롤백한다. UI는 초안을 유지하며 명시적 ‘초안을 버리고 다시 불러오기’ 전에는 재저장을 막는다.
+- 기존 3필드 요청은 별칭을 보존하며 현재 revision으로 저장한다. 구형 호출에는 낙관적 충돌 검사가 없고 새 UI는 항상 기대 revision을 보낸다. 메타데이터 전반의 충돌/이력 UI는 R08B-05 범위다.
+- 별칭 검색 색인/필터는 M08E 범위. 벡터 입력은 기존 AI 결과만 사용하며 편집으로 벡터를 생성/변경하지 않는다. 기존 MCP get_asset.user에는 기본 정보의 추가 필드가 포함되며 쓰기 도구/내부 결정 이력을 노출하지 않는다.

@@ -434,7 +434,7 @@ mod tests {
         assert_eq!(
             core.library_request(
                 "asset.annotate",
-                json!({"asset_id":id,"title":"나무","description":"산속의 푸른 나무"})
+                json!({"asset_id":id,"title":"나무","description":"산속의 푸른 나무","aliases":["Tree","숲 나무"],"expected_revision":0})
             )
             .unwrap()["ok"],
             true
@@ -446,10 +446,21 @@ mod tests {
         );
 
         assert_eq!(std::fs::read(source.join("fixture.png")).unwrap(), png);
+        let saved = core
+            .library_request("asset.annotations", json!({"asset_id":id}))
+            .unwrap();
+        assert_eq!(saved["data"]["aliases"], json!(["Tree", "숲 나무"]));
+        assert_eq!(saved["data"]["originalName"], "fixture.png");
+        let conflict = core.library_request("asset.annotate", json!({"asset_id":id,"title":"stale","description":"","aliases":[],"expected_revision":0})).unwrap();
+        assert_eq!(conflict["error"]["code"], "METADATA_CONFLICT");
         core.stop();
         let next = core.start().unwrap();
         assert_eq!(next["data"]["database"]["status"], "ready");
         assert_ne!(first["data"]["core"]["pid"], next["data"]["core"]["pid"]);
+        let reopened = core
+            .library_request("asset.annotations", json!({"asset_id":id}))
+            .unwrap();
+        assert_eq!(reopened["data"], saved["data"]);
     }
 
     #[test]

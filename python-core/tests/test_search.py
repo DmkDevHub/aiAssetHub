@@ -58,9 +58,9 @@ class SearchTests(unittest.TestCase):
         path=self.base/'old.sqlite'; database=Database(path,migrations=old)
         library=LibraryService(database).register({'path':str(self.source)})['library']['id']
         AssetService(database).scan({'library_id':library})
-        from ai_asset_hub_core.annotations import AnnotationService
         identifier=AssetService(database).list({})['items'][0]['id']
-        AnnotationService(database).save({'asset_id':identifier,'title':'이전 별칭','description':'마이그레이션 보존'})
+        # Seed historical v1 rows directly; the current service requires v4.
+        database.connection.execute('INSERT INTO asset_user_annotations VALUES (?,?,?,?)',(identifier,'이전 별칭','마이그레이션 보존','fixture'))
         database.connection.execute("INSERT INTO search_documents VALUES (?,'stale v1 index',1,'fixture')",(identifier,))
         database.close(); database=Database(path)
         try:

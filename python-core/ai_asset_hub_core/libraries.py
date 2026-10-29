@@ -130,6 +130,7 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'METADATA_CONFLICT': '다른 변경이 저장되었습니다. 정보를 다시 불러온 후 저장하세요.',
     'EMBEDDING_LIMIT': '임베딩 처리 범위 또는 텍스트 한도를 초과했습니다.',
     'EMBEDDING_RESULT_CHANGED': '현재 활성 분석 결과가 변경되었거나 원본 재확인이 필요합니다.',
     'EMBEDDING_FAILED': '로컬 임베딩 요청에 실패했습니다.',

@@ -436,3 +436,12 @@ R08A-04: `npm run test:core` Python 111개 통과. 실제 파일 UUID·내용 �
 - 보고/로그: `.artifacts/r08a-final-check.log`, `r08a-check.log`, `r08a-store-tests.log`, `r08a-rust.log`, `r08a-clippy.log`, `r08a-installer-build.log`, `r08a-installed-check.log`, `r08a-analyzed-host.json`; 설치본 Host 보고는 `.artifacts/m08-installed-host.json`. 최종 설치/개발 Sidecar SHA256 `231f1235c85ea36ff3398f2042083947635bce3116bcfb66ff74df63ec4f3a7d` 일치.
 - 설치 파일 23619224 bytes, SHA256 `7716dcfebeaa099f17149e283617712e1d7d7833ce0c5a11e7edb2c592d2bb5f`. 기존 NSIS Korean choowHowToInstall 문자열 경고 1개 유지.
 - M08A 완료 범위는 분류/우선순위 계약과 DB 저장 기반이다. 새 분류 편집/사전 관리 UI·공개 쓰기 API·검색 투영·다중 형식 실제 분석은 M08B 이후 범위다. 실제 GUI·깨끗한 PC·대규모 성능은 미검증. 화면 조작·사용자 원본/기존 AppData 변경·원격 push 없음.
+
+
+## R08B-01 내부 검증 (2026-10-29)
+- npm run check: Node 120개·Python 120개, 타입 검사·Vite 빌드 통과. 신규 DOM 4개·Python 3개를 추가했다. 로그 .artifacts/r08b-01-check.log.
+- DOM(mock Core): 원본 이름 HTML 이스케이프/표시명·별칭·설명 분리·입력만으로 호출 없음·고정 저장 인자·revision 갱신·충돌/일반 실패 초안 보존·명시 재조회·선택 변경 후 늦은 저장 결과 무시 확인.
+- 실제 격리 SQLite/원본 fixture: NFKC/casefold 중복 제거·개수/개별/합계 한도·빈 배열·제어문자/서로게이트 거부·DB 재개방/재스캔·UUID/파일명/bytes 보존·구형 저장의 별칭 보존·stale revision 거부·후반 SQL 실패 시 결정/이력/주석 전체 롤백·고정 오류 원문 비노출 확인. 새 분석 Job/run/벡터/claim 0건이며 모델 실호출 없음.
+- 구형 v1/v3 업그레이드 테스트는 현행 v4 서비스 대신 당시 스키마에 직접 fixture를 넣도록 수정했다. 업그레이드/백업/FTS/원본 보존 회귀는 유지한다. 최초 샌드박스 실행은 localhost 제한으로 MCP 검사가 실패했고 동일 격리 검사를 권한 확장 후 재실행해 통과했다.
+- cargo test --manifest-path src-tauri/Cargo.toml --lib --locked: 12개 통과, 패키지 전용 1개 ignored. 실제 자식 파이프로 별칭 저장·충돌·원본 보존·Core 재시작 조회 일치 확인. cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings 통과. 로그 r08b-01-rust.log / r08b-01-clippy.log.
+- 총 252개 내부 테스트 통과. 실제 GUI·OS 화면·이번 변경의 설치본은 미검증이며 설치 패키지 검사는 미실행이다. 별칭 검색 색인은 M08E, 관리 필드/다중 파일/관계/전체 이력 UI는 R08B-02~05에 남긴다. 실제 화면 직접 조작·사용자 원본/AppData 변경·AI/임베딩 호출·push 없음.

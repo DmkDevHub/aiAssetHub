@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { refreshAssets } from '../stores/assets';
 const title = ref(''), description = ref(''), notice = ref('');
+const aliases = ref(''), originalName = ref(''), revision = ref(0), conflict = ref(false);
 const props = defineProps<{assetId: string; userTags?: readonly string[]}>();
 const tags = ref<string[]>([]), input = ref(''), error = ref(''), busy = ref(false), loaded = ref(false);
 let generation = 0;
@@ -10,12 +11,15 @@ onBeforeUnmount(() => { generation++; });
 async function load(id: string) {
   const token = ++generation; loaded.value = false;
   tags.value = []; input.value = ''; title.value = ''; description.value = ''; notice.value = ''; error.value = ''; busy.value = true;
+  aliases.value = ''; originalName.value = ''; revision.value = 0; conflict.value = false;
   if (!isTauri()) { busy.value = false; return; }
   try {
-    const result = await invoke<{ok:boolean;data:{tags:string[];title?:string;description?:string}}>('asset_annotations', {assetId:id});
+    const result = await invoke<{ok:boolean;data:{tags:string[];title?:string;description?:string;aliases?:string[];originalName?:string;revision?:number}}>('asset_annotations', {assetId:id});
     if (token !== generation) return;
     if (!result.ok || !Array.isArray(result.data?.tags)) throw new Error();
     loaded.value = true; tags.value = result.data.tags; title.value = result.data.title ?? ''; description.value = result.data.description ?? '';
+    aliases.value = (result.data.aliases ?? []).join('\n'); originalName.value = result.data.originalName ?? '';
+    revision.value = result.data.revision ?? 0;
   } catch { if(token === generation) error.value = '사용자 정보를 불러오지 못했습니다.'; }
   finally { if(token === generation) busy.value = false; }
 }
@@ -34,12 +38,20 @@ async function edit(add: string[], remove: string[]) {
   finally { if(token === generation) busy.value = false; }
 }
 async function save() {
-  if (busy.value || !loaded.value || !isTauri()) return;
+  if (busy.value || !loaded.value || conflict.value || !isTauri()) return;
   const token = generation; busy.value = true; error.value = ''; notice.value = '';
   try {
-    const result = await invoke<{ok:boolean}>('save_asset_annotation', {assetId:props.assetId,title:title.value,description:description.value});
+    const result = await invoke<{ok:boolean;data?:{revision:number;aliases:string[]};error?:{code:string}}>('save_asset_annotation', {
+      assetId:props.assetId,title:title.value,description:description.value,
+      aliases:aliases.value.split('\n').map(value => value.trim()).filter(Boolean),expectedRevision:revision.value,
+    });
     if(token !== generation) return;
+    if(result.error?.code === 'METADATA_CONFLICT') {
+      conflict.value = true; error.value = '다른 변경이 저장되었습니다. 초안을 확인한 후 다시 불러오세요.'; return;
+    }
     if(!result.ok) throw new Error();
+    revision.value = result.data?.revision ?? revision.value;
+    if (Array.isArray(result.data?.aliases)) aliases.value = result.data.aliases.join('\n');
     notice.value = '저장했습니다.'; await refreshAssets();
   } catch { if(token===generation) error.value = '사용자 정보를 저장하지 못했습니다.'; }
   finally { if(token===generation) busy.value = false; }
@@ -48,11 +60,15 @@ async function save() {
 <template>
   <section aria-label="사용자 수정 정보와 태그" class="user-annotations">
     <h3>사용자 수정 정보</h3>
-    <p>사용자가 저장한 표시명·설명·태그입니다. AI 결과와 별도로 보존됩니다.</p>
+    <p>사용자가 저장한 표시명·별칭·설명·태그입니다. AI 결과와 별도로 보존됩니다. 실제 파일명은 변경하지 않습니다.</p>
+    <p class="original-name">원본 이름: {{ originalName || '미확인' }}</p>
     <form class="annotation-form" @submit.prevent="save">
       <label>표시명 <input v-model="title" maxlength="128" :disabled="busy || !loaded" placeholder="비워 두면 파일명 사용" /></label>
       <label>사용자 설명 <textarea v-model="description" maxlength="1024" :disabled="busy || !loaded" /></label>
-      <button :disabled="busy || !loaded">정보 저장</button>
+      <label>별칭 (한 줄에 하나) <textarea v-model="aliases" class="alias-input" maxlength="1039" :disabled="busy || !loaded" /></label>
+      <p>별칭은 최대 16개·각 64자·합계 512자입니다.</p>
+      <button :disabled="busy || !loaded || conflict">정보 저장</button>
+      <button v-if="conflict" type="button" @click="load(assetId)">초안을 버리고 다시 불러오기</button>
       <p v-if="notice" role="status">{{ notice }}</p>
     </form>
     <button v-if="!loaded && !busy" type="button" @click="load(assetId)">사용자 정보 다시 불러오기</button>

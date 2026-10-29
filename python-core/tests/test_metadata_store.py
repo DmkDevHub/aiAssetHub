@@ -87,11 +87,13 @@ class MetadataStoreTests(unittest.TestCase):
         self.db=Database(self.base/'v3.sqlite',migrations=scripts)
         from ai_asset_hub_core.libraries import LibraryService
         from ai_asset_hub_core.assets import AssetService
-        from ai_asset_hub_core.annotations import AnnotationService
         library=LibraryService(self.db).register({'path':str(self.source)})['library']['id'];AssetService(self.db).scan({'library_id':library})
         self.id=AssetService(self.db).list({})['items'][0]['id']
-        AnnotationService(self.db).tags({'asset_id':self.id,'add':['보존 태그'],'remove':[]})
-        AnnotationService(self.db).save({'asset_id':self.id,'title':'사용자 표시명','description':'사용자 메모'})
+        # Historical v3 fixture: seed the old schema without the current v4 service.
+        tag = str(uuid4())
+        self.db.connection.execute('INSERT INTO tags VALUES (?,?,?)',(tag,'보존 태그','보존 태그'))
+        self.db.connection.execute("INSERT INTO asset_tags(asset_id,tag_id,source) VALUES (?,?,'user')",(self.id,tag))
+        self.db.connection.execute('INSERT INTO asset_user_annotations VALUES (?,?,?,?)',(self.id,'사용자 표시명','사용자 메모','fixture'))
         test_analysis.AnalysisTests.history(self,self.id,'completed',True)
         test_analysis.AnalysisTests.history(self,self.id,'failed',timestamp='2026-10-28T00:00:01Z')
         self.db.connection.execute("UPDATE asset_files SET sha256='fixture'")

@@ -509,16 +509,23 @@ async fn save_asset_annotation(
     asset_id: String,
     title: String,
     description: String,
+    aliases: Option<Vec<String>>,
+    expected_revision: Option<u64>,
 ) -> Result<serde_json::Value, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let mut params =
+            serde_json::json!({"asset_id":asset_id,"title":title,"description":description});
+        if let Some(aliases) = aliases {
+            params["aliases"] = serde_json::json!(aliases);
+            params["expected_revision"] = serde_json::json!(expected_revision);
+        } else if expected_revision.is_some() {
+            return Err("INVALID_PARAMS");
+        }
         state
             .lock()
             .map_err(|_| "CORE_UNAVAILABLE")?
-            .library_request(
-                "asset.annotate",
-                serde_json::json!({"asset_id":asset_id,"title":title,"description":description}),
-            )
+            .library_request("asset.annotate", params)
     })
     .await
     .map_err(|_| "CORE_UNAVAILABLE".to_string())?

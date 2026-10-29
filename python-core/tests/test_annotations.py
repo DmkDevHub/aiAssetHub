@@ -64,6 +64,58 @@ class AnnotationTests(unittest.TestCase):
         self.service.batch({'asset_ids':[self.id,other],'add':[],'remove':['숲']})
         self.assertEqual(self.service.get({'asset_id':other})['tags'],[])
 
+    def test_basic_text_aliases_survive_reopen_rescan_and_legacy_save(self):
+        params = {'asset_id':self.id, 'title':'표시 나무', 'description':'사용자 설명',
+                  'aliases':[' Tree ', 'ＴＲＥＥ', '숲 나무'], 'expected_revision':0}
+        result = self.service.save(params)
+        self.assertEqual(result['aliases'], ['Tree','숲 나무'])
+        self.assertEqual(result['originalName'], '나무.png')
+        self.assertEqual(result['revision'], 1)
+        self.db.close(); self.db = Database(self.base / 'db.sqlite'); self.service = AnnotationService(self.db)
+        library = self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        AssetService(self.db).scan({'library_id':library})
+        self.assertEqual(self.service.get({'asset_id':self.id}), result)
+        self.service.save({'asset_id':self.id,'title':'다른 표시명','description':'설명'})
+        self.assertEqual(self.service.get({'asset_id':self.id})['aliases'], result['aliases'])
+        self.assertEqual([p.name for p in self.source.iterdir()], ['나무.png'])
+        self.assertEqual((self.source/'나무.png').read_bytes(), b'original')
+        for table in ('analysis_jobs','analysis_runs','asset_embeddings','metadata_claims'):
+            self.assertEqual(self.db.connection.execute(f'SELECT count(*) FROM {table}').fetchone()[0], 0)
+
+    def test_basic_text_input_limits_conflicts_and_atomic_rollback(self):
+        import sqlite3
+        params = {'asset_id':self.id,'title':'saved','description':'saved', 'aliases':['saved'],'expected_revision':0}
+        saved = self.service.save(params)
+        for aliases in (None, '', ['x']*17, ['x'*65], ['x'*63+str(i) for i in range(9)], ['bad\nline'], [None], ['\ud800']):
+            with self.assertRaises(LibraryError): self.service.save({**params,'aliases':aliases,'expected_revision':1})
+        for key,value in (('title','x'*129),('description','x'*1025),('title','secret\0'),('description','\ud800')):
+            with self.assertRaises(LibraryError): self.service.save({**params,key:value,'expected_revision':1})
+        for version in (0, True, -1, None, '1'):
+            with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):
+                self.service.save({**params,'title':'not saved','expected_revision':version})
+        self.db.connection.execute("CREATE TRIGGER fixture_reject BEFORE UPDATE ON asset_user_annotations BEGIN SELECT RAISE(ABORT,'fixture'); END")
+        with self.assertRaises(sqlite3.Error): self.service.save({**params,'title':'rollback','expected_revision':1})
+        self.assertEqual(self.service.get({'asset_id':self.id}), saved)
+        self.assertEqual(self.db.connection.execute("SELECT count(*) FROM metadata_decision_history WHERE field='basic_text'").fetchone()[0],1)
+
+    def test_basic_text_clear_limits_and_safe_application_errors(self):
+        from ai_asset_hub_core.application import CoreApplication
+        from uuid import uuid4
+        service = CoreApplication(self.db)
+        request = lambda params: service.handle({'request_id':str(uuid4()),'method':'asset.annotate','params':params})
+        params={'asset_id':self.id,'title':'a'*128,'description':'설'*1024,'aliases':[str(i)+'x'*63 for i in range(8)],'expected_revision':0}
+        self.assertTrue(request(params)['ok'])
+        conflict=request({**params,'title':'PRIVATE draft'})
+        self.assertEqual(conflict['error']['code'],'METADATA_CONFLICT')
+        self.assertNotIn('PRIVATE',str(conflict))
+        self.assertTrue(request({**params,'title':'','description':'','aliases':[],'expected_revision':1})['ok'])
+        result=self.service.get({'asset_id':self.id})
+        self.assertEqual((result['title'],result['description'],result['aliases']),('','',[]))
+        self.assertEqual(AssetService(self.db).list({})['items'][0]['name'],'나무.png')
+        for query in ('asset.annotate','asset.annotations'):
+            response=service.handle({'request_id':str(uuid4()),'method':query,'params':{'asset_id':str(uuid4())}})
+            self.assertFalse(response['ok'])
+
     def test_failed_reanalysis_keeps_completed_filter_and_ai_tags(self):
         from uuid import uuid4
         job, success, failed, result = [str(uuid4()) for _ in range(4)]
