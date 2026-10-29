@@ -227,5 +227,5 @@
 
 
 ## 개발 지원 문서
-- [ ] **ENV-02** 새 PC 개발 환경 실제 복원·검증. 2026-10-29 Windows x64에서 CPython/Node·npm/Rust/MSVC·SDK와 새 venv/Sidecar 준비. Build Tools 설치 종료 3010으로 재부팅 필요. 내부 테스트·타입/Rust 검사·설치본 빌드·격리 무화면 설치 검증은 재부팅 후 실행해야 하므로 미완료. 실측은 [TEST_PLAN](TEST_PLAN.md)의 ENV-02에 기록.
+- [x] **ENV-02** 새 PC 개발 환경 실제 복원·검증. 2026-10-29 도구/새 venv·Sidecar 준비 후 Build Tools 종료 3010으로 재부팅. 2026-10-30 순차 검증에서 Node 137·Python 152·Rust 13개(패키지 포함), 타입/Vite·fmt·Clippy·NSIS 빌드 및 격리 무화면 설치/MCP/제거 통과. 최초 MCP 레거시 조회 1회 실패는 원인 미확정으로 보존했고 진단 재실행과 원본 전체 검증 재실행은 통과했다. AI/데이터 이전/실제 GUI는 미실행. 실측·설치본 해시는 [TEST_PLAN](TEST_PLAN.md)의 ENV-02에 기록.
 - [x] **ENV-01** 새 Windows PC 개발 환경 이전 안내. Git 제외 항목/도구 조사·공식 설치·잠금 의존성/Sidecar 재생성·순차 내부 테스트/설치 검증·선택적 DB/원본/Ollama 이전과 에이전트 인계 요청을 정리했다. PowerShell 예제 8개 구문 오류 0·로컬 링크 36개 누락 0·diff 공백 검사 통과. 새 PC 설치/실행은 미실행이며 제품 마일스톤 완료로 간주하지 않는다. [안내](NEW_PC_SETUP.md).

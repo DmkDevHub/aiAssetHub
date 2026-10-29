@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### 2026-10-30 — [ENV-02] 재부팅 후 개발 환경 검증 완료
+- Node 137·Python 152·Rust 13개, 타입/Vite·fmt·Clippy와 Windows 설치본 빌드 및 격리 무화면 설치/MCP/제거를 순차 검증했다. 최초 MCP 레거시 조회 1회 실패와 원인 미확정 사항을 보존했으며, 진단 및 원본 전체 검증 재실행은 통과했다.
+- TEST_PLAN에 종료 코드·시간·설치본/Sidecar 해시·로그와 미검증 범위를 기록하고 ROADMAP을 완료로 갱신했다. 제품 코드/잠금 파일 변경·AI 호출·사용자 데이터 이전·GUI 조작·원격 push 없음.
+
 ### 2026-10-29 — [ENV-02] 새 PC 도구·의존성·Sidecar 준비 (검증 대기)
 - Windows x64 도구 조사 후 공식 CPython 3.13.17, Node 24.22.2/npm 11.19.1, Rust 1.99.1, Build Tools 2022/MSVC/SDK를 준비하고 잠금 의존성과 새 프로젝트 venv/Sidecar를 생성했다. 기존 Git/WebView2는 재설치하지 않았다.
 - Build Tools 종료 3010(재부팅 필요)에 따라 후속 내부 테스트·타입/Rust 검사·설치본 빌드/검증은 미실행. 실제 버전·실패 로그·재개 명령을 TEST_PLAN에 기록했으며 ENV-02는 미완료다.

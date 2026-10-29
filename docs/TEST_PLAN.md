@@ -557,3 +557,44 @@ npm.cmd --version
 현재 로그: `.artifacts/new-pc-python-{retry,machine}*.log`, `new-pc-rustup-install.log`, `new-pc-rust-toolchain.log`, `new-pc-npm-ci.log`, `new-pc-package-core.log`. 환경 스냅샷 `new-pc-inventory.json`, VS 상태 `new-pc-vswhere.json`, 종료 코드 요약 `new-pc-provision-status.json`. Build Tools의 3010은 대기 프로세스 실측을 위 요약에 기록했다. 설치 도구/로그/venv/Sidecar는 Git 제외 상태다.
 
 사용자 DB·원본 에셋·모델·기존 프로그램 제거/덮어쓰기·전역 보안 설정 변경·앱/브라우저 화면 실행·Computer Use·다음 기능 개발·원격 push는 수행하지 않았다. 실제 GUI/OS 시각 배치·깨끗한 PC 실행·성능·서명/업데이트는 미검증이다. 문서 변경만 커밋하며 ENV-02 체크는 미완료로 유지한다.
+
+## ENV-02 재부팅 후 순차 검증 (2026-10-30)
+
+아래는 앞 절의 재부팅 대기 이후 같은 PC에서 실제 실행한 결과다. 재부팅 시각은 CIM 실측 `2026-10-29 23:53:21.500 +09:00`, OS Caption은 **Microsoft Windows 11 Pro**, 버전 `10.0.26300`, 64비트로 확인했다. 이전 레지스트리 ProductName과 달리 CIM에서 제품명이 확인됐다. vswhere 재부팅 요구는 0이다. 저장소는 `a88e804`에서 작업 변경 없이 시작했다.
+
+`./.artifacts/Use-DevEnvironment.ps1`을 현재 PowerShell에 로드해 이전 절의 Node 24.22.2/npm 11.19.1·기반 CPython 3.13.17·Rust MSVC 1.99.1을 사용했다. 저장소 override와 `AI_ASSET_HUB_SIDECAR_DIR`를 확인했다. 검증은 아래 순서로 직렬 실행했으며 테스트와 설치본 빌드는 겹치지 않았다. `.artifacts/Run-NewPcStep.ps1`은 각 실제 명령의 종료 코드와 실행 시간을 기록했다.
+
+| 실제 실행 명령 | 결과 | 실측 시간 |
+| --- | --- | --- |
+| `npm.cmd run check` | **통과**, 종료 0 — Node 137/137, Python 152/152, vue-tsc/tsc, Vite 빌드 | 전체 52.657초; Node 20.968초, Python 17.575초, Vite 1.07초 |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | **통과**, 종료 0 | 2.795초 |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | **통과**, 종료 0, 경고 없음 | 95.510초 (최초 의존성 다운로드/컴파일 포함) |
+| `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1` | **통과**, 종료 0 — 13/13、ignored 0、실패 0 | 전체 79.142초, 테스트 4.63초 |
+
+고유 내부 테스트는 **302개(Node 137 + Python 152 + Rust 13)** 통과했다. Rust는 실제 개발 Core 파이프·PID/EOF/재시작/DB 보존·비정상 종료/시간 초과 및 인자 레드랙션, Python/개발 PATH 없는 동봉 Core 테스트를 포함한다. 폴더 선택 테스트는 어댑터/내부 경로 정책을 검사하며 OS 선택 창을 열지 않았다. DOM 테스트는 jsdom을 사용했다. 잠금 파일이나 제품 코드를 바꾸지 않았으며 AI/유료 공급자 실호출은 없다.
+
+| 후속 실제 실행 명령 | 결과 | 실측 시간 |
+| --- | --- | --- |
+| `npm.cmd run build:installer` | **통과**, 종료 0; 잠금 Cargo 의존성으로 x64 NSIS 생성, beforeBuildCommand의 타입/Vite·Core 패키징도 성공 | 191.297초, Release 컴파일 2분 23초 |
+| `./scripts/verify-installer.ps1 -Mcp` 첫 실행 | **실패**, 종료 1; Core/DB v6 검증 후 레거시 Host `get_asset`의 `is_error` 단언 실패 | 35.936초 |
+| 진단용 MCP 스크립트 복사본 (아래 설명) | **통과**, 종료 0; 같은 설치 Core의 최신/레거시 검증 | 전체 시간 별도 계측 안 함 |
+| `./scripts/verify-installer.ps1 -Mcp` 원본 재실행 | **통과**, 종료 0; 새 격리 설치부터 Core/DB/MCP·제거까지 전체 성공 | 34.337초 |
+
+**최초 실패·남은 불확실성:** `.artifacts/new-pc-verify-first-failure.log`에 최초 실패를 보존했다. 최신 MCP 조회·Core 종료 오류·명시 재시작·원본 보존 단언 뒤 레거시 `get_asset`이 `is_error`를 반환했지만, 당시 스크립트가 오류 본문을 출력하지 않아 구체적인 응답 코드는 확인하지 못했다. 첫 fixture DB의 감사 마지막 레거시 조회는 `succeeded`/errorCode null이다. 오류 단언에 응답 출력만 추가한 Git 제외 복사본 `.artifacts/new-pc-verify-mcp-debug.py`로 재실행하자 성공했고, 그 뒤 **수정하지 않은 원본 설치 검증도 새 경로에서 통과**했다. 일시적 실패의 원인은 미확정이며 수정 완료나 안정성 결함 해소로 표시하지 않는다. 제품 코드/SDK/타임아웃/인증/단언을 완화하지 않았다. 필요 시 후속 별도 작업으로 재현·진단해야 한다.
+
+첫 실패 때문에 남은 **검증 전용** 설치본은 보고서 경로가 저장소 `.artifacts/m02-installed-<UUID>` 내부인지 확인한 뒤 그 경로의 `uninstall.exe /S`를 숨김 실행해 종료 0·전용 레지스트리 제거를 확인했다. 이후 원본 전체 검증은 새 `m02-installed-469638e1-cd4d-4414-b34a-3f9d0b77d4f5` 경로에서 수행했다. 재실행이 끝난 뒤 설치 exe·검증 등록·실행 Core PID 모두 없음을 확인했고, 테스트 데이터/보고서는 보존했다. 기존 사용자 프로그램을 제거하지 않았다.
+
+설치 검증 최종 실측:
+
+- 설치 버전 0.5.0, 설치 Sidecar/소스 SHA256 일치, 동봉 마이그레이션 확인. Python 없는 PATH와 잘못된 PYTHONHOME/PYTHONPATH에서도 `--verify-core` 분기가 창을 만들지 않고 Core PID 12820·SQLite 3.50.4·DB ready/WAL·스키마 v6를 반환했다. stderr 비어 있음, 종료 후 Core 프로세스 없음.
+- 공식 Python MCP SDK Client로 읽기 도구 5종(`list_libraries`, `search_assets`, `get_asset`, `get_asset_files`, `get_analysis_status`)·실제 fixture ID·안전 경로·거부 감사와 질의 원문 레드랙션을 확인했다. 최신 `2026-07-28` 및 레거시 `2025-11-25` 협상, Core 종료 오류·명시 재시작 PID 변경·조회 결과/fixture 원본 해시 보존을 검증했다. `noAnalysisOrEmbeddingCreated=true`, `guiOpened=false`, `pythonOnPath=false`이다. 생성된 테스트 에셋은 미분석 상태(`activeResultId=null`)이며 실제 모델을 호출하지 않았다.
+- 이번 PC에는 기존 AI Asset Hub HKCU 설치 등록이 없었고 검증 후에도 없다. 따라서 기존 설치가 존재하는 상태의 업그레이드/보존은 이번 결과로 보증하지 않는다. 격리 검증 설치의 정상 제거는 확인했다.
+- 검증용 NSIS 재컴파일에서 기존 Korean `choowHowToInstall` 경고 6040이 발생했다(동일 문구 반복 출력 후 요약 1 warning). 설치/검증 종료 코드와 구분해 기록하며 현지화 경고는 남아 있다.
+
+최종 설치 파일: `D:\ai_workspace\aiAssetHub\src-tauri\target\release\bundle\nsis\AI Asset Hub_0.5.0_x64-setup.exe`, **24,037,209 bytes**, SHA256 `0a8e32473b49caaf147520b8931147104415a049f2323e4dbcc0f1dccb1dc25a`.
+
+Sidecar SHA256 `403ddcf35b8f8554760bef1b4c9d2b38ed0835bb0ccd65c27a2f0d4cd8586d72`는 빌드 manifest·소스·최종 설치 검증 보고서에서 일치한다. 설치본/Sidecar는 Git 제외 산출물이며 일반 사용자용 제품을 별도로 설치하거나 실행하지 않았다.
+
+로그/근거: `.artifacts/new-pc-check.log`, `new-pc-fmt.log`, `new-pc-clippy.log`, `new-pc-rust-tests.log`, `new-pc-installer.log`, `new-pc-verify.log`, `new-pc-verify-first-failure.log`, `new-pc-mcp-debug.log`; 명령별 실측 `new-pc-steps.jsonl`; 설치 Core/Host 보고서 `new-pc-installed-result.json`, `new-pc-installed-host.json`; 해시 `new-pc-final-hashes.json`; 재부팅/OS `new-pc-post-reboot.json`; 설치 전 등록 `new-pc-install-registry-before.json`; 최종 정리 `new-pc-final-cleanup.json`. 원본 검증 스크립트가 생성한 `r02-05-installed-result.json`, `m08-installed-host.json`도 보존했다.
+
+**완료 범위:** ENV-02의 도구/새 환경·Sidecar 복원, 순차 내부 테스트·타입/Rust 검사, Windows 설치본 빌드·격리 무화면 설치/제거 검증을 완료했다. 최초 실패는 위에 별도 기록했다. 변경 파일은 `docs/TEST_PLAN.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`이며 기능/잠금 파일 변경은 없다. Ollama/모델 다운로드·실제 AI 추론·사용자 DB/원본 이전·실제 GUI/OS 시각 배치·개발 도구가 없는 깨끗한 PC·서명/업그레이드·대규모 성능은 **미실행/미검증**이다. 앱/브라우저 화면 조작·다음 기능 개발·원격 push는 수행하지 않았다.
