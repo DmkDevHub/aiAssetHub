@@ -42,7 +42,11 @@ class Broker:
 
     def dispatch(self,database,tool,arguments,host,identifier):
         if tool=='_health' and arguments=={}:return {'status':'ready'}
-        raise BrokerError('TOOL_NOT_ALLOWED')
+        from .mcp_queries import McpQueries
+        from .libraries import LibraryError
+        try:return McpQueries(database).dispatch(tool,arguments)
+        except LibraryError as error:
+            raise BrokerError(str(error) if str(error) in ('INVALID_PARAMS','MCP_TOOL_NOT_ALLOWED','MCP_ASSET_NOT_FOUND','MCP_SEARCH_LIMIT') else 'CORE_UNAVAILABLE') from None
 
     def run(self):
         from .database import Database
@@ -100,7 +104,7 @@ class BrokerClient:
                 connection.sendall(encode({'token':info['token'],'session':info['session'],'request_id':identifier,'host':host,'tool':tool,'arguments':arguments}))
                 with connection.makefile('rb') as source:result=frame(source)
             if result.get('request_id')!=identifier or result.get('session')!=info['session'] or result.get('pid')!=info['pid']:raise ValueError()
-            if result.get('ok') is not True:raise BrokerError(result.get('error') if result.get('error') in ('AUTH_DENIED','INVALID_PARAMS','TOOL_NOT_ALLOWED') else 'CORE_UNAVAILABLE')
+            if result.get('ok') is not True:raise BrokerError(result.get('error') if result.get('error') in ('AUTH_DENIED','INVALID_PARAMS','TOOL_NOT_ALLOWED','MCP_TOOL_NOT_ALLOWED','MCP_ASSET_NOT_FOUND','MCP_SEARCH_LIMIT') else 'CORE_UNAVAILABLE')
             return result['data']
         except BrokerError:raise
         except (OSError,ValueError,KeyError,TypeError):raise BrokerError('CORE_UNAVAILABLE') from None

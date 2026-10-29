@@ -21,6 +21,11 @@ Host의 stdio command는 설치 폴더의 실제 `ai-asset-hub-core.exe`, args�
 
 공식 Python SDK 2.3.0의 Client를 reference Host로 사용한 별도 프로세스 상호 운용 및 프로토콜 `2026-07-28` 협상을 실측했다. Codex/Claude의 개인 설정을 변경하거나 해당 제품의 모델을 실행한 것은 아니다. 표준 stdio와 구형 협상 지원 범위는 공식 SDK에 위임한다. [공식 SDK](https://github.com/modelcontextprotocol/python-sdk), [Client 전송](https://py.sdk.modelcontextprotocol.io/client/), [stdio 규격](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
 
+## R08-02 조회 계약
+`list_libraries(after_id?)`는 활성 루트의 실제 id/name/path와 next_cursor를 반환한다. `search_assets(query,filters?,limit=10,after_id?,mode="keyword")`는 실제 id/name/libraryId/relativePath/kind·최대 512자 설명/출처·저장된 분석 상태를 items로 반환한다. limit는 1~20, UUID cursor는 안정적인 ID순 페이지다. filters는 library_id/folder_parts/kind/tag/analysis를 AND 적용하며 페이지 제한 전에 필터링한다. 조회 최대 10000건 초과는 명시적으로 실패한다.
+
+MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만 제공한다. mode=semantic/hybrid는 거부하며, 자연어 질의 임베딩은 앱의 별도 명시적 실행 흐름을 사용한다. indexedExists는 마지막 스캔 기록이며 현재 디스크 상태 확인을 의미하지 않는다. 등록·스캔·분석 시작·임베딩 생성·원본 쓰기 명령은 이 채널에 없다. 도구에는 readOnlyHint=true, destructiveHint=false를 표시한다.
+
 ## MCP 도구 목록 (설계 계약)
 | 도구 | 인자 | 결과 | 구분 |
 |---|---|---|---|

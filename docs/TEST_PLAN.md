@@ -373,3 +373,6 @@ Node 113개·Python 82개·타입/빌드, Rust 12개 통과. 벡터 없는 혼�
 - `npm run check`: Node 114개·Python 88개·타입/Vite 빌드 통과. 실제 현재 사용자/SYSTEM 전용 Windows 보호 DACL의 세션 발견 파일·인증된 로컬 health 및 정상 종료 후 APP_NOT_RUNNING 확인. 모델 호출/Job 생성 없음.
 - `npm run package:core` 및 `.artifacts/core-build-venv/Scripts/python.exe -B scripts/verify-mcp.py --core src-tauri/binaries/core/ai-asset-hub-core/ai-asset-hub-core.exe --report .artifacts/m08-host.json` 통과. 공식 SDK Client Host→별도 패키징 stdio Bridge→실행 Core 구성에서 초기화/서버 이름·버전/도구 목록 조회, 프로토콜 2026-07-28 협상 성공. Bridge는 Python 없는 PATH에서 실행했다. 현재 목록은 아직 조회 도구 연결 전의 빈 목록이다.
 - SDK의 Windows pywin32 초기화에는 가상환경 site의 .pth 처리가 필요했다. 실제 인터프리터에 `site.addsitedir`를 적용해 SDK를 초기화하고 Windows venv redirector의 중간 PID 문제를 피한다. 기존 실제 자식 PID 일치 검증은 유지한다. 실제 화면·특정 AI 제품 개인 설정/모델 호출·유료 API·사용자 데이터 사용 없음.
+
+## R08-02 내부 검증
+`npm run test:core` Python 90개 통과. 실제 Core Broker의 목록·한국어 파일명 검색·종류/루트 필터·안정적 페이지·잘못된 ID/한도/경로 필터 거부 및 모델 호출/Job/벡터 생성 0건 확인. 보완 후 `test_mcp` 4개도 통과: 별도 stdio Bridge를 사용하는 공식 SDK Host에서 실제 등록 라이브러리/에셋 UUID를 구조화 결과로 반환했다. 이전 R08-01 Rust 13개도 패키지 포함 통과. 검색 순위/임베딩을 암묵적으로 생성하지 않는다.

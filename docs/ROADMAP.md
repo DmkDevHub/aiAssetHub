@@ -105,7 +105,7 @@
 
 ## M08 — MCP Server (읽기 → 쓰기 계획)
 - [x] **R08-01** MCP Python stdio Bridge 패키징·Host 연결. **확인:** 실제 Host 연결 성공.
-- [ ] **R08-02** `list_libraries`/`search_assets` 도구. **확인:** 실제 asset ID 반환.
+- [x] **R08-02** `list_libraries`/`search_assets` 도구. **확인:** 실제 asset ID 반환.
 - [ ] **R08-03** `get_asset`/`get_asset_files`/`get_analysis_status`. **확인:** 분석/파일 상세 반환.
 - [ ] **R08-04** 로컬 Core 인증과 앱 종료 시 오류 처리. **확인:** 무단 접근 차단/종료 오류.
 - [ ] **R08-05** MCP 호출 감사 로그·경로 검증. **화면:** 앱 로그에서 요청 결과 확인.
