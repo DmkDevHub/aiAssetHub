@@ -382,3 +382,13 @@ Node 113개·Python 82개·타입/빌드, Rust 12개 통과. 벡터 없는 혼�
 
 ## R08-04 내부 검증
 `test_mcp` 11개 통과. 실제 로컬 TCP에서 잘못된 MAC·이전 세션 재사용·쓰기 명령을 거부하고 가짜 서버의 서명 없는 성공 결과를 거부했다. 송신 요청에 세션 비밀값이 없음을 확인했다. 실제 Windows 발견 파일 DACL을 Everyone Full Access로 완화하면 클라이언트가 거부하며 원래 ACL 복구 후 정상 연결한다. 1.7초 미완성 요청·중복 JSON·64KiB 초과 요청·과대 응답 실패 후에도 Core 채널 생존 확인. 같은 SDK stdio 세션에서 Broker 종료 후 도구가 APP_NOT_RUNNING 오류로 응답하고 Bridge가 앱을 재기동하지 않음을 확인했다. 다른 실제 사용자 계정 로그인 시험은 하지 않았으며 같은 사용자 신뢰 경계를 SECURITY에 기록했다.
+
+## R08-05 / M08 최종 검증
+- `npm run check`: Node 116개·Python 101개, 타입 검사·Vite 빌드 통과. `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored` 13개 및 `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` 통과. **총 230개 내부 테스트**. 로그 `.artifacts/m08-check.log`, `m08-rust.log`, `m08-clippy.log`.
+- 성공/거부 감사의 실제 요청 UUID·대상 UUID·결과·고정 오류 및 안정적인 페이지 확인. 질의·사적인 Host 문자열·경로·세션 비밀값이 DB 로그에 없음을 검사했다. DB 경로 변조 및 실제 `mklink /J` Windows junction을 통한 탈출은 파일/상대 경로를 숨기고 unavailable로 반환했다. junction은 테스트 소유 폴더에서만 생성/해제했고 외부 테스트 파일도 보존했다. DB v3의 기존 audit_events를 사용하므로 새 마이그레이션 없음.
+- 연결 실행 정보·로그 페이지의 실제 상태/요청/대상 표시·HTML 텍스트 이스케이프·실패 메시지 레드랙션/재조회·cursor 전송·조회 명령만 호출함을 jsdom으로 검증했다. 실제 화면을 열거나 조작하지 않았다.
+- `npm run build:installer` 통과. `.artifacts/core-build-venv/Scripts/python.exe -B scripts/verify-mcp.py --core src-tauri/binaries/core/ai-asset-hub-core/ai-asset-hub-core.exe --data-dir <M07 테스트 데이터 절대 경로> --environment development --query tree --require-analyzed --report .artifacts/m08-analyzed-host.json` 통과. M07의 실제 qwen3-vl:2b 결과를 새로운 패키지의 5개 도구로 조회해 실제 에셋/활성 결과 UUID·파일 존재·분석 성공 상태를 확인했다. 분석 Job 목록·벡터 준비 상태 불변·등록된 테스트 원본 전체 SHA256 불변 확인. 새 분석/임베딩 호출 없음.
+- 공식 SDK Client reference Host는 별도 stdio Bridge를 Python 없는 PATH에서 실행했다. 자동 협상 2026-07-28 및 legacy 초기화 2025-11-25 모두 실제 도구 호출 성공. Core EOF 종료 후 도구 오류·동일 데이터로 명시적 재시작 후 실제 PID 교체/활성 결과 보존·감사 로그 성공/거부/비밀 미포함 확인. 보고 `.artifacts/m08-analyzed-host.json`, 로그 `m08-analyzed-host.log`.
+- `scripts/verify-installer.ps1 -Mcp` 통과. 전용 임시 설치본의 Tauri 무화면 Core/DB/PID 검사 후 설치된 Sidecar/Bridge에서 같은 5개 도구·두 프로토콜·종료/재연결·감사를 실측했다. 이 생산 환경 테스트 DB의 신규 PNG는 미분석이므로 activeResultId=null이 맞으며 성공 결과를 만들지 않았다. 조용한 제거/기존 설치 등록 보존 통과. 보고 `.artifacts/m08-installed-host.json`, 로그 `m08-installed-check.log`. 개발/설치본 Sidecar SHA256 `142e2bab6dfcc3f6fa1ba46b27efbcd22727c554a057c487e9638f7521613b3f` 일치.
+- 설치 파일 23593535 bytes, SHA256 `d745baeca3da5e17d137838066fd8847578038723cf7d3b50a00bbd03edb28a6`. 기존 NSIS Korean choowHowToInstall 문자열 경고 1개 유지.
+- 마일스톤 I/M08 전체 완료. 특정 AI 제품의 개인 MCP 설정·대화/모델 실행, 실제 GUI·깨끗한 PC·다른 사용자 계정 로그인·대규모 성능은 미검증이다. reference Host와 실제 TCP/패키지/설치본으로 측정한 범위를 구분한다. Unity 도구는 M09 범위로 아직 노출하지 않으며 원격 push는 하지 않았다.

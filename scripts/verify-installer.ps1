@@ -1,4 +1,4 @@
-param([string]$AnalysisModel = '')
+param([string]$AnalysisModel = '', [switch]$Mcp)
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskNsis = Join-Path $taskRoot 'src-tauri/target/release/nsis/x64'
@@ -60,6 +60,11 @@ if ($AnalysisModel) {
     $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
     & $taskHarnessPython (Join-Path $taskRoot 'scripts/verify-local-analysis.py') --model $AnalysisModel --sidecar $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m06-installed-analysis.json')
     if ($LASTEXITCODE -ne 0) { throw 'Installed real model analysis verification failed.' }
+}
+if ($Mcp) {
+    $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-mcp.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m08-installed-host.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed MCP reference Host verification failed.' }
 }
 # Retain test reports/data; uninstall only the isolated verification payload.
 $taskUninstaller = Join-Path $taskInstallDir 'uninstall.exe'

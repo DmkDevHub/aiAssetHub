@@ -25,6 +25,7 @@ function handleEscape(event: KeyboardEvent) {
     </RouterLink>
 
     <RouterLink to="/settings/models">모델 관리</RouterLink>
+    <RouterLink to="/settings/mcp">MCP 연결·로그</RouterLink>
     <nav class="breadcrumbs" aria-label="현재 위치">
       <ol>
         <li><RouterLink to="/library" aria-current-value="false">작업 공간</RouterLink></li>

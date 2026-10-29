@@ -20,16 +20,32 @@ class McpQueries:
 
     def libraries(self,params):
         result=LibraryService(self.database).list(params)
+        for item in result['libraries']:
+            try:
+                path=Path(item['path']);_local_path(path);no_links(path)
+                if len(str(path))>2048:raise ValueError()
+                item['availability']='present' if path.is_dir() else 'missing'
+            except (OSError,ValueError,LibraryError):item.update(path=None,availability='unavailable')
         return {'items':result['libraries'],'next_cursor':result['next_cursor']}
 
+    @staticmethod
+    def safe_path(absolute,root,relative):
+        path,root=Path(absolute),Path(root)
+        try:
+            _local_path(path);_local_path(root);no_links(path);no_links(root)
+            if len(str(path))>2048 or not path.is_relative_to(root) or path.relative_to(root).as_posix()!=relative.replace('\\','/') or not path.resolve(strict=False).is_relative_to(root.resolve(strict=False)):raise ValueError()
+            return path
+        except (OSError,ValueError,LibraryError):return None
+
     def summary(self,identifier):
-        row=self.db.execute('''SELECT a.id,coalesce(u.title_override,a.display_name),a.library_root_id,f.relative_path,f.extension,f.exists_flag
+        row=self.db.execute('''SELECT a.id,coalesce(u.title_override,a.display_name),a.library_root_id,f.relative_path,f.extension,f.exists_flag,f.absolute_path,l.absolute_path
             FROM assets a JOIN asset_files f ON f.asset_id=a.id JOIN library_roots l ON l.id=a.library_root_id
             LEFT JOIN asset_user_annotations u ON u.asset_id=a.id WHERE a.id=? AND l.enabled=1''',(identifier,)).fetchone()
         if not row:raise LibraryError('MCP_ASSET_NOT_FOUND')
         active=AssetAnalysis(self.database).get({'asset_id':identifier})['active']
         user=AnnotationService(self.database).get({'asset_id':identifier})
-        return {'id':row[0],'name':row[1],'libraryId':row[2],'relativePath':row[3],'kind':row[4].lstrip('.').upper() or 'FILE',
+        safe=self.safe_path(row[6],row[7],row[3]) is not None
+        return {'id':row[0],'name':row[1],'libraryId':row[2],'relativePath':row[3] if safe else None,'pathValidated':safe,'kind':row[4].lstrip('.').upper() or 'FILE',
                 'indexedExists':bool(row[5]),'description':active['description'][:512] if active else user['description'][:512],
                 'descriptionSource':'ai' if active else 'user','analysis':asset_state(self.db,identifier)}
 
@@ -38,6 +54,7 @@ class McpQueries:
         query=params.get('query');limit=params.get('limit',10);cursor=params.get('after_id')
         if not isinstance(query,str) or len(query)>256 or type(limit) is not int or not 1<=limit<=20 or cursor is not None and not valid_id(cursor):raise LibraryError('INVALID_PARAMS')
         filters=criteria(params.get('filters',{}));result=[];examined=0
+        if any(any(ord(c)<32 or c==':' for c in part) for part in filters['folder_parts']):raise LibraryError('INVALID_PARAMS')
         while True:
             if query.strip():page=SearchService(self.database).search({'query':query,'after_id':cursor});ids=page['ids'];next_page=page['next_cursor']
             else:
@@ -71,11 +88,10 @@ class McpQueries:
             LEFT JOIN asset_observations o ON o.asset_file_id=f.id WHERE a.id=? ORDER BY f.id LIMIT 21''',(identifier,)).fetchall()
         if len(rows)>20:raise LibraryError('MCP_SEARCH_LIMIT')
         for row in rows:
-            item={'id':row[0],'relativePath':row[2],'kind':row[3].lstrip('.').upper() or 'FILE','availability':'unavailable','previewSupported':row[3].lower() in ('.png','.jpg','.jpeg'),'width':row[5],'height':row[6],'durationMs':row[7]}
-            path,root=Path(row[1]),Path(row[4])
+            path=self.safe_path(row[1],row[4],row[2])
+            item={'id':row[0],'relativePath':row[2] if path else None,'kind':row[3].lstrip('.').upper() or 'FILE','availability':'unavailable','previewSupported':row[3].lower() in ('.png','.jpg','.jpeg'),'width':row[5],'height':row[6],'durationMs':row[7]}
             try:
-                _local_path(path);_local_path(root);no_links(path);no_links(root)
-                if len(str(path))>2048 or not path.is_relative_to(root) or path.relative_to(root).as_posix()!=row[2].replace('\\','/') or not path.resolve(strict=False).is_relative_to(root.resolve(strict=False)):raise ValueError()
+                if path is None:raise ValueError()
                 item['path']=str(path)
                 try:
                     info=path.stat()

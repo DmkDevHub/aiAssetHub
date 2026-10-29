@@ -15,6 +15,7 @@ class CoreApplication:
         self.database = database
         self._analysis = None
         self._embedding = None
+        self._broker = None
 
     def start_analysis(self, params):
         from .analysis_jobs import AnalysisJobs
@@ -95,6 +96,16 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
+            if method in ('mcp.audit','mcp.connection'):
+                from .libraries import LibraryError,ERROR_MESSAGES
+                from .mcp_audit import read
+                from .mcp_admin import connection
+                try:
+                    data=read(self.database,request.get('params',{})) if method=='mcp.audit' else connection(self.database,self._broker,request.get('params',{}))
+                    return self._response(request_id,data=data)
+                except LibraryError as error:
+                    code=str(error) if str(error) in ERROR_MESSAGES else 'DB_UNAVAILABLE'
+                    return self.error(request_id,code,ERROR_MESSAGES[code])
             if method not in {"health.get", "library.register", "library.unregister", "library.list", "library.scan", "asset.list", "asset.thumbnail", "asset.get", "asset.annotations", "asset.tags", "asset.annotate", "asset.tags.batch", "asset.search", "model.register", "model.list", "model.inspect", "model.credential", "model.policy", "model.validate", "model.select", "analysis.preview", "analysis.start", "analysis.status", "asset.analysis", "analysis.jobs", "analysis.cancel", "analysis.retry_plan", "asset.analysis.history", "embedding.configure", "embedding.status", "embedding.start", "embedding.work", "embedding.query", "embedding.rebuild"}:
                 return self.error(request_id, "METHOD_NOT_FOUND", "지원하지 않는 명령입니다.")
             if method=='analysis.start' and (not isinstance(request.get('params'),dict) or request['params'].get('confirmed') is not True):

@@ -16,13 +16,14 @@ sys.path.insert(0,str(ROOT/'python-core'))
 
 
 class InstalledCore:
-    def __init__(self, executable, data):
+    def __init__(self, executable, data, environment_name='production'):
+        if environment_name not in ('development','production'):raise ValueError('INVALID_ENVIRONMENT')
         executable=Path(executable).resolve(strict=True)
         environment=dict(os.environ)
         environment.pop('PYTHONHOME',None);environment.pop('PYTHONPATH',None)
         environment['PATH']=str(Path(os.environ.get('SystemRoot','C:/Windows'))/'System32')
         self.stderr=open(data.parent/'installed-analysis-stderr.log','ab')
-        self.child=subprocess.Popen([str(executable),'--serve','--data-dir',str(data),'--environment','production'],
+        self.child=subprocess.Popen([str(executable),'--serve','--data-dir',str(data),'--environment',environment_name],
                                     cwd=executable.parent,env=environment,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                                     stderr=self.stderr,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         self.responses=queue.Queue()

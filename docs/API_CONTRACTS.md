@@ -146,3 +146,11 @@ mode는 all/unanalyzed/completed/failed/selected, scope는 folder/library/all이
 | embedding_work | embedding.work | jobId→job_id / id,kind,status,total,processed,failed,errors,error,results |
 
 criteria는 library_id(UUID/null),folder_parts(구성요소 배열),kind(대문자 확장자),tag(사용자 태그),analysis(빈 값/unanalyzed/completed/failed)다. 생략 필드는 기본값을 사용한다. 결과는 실제 id,score,reason(semantic/keyword/hybrid),semanticScore와 선택적 keywordScore만 반환하며 벡터/원문 오류/질의 원문을 반환하지 않는다. 작업은 queued/running/completed/failed/canceled/interrupted이며 재시작 후 중단 상태를 조회만으로 재개하지 않는다. 생성·재구축·질의는 공유 임베딩 작업 슬롯 하나를 사용하며 경합 시 EMBEDDING_BUSY로 실패한다.
+
+## M08 데스크톱 관리 명령
+| Tauri | Core | 입력/출력 |
+|---|---|---|
+| mcp_connection | mcp.connection | 인자 없음 / brokerReady,transport,readOnly,configuration:{command,args,cwd} |
+| mcp_audit | mcp.audit | afterId→after_id / 최근 10개 items,next_cursor |
+
+이 두 명령은 Host에 노출하지 않는다. Host 도구 5개의 인자·반환값은 MCP.md에 정의하며 Core의 별도 고정 읽기 dispatch를 통과한다. 조회 결과 외의 DB 변경은 Core 감사 기록만 허용한다. Host 도구는 SQL/임의 Core 명령·AI 실행·임의 원본 파일 경로 인자를 받지 않는다. Bridge 실행 설정의 data-dir는 별도 세션 발견 경로다.

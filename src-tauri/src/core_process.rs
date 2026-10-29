@@ -251,6 +251,8 @@ impl CoreProcess {
                 | "embedding.work"
                 | "embedding.query"
                 | "embedding.rebuild"
+                | "mcp.audit"
+                | "mcp.connection"
                 | "analysis.cancel"
                 | "analysis.retry_plan"
                 | "asset.analysis"
@@ -320,6 +322,11 @@ mod tests {
     use super::*;
 
     fn verify_model_registry(core: &mut CoreProcess) {
+        let connection = core.library_request("mcp.connection", json!({})).unwrap();
+        assert_eq!(connection["data"]["brokerReady"], true);
+        assert_eq!(connection["data"]["readOnly"], true);
+        let audit = core.library_request("mcp.audit", json!({})).unwrap();
+        assert_eq!(audit["data"]["items"], json!([]));
         let embedding = core.library_request("embedding.status", json!({})).unwrap();
         assert_eq!(embedding["ok"], true);
         assert!(embedding["data"]["profile"].is_null());

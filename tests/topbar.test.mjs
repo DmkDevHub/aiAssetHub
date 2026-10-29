@@ -1843,3 +1843,18 @@ test('whole embedding rebuild requires a separate explicit approval',async()=>{
  dispatch([...document.querySelectorAll('.embedding-tools button')].find(b=>b.textContent==='임베딩 준비 상태 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(button.disabled,true);
  const approval=document.querySelector('.embedding-tools input[type=checkbox]');approval.checked=true;dispatch(approval,new Event('change',{bubbles:true}));await nextTick();assert.deepEqual(calls,['embedding_status']);dispatch(button,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.ok(calls.includes('embedding_rebuild'));assert.ok(!calls.includes('embedding_start'));
 });
+
+test('MCP connection and audit page renders actual read data and escapes asset text',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='mcp_connection')return {ok:true,data:{brokerReady:true,transport:'stdio',readOnly:true,configuration:{command:'C:/fixture/core.exe',args:['--mcp'],cwd:'C:/fixture'}}};return {ok:true,data:{items:[{id:'audit-1',host:'reference-host',hostFingerprint:'hash',tool:'<img src=x onerror=alert(1)>',outcome:'succeeded',createdAt:'fixture-time',requestId:'request-1',targetIds:['asset-1'],targetCount:1,errorCode:null,durationMs:2}],next_cursor:null}};}};
+ app=createApp(components.McpView);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.deepEqual(calls.map(c=>c[0]),['mcp_connection','mcp_audit']);assert.match(document.body.textContent,/Core 조회 채널: 준비됨/);assert.match(document.querySelector('.mcp-audit').textContent,/request-1/);assert.match(document.querySelector('.mcp-audit').textContent,/asset-1/);assert.equal(document.querySelector('.mcp-audit img'),null);assert.doesNotMatch(document.querySelector('.mcp-configuration').textContent,/token|mac|port/);
+});
+
+test('MCP audit page retries a failed read and pages with the actual cursor',async()=>{
+ app.unmount();globalThis.isTauri=true;let fail=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(fail)throw new Error('private transport details');if(command==='mcp_connection')return {ok:true,data:{brokerReady:false,transport:'stdio',readOnly:true,configuration:{command:'fixture',args:['--mcp'],cwd:'fixture'}}};return {ok:true,data:{items:[],next_cursor:args.afterId===null?'audit-cursor':null}};}};
+ app=createApp(components.McpView);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.querySelector('[role=alert]').textContent,/불러오지 못했습니다/);assert.doesNotMatch(document.body.textContent,/private transport/);
+ fail=false;dispatch(document.querySelector('button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.body.textContent,/연결 불가/);
+ dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='이전 호출 더 보기'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[1].afterId,'audit-cursor');assert.ok(calls.every(c=>['mcp_connection','mcp_audit'].includes(c[0])));
+});

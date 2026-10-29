@@ -8,6 +8,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
+from pydantic import StrictInt
 from .mcp_broker import BrokerClient,BrokerError
 
 
@@ -30,7 +31,7 @@ def create_server(directory):
         return await call('list_libraries',{} if after_id is None else {'after_id':after_id},ctx)
 
     @server.tool(annotations=annotations,structured_output=True)
-    async def search_assets(query:str,ctx:Context,filters:dict|None=None,limit:int=10,after_id:str|None=None,mode:Literal['keyword']='keyword')->dict[str,Any]:
+    async def search_assets(query:str,ctx:Context,filters:dict|None=None,limit:StrictInt=10,after_id:str|None=None,mode:Literal['keyword']='keyword')->dict[str,Any]:
         """Search indexed names, user tags and active AI text offline. Only keyword mode; no query embeddings. Filters: library_id, folder_parts, kind, tag, analysis. At most 20 results."""
         return await call('search_assets',{'query':query,'filters':filters or {},'limit':limit,'after_id':after_id,'mode':mode},ctx)
 

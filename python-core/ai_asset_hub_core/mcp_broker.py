@@ -91,12 +91,13 @@ class Broker:
                 self.current=connection
                 with connection:
                     connection.settimeout(1)
-                    identifier=None
+                    identifier=None;request=None;authenticated=False;started=time.monotonic()
                     try:
                         request=receive(connection)
                         identifier=request.get('request_id')
                         if not valid_id(identifier):raise BrokerError('INVALID_PARAMS')
                         if not authentic(request,self.session['token']) or request.get('session')!=self.session['session']:raise BrokerError('AUTH_DENIED')
+                        authenticated=True
                         if set(request)!={'mac','session','request_id','host','tool','arguments'} or not isinstance(request['tool'],str) or len(request['tool'])>64 or not isinstance(request['host'],str) or not 1<=len(request['host'])<=64 or not isinstance(request['arguments'],dict):raise BrokerError('INVALID_PARAMS')
                         data=self.dispatch(database,request['tool'],request['arguments'],request['host'],identifier)
                         result={'ok':True,'data':data}
@@ -109,6 +110,10 @@ class Broker:
                         try:raw=encode(result)
                         except ValueError:
                             result={'ok':False,'error':'MCP_RESPONSE_LIMIT','request_id':identifier,'session':self.session['session'],'pid':os.getpid()};result['mac']=signature(result,self.session['token']);raw=encode(result)
+                        from .mcp_audit import record
+                        try:record(database,request,result,authenticated,started)
+                        except Exception:
+                            result={'ok':False,'error':'CORE_UNAVAILABLE','request_id':identifier,'session':self.session['session'],'pid':os.getpid()};result['mac']=signature(result,self.session['token']);raw=encode(result)
                         connection.sendall(raw)
                     except (OSError,ValueError):pass
                 self.current=None

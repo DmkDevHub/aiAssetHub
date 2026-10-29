@@ -45,6 +45,7 @@ class McpTests(unittest.TestCase):
                 self.assertFalse(libraries.is_error);self.assertEqual(libraries.structured_content['items'][0]['id'],library)
                 results=await client.call_tool('search_assets',{'query':'나무'})
                 self.assertFalse(results.is_error);self.assertEqual(results.structured_content['items'][0]['id'],identifier)
+                invalid=await client.call_tool('search_assets',{'query':'나무','limit':True});self.assertTrue(invalid.is_error)
                 detail=await client.call_tool('get_asset',{'asset_id':identifier});self.assertFalse(detail.is_error)
                 self.assertIsNone(detail.structured_content['activeResult'])
                 files=await client.call_tool('get_asset_files',{'asset_id':identifier});self.assertEqual(files.structured_content['files'][0]['availability'],'present')
@@ -175,3 +176,51 @@ class McpTests(unittest.TestCase):
         with patch.object(self.broker,'dispatch',return_value={'private':'x'*MAX_FRAME}):
             with self.assertRaisesRegex(BrokerError,'MCP_RESPONSE_LIMIT'):self.client.call('_health',{})
         self.assertEqual(self.client.call('_health',{})['status'],'ready')
+
+    def test_audit_records_ids_and_outcomes_without_queries_paths_or_secrets(self):
+        from ai_asset_hub_core.mcp_audit import read
+        _,identifier=self.add_asset();secret_query='fixture-private-query';secret_host='fixture-private-host-secret'
+        self.client.call('get_asset',{'asset_id':identifier},secret_host)
+        self.client.call('search_assets',{'query':secret_query},secret_host)
+        with self.assertRaisesRegex(BrokerError,'INVALID_PARAMS'):self.client.call('get_asset_files',{'asset_id':'../private-path'},secret_host)
+        rows=read(self.db,{})['items'];self.assertEqual(rows[0]['errorCode'],'INVALID_PARAMS');self.assertEqual(rows[0]['outcome'],'denied')
+        self.assertTrue(any(identifier in r['targetIds'] for r in rows));self.assertTrue(all(r['requestId'] for r in rows))
+        raw=str(self.db.connection.execute('SELECT actor,action,details_redacted_json FROM audit_events').fetchall())
+        for secret in (secret_query,secret_host,'../private-path',self.broker.session['token'],str(self.root)):
+            self.assertNotIn(secret,raw)
+
+    def test_desktop_audit_paging_and_connection_information_are_allowlisted(self):
+        from ai_asset_hub_core.application import CoreApplication
+        from uuid import uuid4
+        for _ in range(12):self.client.call('list_libraries',{})
+        app=CoreApplication(self.db);app._broker=self.broker
+        first=app.handle({'request_id':str(uuid4()),'method':'mcp.audit','params':{}})['data'];self.assertEqual(len(first['items']),10)
+        second=app.handle({'request_id':str(uuid4()),'method':'mcp.audit','params':{'after_id':first['next_cursor']}})['data']
+        self.assertEqual(len(second['items']),2);self.assertIsNone(second['next_cursor'])
+        info=app.handle({'request_id':str(uuid4()),'method':'mcp.connection','params':{}})['data'];self.assertTrue(info['brokerReady'])
+        self.assertIn('--mcp',info['configuration']['args']);self.assertNotIn(self.broker.session['token'],str(info))
+        with self.assertRaisesRegex(BrokerError,'MCP_TOOL_NOT_ALLOWED'):self.client.call('mcp.audit',{})
+
+    def test_tampered_outside_path_is_hidden_and_never_read(self):
+        _,identifier=self.add_asset();outside=self.root/'outside-private.txt';outside.write_text('private outside content')
+        self.db.connection.execute('UPDATE asset_files SET absolute_path=? WHERE asset_id=?',(str(outside),identifier))
+        files=self.client.call('get_asset_files',{'asset_id':identifier})['files']
+        self.assertEqual(files[0]['availability'],'unavailable');self.assertNotIn('path',files[0]);self.assertIsNone(files[0]['relativePath'])
+        detail=self.client.call('get_asset',{'asset_id':identifier});self.assertFalse(detail['pathValidated']);self.assertIsNone(detail['relativePath'])
+        self.assertEqual(outside.read_text(),'private outside content')
+
+    def test_real_windows_junction_cannot_escape_registered_root(self):
+        if os.name!='nt':self.skipTest('Windows junction verification')
+        import subprocess
+        from ai_asset_hub_core.assets import AssetService
+        library,_=self.add_asset();nested=self.root/'source/nested';nested.mkdir();(nested/'asset.png').write_bytes(b'fixture')
+        AssetService(self.db).scan({'library_id':library})
+        identifier=self.db.connection.execute('SELECT asset_id FROM asset_files WHERE absolute_path=?',(str(nested/'asset.png'),)).fetchone()[0]
+        (nested/'asset.png').unlink();nested.rmdir();outside=self.root/'outside';outside.mkdir();(outside/'asset.png').write_bytes(b'outside fixture')
+        assert nested.resolve().is_relative_to(self.root.resolve()) and outside.resolve().is_relative_to(self.root.resolve())
+        result=subprocess.run(['cmd','/c','mklink','/J',str(nested),str(outside)],capture_output=True,creationflags=subprocess.CREATE_NO_WINDOW)
+        self.assertEqual(result.returncode,0)
+        try:
+            files=self.client.call('get_asset_files',{'asset_id':identifier})['files'];self.assertEqual(files[0]['availability'],'unavailable');self.assertNotIn('path',files[0])
+        finally:nested.rmdir()
+        self.assertEqual((outside/'asset.png').read_bytes(),b'outside fixture')
