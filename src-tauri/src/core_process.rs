@@ -54,7 +54,7 @@ impl LaunchSpec {
                 "-B".into(),
                 "-c".into(),
                 format!(
-                    "import sys,runpy;sys.path.insert(0,{});runpy.run_module('ai_asset_hub_core',run_name='__main__')",
+                    "import site,runpy;site.addsitedir({});runpy.run_module('ai_asset_hub_core',run_name='__main__')",
                     serde_json::to_string(&packages.to_string_lossy()).unwrap()
                 ),
                 "--serve".into(),

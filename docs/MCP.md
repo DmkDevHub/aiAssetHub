@@ -14,6 +14,13 @@ MCP(Model Context Protocol, 모델 컨텍스트 프로토콜)는 Codex 등 AI �
 - 데스크톱 앱이 꺼져 있다면 `APP_NOT_RUNNING` 또는 `CORE_UNAVAILABLE`를 명확히 반환한다.
 - 실제 클라이언트 별 설정 형식/지원 프로토콜 버전은 구현 당시 공식 MCP SDK 및 호스트 문서로 테스트한다.
 
+## R08-01 실행 및 검증
+Host의 stdio command는 설치 폴더의 실제 `ai-asset-hub-core.exe`, args는 `["--mcp"]`다. Bridge는 `%LOCALAPPDATA%/local.aiassethub.dev/data`의 실행 세션을 참조한다. 개발/전용 테스트는 `["--mcp","--data-dir","등록한 Core의 실제 절대 데이터 경로"]`로 분리한다. 토큰·포트·SQL을 Host 설정에 넣지 않는다. 개발 소스 실행에는 requirements-runtime.txt의 의존성과 실제 Python 인터프리터가 필요하다.
+
+동일 실행 파일이어도 `--mcp` 프로세스는 DB를 열지 않고 앱/분석을 시작하지 않는다. 앱이 소유한 `--serve` Core만 읽기 Broker를 열며 종료 시 발견 파일을 정리한다. R08-01은 stdio 초기화·패키징 검증이며 조회 도구 연결은 다음 항목에서 추가한다.
+
+공식 Python SDK 2.3.0의 Client를 reference Host로 사용한 별도 프로세스 상호 운용 및 프로토콜 `2026-07-28` 협상을 실측했다. Codex/Claude의 개인 설정을 변경하거나 해당 제품의 모델을 실행한 것은 아니다. 표준 stdio와 구형 협상 지원 범위는 공식 SDK에 위임한다. [공식 SDK](https://github.com/modelcontextprotocol/python-sdk), [Client 전송](https://py.sdk.modelcontextprotocol.io/client/), [stdio 규격](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+
 ## MCP 도구 목록 (설계 계약)
 | 도구 | 인자 | 결과 | 구분 |
 |---|---|---|---|

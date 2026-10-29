@@ -22,6 +22,7 @@ def main(argv=None):
     parser = SafeArgumentParser(prog="ai_asset_hub_core", description="Read-only Core health probe")
     parser.add_argument("method", nargs="?", help="health.get")
     parser.add_argument("--serve", action="store_true", help="Private desktop pipe server")
+    parser.add_argument("--mcp", action="store_true", help="Read-only MCP stdio Bridge; never opens the database")
     parser.add_argument("--request-id", default=None, metavar="UUID")
     parser.add_argument("--data-dir", default=None)
     parser.add_argument("--environment", choices=['development', 'production'], default=None)
@@ -31,6 +32,10 @@ def main(argv=None):
     except InvalidArguments:
         response = application.error(None, "INVALID_REQUEST", "명령 인자가 올바르지 않습니다.")
     else:
+        if args.mcp:
+            if args.serve or args.method or args.request_id or args.environment:return 2
+            from .mcp_bridge import run_bridge
+            return run_bridge(args.data_dir)
         if bool(args.data_dir) != bool(args.environment):
             response = application.error(None, "INVALID_REQUEST", "데이터 실행 환경을 지정해야 합니다.")
             sys.stdout.write(json.dumps(response, ensure_ascii=True) + '\n')
@@ -42,11 +47,16 @@ def main(argv=None):
             application.database = runtime.database
         if args.serve and args.method is None and args.request_id is None:
             from .transport import serve
+            broker=None
             try:
+                if runtime and runtime.database.health().get('status')=='ready':
+                    from .mcp_broker import Broker
+                    broker=Broker(runtime.database)
                 return serve(application, sys.stdin.buffer, sys.stdout.buffer)
             except (BrokenPipeError, OSError):
                 return 1
             finally:
+                if broker:broker.close()
                 application.close()
                 if runtime:
                     runtime.close()

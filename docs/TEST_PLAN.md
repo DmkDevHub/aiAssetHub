@@ -368,3 +368,8 @@ Node 113개·Python 82개·타입/빌드, Rust 12개 통과. 벡터 없는 혼�
 - 최종 `npm run check` Node 114개·Python 86개·타입 검사·Vite 빌드 통과, 스냅샷 검증 보완 후 `npm run test:core`도 Python 86개 통과. Rust `--include-ignored` 13개 및 Clippy `-D warnings` 통과. **총 213개 내부 테스트**. 로그 `.artifacts/m07-final-check.log`, `m07-final-python.log`, `m07-final-rust.log`, `m07-final-clippy.log`.
 - 최종 `npm run build:installer` 및 `scripts/verify-installer.ps1` 통과. 임시 전용 설치본의 DB v3·실제 Core PID 종료·Sidecar 해시·조용한 제거/기존 설치 보존 확인. NSIS 설치본은 13675518 bytes, SHA256 `815259d92f3ca6c35005da5540341384398b630d7f4e0f63ad6c4908224e0246`. 기존 Korean choowHowToInstall 문자열 경고 1개 유지. 로그 `.artifacts/m07-final-installer-build.log`, `m07-final-installed-check.log`.
 - R07-04/H 및 M07 전체 완료로 갱신한다. 위 결과는 단순 테스트 이미지 3개에 한정하며 다양한 실사용 에셋·대규모 라이브러리 품질/성능·깨끗한 PC·시각적 배치/OS 화면은 미검증이다. 실제 화면 조작·외부 유료 호출·사용자 원본 수정·원격 push는 하지 않았다. 앞선 승인 대기/미실행 기록은 당시의 검증 이력으로 보존한다.
+
+## R08-01 내부 및 패키지 Host 검증
+- `npm run check`: Node 114개·Python 88개·타입/Vite 빌드 통과. 실제 현재 사용자/SYSTEM 전용 Windows 보호 DACL의 세션 발견 파일·인증된 로컬 health 및 정상 종료 후 APP_NOT_RUNNING 확인. 모델 호출/Job 생성 없음.
+- `npm run package:core` 및 `.artifacts/core-build-venv/Scripts/python.exe -B scripts/verify-mcp.py --core src-tauri/binaries/core/ai-asset-hub-core/ai-asset-hub-core.exe --report .artifacts/m08-host.json` 통과. 공식 SDK Client Host→별도 패키징 stdio Bridge→실행 Core 구성에서 초기화/서버 이름·버전/도구 목록 조회, 프로토콜 2026-07-28 협상 성공. Bridge는 Python 없는 PATH에서 실행했다. 현재 목록은 아직 조회 도구 연결 전의 빈 목록이다.
+- SDK의 Windows pywin32 초기화에는 가상환경 site의 .pth 처리가 필요했다. 실제 인터프리터에 `site.addsitedir`를 적용해 SDK를 초기화하고 Windows venv redirector의 중간 PID 문제를 피한다. 기존 실제 자식 PID 일치 검증은 유지한다. 실제 화면·특정 AI 제품 개인 설정/모델 호출·유료 API·사용자 데이터 사용 없음.
