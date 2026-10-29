@@ -2006,3 +2006,21 @@ test('tag editing sends revision and preserves text drafts on a concurrent tag e
  app=createApp(components.AssetAnnotations,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();const title=document.querySelector('.annotation-form input');title.value='draft';dispatch(title,new Event('input',{bubbles:true}));await nextTick();
  dispatch(document.querySelector('.user-annotations li button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[1].expectedRevision,3);assert.equal(title.value,'draft');assert.match(document.querySelector('.user-annotations').textContent,/kept/);assert.equal(document.querySelector('.annotation-form button').disabled,true);
 });
+
+
+test('logical group create is explicit and deletes require review without file commands',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='group_list')return {ok:true,data:{items:[],next_cursor:null}};if(command==='group_create')return {ok:true,data:{id:'real-group',name:args.value.name,description:'',parentId:null,revision:1}};return {ok:true,data:{deleted:args.groupId}};}};
+ app=createApp(components.GroupManager);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();dispatch(document.querySelector('.group-manager > button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const input=document.querySelector('.group-manager form input');input.value='<b>group</b>';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,1);
+ dispatch(document.querySelector('.group-manager form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[0],'group_create');assert.equal(document.querySelector('.group-manager li b'),null);
+ dispatch(document.querySelector('.group-manager li button'),new MouseEvent('click',{bubbles:true}));await nextTick();const del=[...document.querySelectorAll('.group-manager button')].find(b=>b.textContent==='그룹 삭제');assert.equal(del.disabled,true);
+ const confirm=document.querySelector('.group-manager input[type=checkbox]');confirm.checked=true;dispatch(confirm,new Event('change',{bubbles:true}));await nextTick();dispatch(del,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.at(-1),['group_delete',{groupId:'real-group',expectedRevision:1}]);
+});
+
+test('group membership preserves unloaded group ids and conflicts keep the draft',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='group_list')return {ok:true,data:{items:[{id:'visible',name:'visible',description:'',revision:1,parentId:null}],next_cursor:'next'}};if(command==='group_membership')return {ok:true,data:{ids:['not-yet-loaded'],revision:2}};return {ok:false,error:{code:'METADATA_CONFLICT',message:'private'}};}};
+ app=createApp(components.GroupManager,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();const check=document.querySelector('.group-manager li input');check.checked=true;dispatch(check,new Event('change',{bubbles:true}));await nextTick();assert.equal(calls.length,2);
+ dispatch([...document.querySelectorAll('.group-manager button')].find(b=>b.textContent==='그룹 소속 저장'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.at(-1)[1].groupIds,['not-yet-loaded','visible']);assert.equal(check.checked,true);assert.equal([...document.querySelectorAll('.group-manager button')].find(b=>b.textContent==='그룹 소속 저장').disabled,true);assert.doesNotMatch(document.body.textContent,/private/);
+});

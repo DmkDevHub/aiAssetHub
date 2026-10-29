@@ -57,3 +57,6 @@ retire_facet은 실제 링크의 사용 에셋 수를 조회해 사용 중이면
 UI는 읽은 revision으로 저장하며 충돌 시 초안을 유지하고 재저장을 막는다. 에셋 선택 변경/컴포넌트 해제 후 늦게 도착한 응답은 버린다. 레거시 명령과 태그 일괄 add/remove 호환 동작은 API_CONTRACTS.md를 따른다. 읽기 실패 시 빈 값 저장을 허용하지 않는다.
 
 이력은 1개씩 실제 ID 커서로 조회한다. 전달 한도를 넘는 값은 truncated/preview로 명시하고 DB 원문은 유지한다. 이력 열람/저장 시 로그에 사용자 메모·파일 경로·토큰·원시 예외를 출력하지 않는다. 실패한 저장은 투영·결정·이력을 함께 롤백한다. 재스캔 및 새 분석 후보는 사용자 결정과 이전 활성 성공 결과를 덮어쓰지 않는다. 실제 분석 모델 호출 없이 성공/실패 이력 fixture와 신규 후보를 사용해 검증한다.
+
+## M08C / R08C-01
+005_collections.sql(v5)은 asset_groups, asset_group_members, asset_collection_versions, append-only collection_history를 추가한다. 기존 001~004는 변경하지 않는다. 그룹(name 128자·description 512자)은 실제 폴더/Asset/File/분석과 독립적이다. 소속은 실제 활성 에셋/그룹만 최대 32개, 에셋별 group revision으로 원자 교체한다. 그룹 삭제는 연결만 해제하고 영향 에셋의 소속 버전·이력을 갱신한다(비활성 루트의 기존 소속도 포함). 부모 이동은 R08C-02에서 활성화한다. 고정 Core asset.groups.* 및 Tauri group_* 명령만 제공하며 모델/스캔은 호출하지 않는다.

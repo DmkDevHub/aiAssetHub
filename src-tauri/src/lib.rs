@@ -669,6 +669,110 @@ async fn asset_metadata_history(
 }
 
 #[tauri::command]
+async fn group_list(
+    state: tauri::State<'_, CoreState>,
+    after_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.groups.list",
+                serde_json::json!({"after_id":after_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn group_create(
+    state: tauri::State<'_, CoreState>,
+    value: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request("asset.groups.create", serde_json::json!({"value":value}))
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn group_update(
+    state: tauri::State<'_, CoreState>,
+    group_id: String,
+    value: serde_json::Value,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.groups.update", serde_json::json!({"group_id":group_id,"value":value,"expected_revision":expected_revision}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn group_delete(
+    state: tauri::State<'_, CoreState>,
+    group_id: String,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.groups.delete",
+                serde_json::json!({"group_id":group_id,"expected_revision":expected_revision}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn group_membership(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.groups.membership",
+                serde_json::json!({"asset_id":asset_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn group_assign(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    group_ids: Vec<String>,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.groups.assign", serde_json::json!({"asset_id":asset_id,"group_ids":group_ids,"expected_revision":expected_revision}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_annotations(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -951,6 +1055,12 @@ pub fn run() {
             get_asset_relations,
             save_asset_relations,
             asset_metadata_history,
+            group_list,
+            group_create,
+            group_update,
+            group_delete,
+            group_membership,
+            group_assign,
             asset_annotations,
             edit_asset_tags,
             save_asset_annotation,

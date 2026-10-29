@@ -4,6 +4,7 @@ import { libraryUi, setDetailsCollapsed } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
 import AssetAnalysis from './AssetAnalysis.vue';
 import AssetAnnotations from './AssetAnnotations.vue';
+import GroupManager from './GroupManager.vue';
 import AssetMetadataHistory from './AssetMetadataHistory.vue';
 import AssetRelations from './AssetRelations.vue';
 import AssetComposition from './AssetComposition.vue';
@@ -54,6 +55,7 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
           <AssetMetadata :asset="asset" />
           <AssetAnnotations :asset-id="asset.id" :user-tags="asset.userTags" />
           <AssetManagement :asset-id="asset.id" />
+          <GroupManager :asset-id="asset.id" />
           <AssetComposition :asset-id="asset.id" />
           <AssetRelations :asset-id="asset.id" />
           <AssetMetadataHistory :asset-id="asset.id" />
