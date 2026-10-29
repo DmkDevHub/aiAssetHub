@@ -22,3 +22,6 @@ R08A-02: classification_axes.py가 역할/스타일/장르/시점/차원/엔진�
 
 
 R08A-03: metadata_values.py의 Claim/FieldState는 파일/파서 관측·AI 제안·사용자 결정을 분리한다. 사용자 set/clear/adopt만 명시 승인·기대 revision 일치 후 적용한다. clear는 빈 값 확정으로 유지해 새 AI 제안이 부활하지 않으며 adopt는 실제 선택한 claim만 다시 적용한다. 관측은 AI보다 우선하고 과거 제안/결정 이력은 보존한다.
+
+
+R08A-05 현재 상태: v4 DB에 유형 사전 76개 노드와 독립 축 27개 용어를 고정 스냅샷으로 저장한다. Core 내부 MetadataStore가 사전 버전 조회·실제 사용 참조 기반 비활성/대체 등록·명시 재지정과 사용자 결정 이력을 영속화한다. 원래 R08A-01 순수 계약의 DB/UI 미연결 기록 중 DB 부분은 이 작업으로 연결했으며 공개 편집 UI/API는 여전히 후속 범위다.

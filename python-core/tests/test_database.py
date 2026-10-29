@@ -25,18 +25,18 @@ class DatabaseTests(unittest.TestCase):
         database = self.open()
         health = database.health()
         self.assertEqual(health['status'], 'ready')
-        self.assertEqual(health['schema_version'], 3)
+        self.assertEqual(health['schema_version'], 4)
         self.assertEqual(health['sqlite_version'], sqlite3.sqlite_version)
         self.assertEqual(health['journal_mode'], 'wal')
         tables = [row[0] for row in database.connection.execute("SELECT name FROM sqlite_master WHERE type='table'")]
-        self.assertEqual(len(tables), 25)
+        self.assertEqual(len(tables), 34)
         for table in tables:
-            if table != 'schema_migrations' and not table.startswith('asset_fts'):
+            if table not in ('schema_migrations','classification_dictionaries','classification_terms') and not table.startswith('asset_fts'):
                 self.assertEqual(database.connection.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0], 0)
         self.assertEqual(database.connection.execute('PRAGMA foreign_keys').fetchone()[0], 1)
         database.close()
         reopened = self.open()
-        self.assertEqual(reopened.connection.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0], 3)
+        self.assertEqual(reopened.connection.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0], 4)
         self.assertIsNone(reopened.backup_path)
 
     def test_python_writes_persist_after_reopen_with_unicode(self):
@@ -62,11 +62,11 @@ class DatabaseTests(unittest.TestCase):
         database.close()
         migrations = Path(self.temp.name) / 'migrations'
         shutil.copytree(migration_directory(), migrations)
-        (migrations / '004_broken.sql').write_text('CREATE TABLE should_rollback (id TEXT);\nINVALID SQL;\n', encoding='utf-8')
+        (migrations / '005_broken.sql').write_text('CREATE TABLE should_rollback (id TEXT);\nINVALID SQL;\n', encoding='utf-8')
         with self.assertRaises(DatabaseFailure):
             self.open(migrations=migrations)
         reopened = self.open()
-        self.assertEqual(reopened.health()['schema_version'], 3)
+        self.assertEqual(reopened.health()['schema_version'], 4)
         self.assertEqual(reopened.connection.execute("SELECT value_json FROM settings WHERE key='fixture'").fetchone()[0], '123')
         self.assertFalse(reopened.connection.execute("SELECT name FROM sqlite_master WHERE name='should_rollback'").fetchall())
         backups = list((self.path.parent / 'backups').glob('*.sqlite'))
@@ -74,7 +74,7 @@ class DatabaseTests(unittest.TestCase):
         backup = sqlite3.connect(backups[0])
         try:
             self.assertEqual(backup.execute("SELECT value_json FROM settings WHERE key='fixture'").fetchone()[0], '123')
-            self.assertEqual(backup.execute('PRAGMA user_version').fetchone()[0], 3)
+            self.assertEqual(backup.execute('PRAGMA user_version').fetchone()[0], 4)
         finally:
             backup.close()
 
@@ -82,11 +82,11 @@ class DatabaseTests(unittest.TestCase):
         self.open().close()
         migrations = Path(self.temp.name) / 'migrations'
         shutil.copytree(migration_directory(), migrations)
-        (migrations / '004_addition.sql').write_text('CREATE TABLE fixture_upgrade (id TEXT PRIMARY KEY);\n', encoding='utf-8')
+        (migrations / '005_addition.sql').write_text('CREATE TABLE fixture_upgrade (id TEXT PRIMARY KEY);\n', encoding='utf-8')
         database = self.open(migrations=migrations)
-        self.assertEqual(database.health()['schema_version'], 4)
+        self.assertEqual(database.health()['schema_version'], 5)
         self.assertTrue(database.backup_path.is_file())
-        self.assertEqual(len(database.connection.execute('SELECT checksum FROM schema_migrations WHERE version=4').fetchone()[0]), 64)
+        self.assertEqual(len(database.connection.execute('SELECT checksum FROM schema_migrations WHERE version=5').fetchone()[0]), 64)
 
     def test_corrupt_foreign_and_incompatible_databases_are_not_replaced(self):
         self.path.parent.mkdir(parents=True)
@@ -112,7 +112,7 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(DatabaseFailure) as failure:
             self.open(migrations=migrations)
         self.assertEqual(failure.exception.code, 'DB_SCHEMA_INCOMPATIBLE')
-        self.assertEqual(self.open().health()['schema_version'], 3)
+        self.assertEqual(self.open().health()['schema_version'], 4)
 
     def test_database_health_failure_is_not_disguised_as_ready(self):
         database = self.open()

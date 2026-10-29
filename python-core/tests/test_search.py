@@ -64,7 +64,7 @@ class SearchTests(unittest.TestCase):
         database.connection.execute("INSERT INTO search_documents VALUES (?,'stale v1 index',1,'fixture')",(identifier,))
         database.close(); database=Database(path)
         try:
-            self.assertEqual(database.health()['schema_version'],3)
+            self.assertEqual(database.health()['schema_version'],4)
             self.assertTrue(database.backup_path.is_file())
             self.assertEqual(SearchService(database).search({'query':'마이그레이션'})['ids'],[identifier])
             database.connection.execute("INSERT INTO asset_fts(asset_fts,rank) VALUES ('integrity-check',1)")

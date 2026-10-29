@@ -22,7 +22,13 @@ run(python, ['-m', 'PyInstaller', '--noconfirm', '--onedir', '--console', '--nou
   '--name', 'ai-asset-hub-core', '--distpath', join(binaries, 'core'),
   '--workpath', join(artifacts, 'pyinstaller-work'), '--specpath', artifacts,
   '--paths', join(root, 'python-core'), '--add-data', `${join(root, 'db', 'migrations')}:migrations`,
+  '--hidden-import', 'ai_asset_hub_core.metadata_store',
+  '--hidden-import', 'ai_asset_hub_core.asset_composition',
   join(root, 'python-core', 'desktop_entry.py')]);
+const packagedModules = readFileSync(join(artifacts, 'pyinstaller-work', 'ai-asset-hub-core', 'PYZ-00.toc'), 'utf8');
+for (const module of ['metadata_store', 'metadata_values', 'classification_axes', 'taxonomy', 'asset_composition']) {
+  if (!packagedModules.includes(`'ai_asset_hub_core.${module}'`)) throw new Error(`Core contract module missing from bundle: ${module}`);
+}
 const source = join(binaries, 'core', 'ai-asset-hub-core', 'ai-asset-hub-core.exe');
 const target = join(binaries, 'ai-asset-hub-core-x86_64-pc-windows-msvc.exe');
 copyFileSync(source, target);

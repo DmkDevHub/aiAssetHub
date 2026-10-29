@@ -388,7 +388,7 @@ mod tests {
             CoreProcess::new(LaunchSpec::packaged(directory).with_data(data.clone(), "production"));
         let first = core.start().unwrap();
         assert_eq!(first["data"]["database"]["status"], "ready");
-        assert_eq!(first["data"]["database"]["schema_version"], 3);
+        assert_eq!(first["data"]["database"]["schema_version"], 4);
         verify_model_registry(&mut core);
         let source = data
             .parent()
@@ -465,7 +465,7 @@ mod tests {
             CoreProcess::new(LaunchSpec::development().with_data(prod.clone(), environment));
         let health = core.start().unwrap();
         assert_eq!(health["data"]["database"]["status"], "ready");
-        assert_eq!(health["data"]["database"]["schema_version"], 3);
+        assert_eq!(health["data"]["database"]["schema_version"], 4);
         core.stop();
         assert!(prod.join("asset_hub.sqlite").is_file());
         assert_eq!(core.start().unwrap()["data"]["database"]["status"], "ready");

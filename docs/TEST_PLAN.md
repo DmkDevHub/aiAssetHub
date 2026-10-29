@@ -424,3 +424,15 @@ R08A-03: `npm run test:core` Python 109개 통과. 새 AI 제안 뒤 사용자 �
 
 
 R08A-04: `npm run test:core` Python 111개 통과. 실제 파일 UUID·내용 지문·내부 위치에 따른 구성 ID 안정성/변경 분리·미지 파일/잘못된 locator 거부를 검증했다. 계약은 파서/Unity 객체의 존재를 추측하지 않는다.
+
+
+## R08A-05 / M08A 최종 검증
+- `npm run check` Node 116개·Python 116개·타입 검사/Vite 빌드 통과. DB 버전 선택/다중 파일 회귀 보완 후 `npm run test:core` Python 117개 통과. 사용자 표시명/메모 보존 fixture 보완 후 `test_metadata_store` 6개도 통과. Rust `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored` 13개 및 Clippy `--all-targets --locked -- -D warnings` 통과. 최종 고유 내부 테스트 **246개**.
+- 기본 사전 JSON과 실제 103개 용어 행 일치·타입/축 FK 혼합/스냅샷 밖 코드/비활성/대표와 탐색 중복 거부·구버전 유지·사용 참조 수/승인/대체값 검증. 새 버전 명시 재지정과 사용자 이력도 저장/재개방 후 유지했다.
+- v3 fixture의 실제 UUID·표시명/메모·사용자 태그·성공/실패 run·불변 결과/활성 포인터·검색 문서·벡터 bytes를 비교해 모두 보존했고 FTS integrity-check 통과. source 멤버십만 추가하고 원본 SHA256은 불변이다. 실제 004 SQL 뒤에 오류를 넣은 별도 migration fixture는 v3로 롤백·부분 테이블 없음·백업 보존을 확인했다. 기존 001~003은 수정하지 않았다.
+- 파일/파서 근거는 실제 멤버 파일, AI 근거는 같은 에셋의 성공 결과 FK를 요구한다. 사용자 set/clear/adopt의 revision 충돌·미승인/미지 근거·재분석 제안 후 사용자 보정 유지·최초 관측 및 이전/새 결정 이력·삭제/수정 차단을 검증했다. 다중 파일 연결 뒤 원래 물리 소유자/에셋 수/원본 bytes도 유지했다. 분석 이력은 명시된 테스트 fixture이며 새 모델 호출은 없다.
+- `npm run build:installer` 통과. 아직 공개 API에서 참조하지 않는 내부 계약 모듈이 최초 PyInstaller 수집에서 누락된 것을 확인해 metadata_store/asset_composition을 명시 포함하고 5개 내부 모듈의 PYZ 목록 검사를 패키징 단계에 추가했다. 최종 번들에서 모두 확인했고 동봉 004 SQL은 소스와 바이트 동일하다.
+- 최종 `scripts/verify-installer.ps1 -Mcp` 통과: 임시 전용 설치본의 v4 DB/Core 실제 PID·Python 없는 PATH·5개 MCP 조회·최신 2026-07-28/legacy 2025-11-25 협상·종료 오류/명시 재시작 보존·조용한 제거/기존 설치 보존 확인. 기존 M07 실제 분석 테스트 DB도 새 Core에서 v4 업그레이드/조회하여 실제 활성 결과·Job/벡터 상태·테스트 원본 전체 해시 보존을 확인했다. 새로운 분석/임베딩 없음.
+- 보고/로그: `.artifacts/r08a-final-check.log`, `r08a-check.log`, `r08a-store-tests.log`, `r08a-rust.log`, `r08a-clippy.log`, `r08a-installer-build.log`, `r08a-installed-check.log`, `r08a-analyzed-host.json`; 설치본 Host 보고는 `.artifacts/m08-installed-host.json`. 최종 설치/개발 Sidecar SHA256 `231f1235c85ea36ff3398f2042083947635bce3116bcfb66ff74df63ec4f3a7d` 일치.
+- 설치 파일 23619224 bytes, SHA256 `7716dcfebeaa099f17149e283617712e1d7d7833ce0c5a11e7edb2c592d2bb5f`. 기존 NSIS Korean choowHowToInstall 문자열 경고 1개 유지.
+- M08A 완료 범위는 분류/우선순위 계약과 DB 저장 기반이다. 새 분류 편집/사전 관리 UI·공개 쓰기 API·검색 투영·다중 형식 실제 분석은 M08B 이후 범위다. 실제 GUI·깨끗한 PC·대규모 성능은 미검증. 화면 조작·사용자 원본/기존 AppData 변경·원격 push 없음.
