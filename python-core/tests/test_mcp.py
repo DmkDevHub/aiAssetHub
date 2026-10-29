@@ -49,6 +49,9 @@ class McpTests(unittest.TestCase):
                 self.assertIsNone(detail.structured_content['activeResult'])
                 files=await client.call_tool('get_asset_files',{'asset_id':identifier});self.assertEqual(files.structured_content['files'][0]['availability'],'present')
                 status=await client.call_tool('get_analysis_status',{'asset_ids':[identifier]});self.assertFalse(status.structured_content['items'][0]['hasActiveResult'])
+                self.broker.close()
+                unavailable=await client.call_tool('list_libraries',{})
+                self.assertTrue(unavailable.is_error);self.assertIn('APP_NOT_RUNNING',str(unavailable.content))
         asyncio.run(host())
 
     def add_asset(self,name='숲 나무.png'):
@@ -102,3 +105,73 @@ class McpTests(unittest.TestCase):
                 with self.assertRaisesRegex(BrokerError,'MCP_ASSET_NOT_FOUND'):self.client.call(tool,{'asset_id':value})
             with self.assertRaisesRegex(BrokerError,'INVALID_PARAMS'):self.client.call(tool,{'asset_id':'invented-id'})
         with self.assertRaisesRegex(BrokerError,'MCP_ASSET_NOT_FOUND'):self.client.call('get_analysis_status',{'asset_ids':[identifier]})
+
+    def raw(self,request):
+        import socket
+        from ai_asset_hub_core.mcp_broker import encode,receive
+        with socket.create_connection(('127.0.0.1',self.broker.session['port']),timeout=2) as connection:
+            connection.sendall(encode(request));return receive(connection)
+
+    def test_authentication_denies_bad_mac_replay_and_all_write_commands(self):
+        from uuid import uuid4
+        from ai_asset_hub_core.mcp_broker import signature
+        request={'session':self.broker.session['session'],'request_id':str(uuid4()),'host':'reference-host','tool':'_health','arguments':{},'mac':'0'*64}
+        self.assertEqual(self.raw(request)['error'],'AUTH_DENIED')
+        old=dict(self.broker.session);self.broker.close();self.broker=Broker(self.db)
+        request['mac']=signature(request,old['token']);self.assertEqual(self.raw(request)['error'],'AUTH_DENIED')
+        self.assertNotEqual(old['token'],self.broker.session['token'])
+        for tool in ('analysis.start','embedding.query','library.scan','asset.annotate','import_assets_to_unity'):
+            with self.assertRaisesRegex(BrokerError,'MCP_TOOL_NOT_ALLOWED'):self.client.call(tool,{'confirmed':True})
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
+
+    def test_fake_server_cannot_forge_responses_or_obtain_the_session_secret(self):
+        import socket,threading,json
+        from ai_asset_hub_core.mcp_broker import receive,encode
+        listener=socket.socket();listener.bind(('127.0.0.1',0));listener.listen(1);captured=[]
+        def fake():
+            with listener:
+                connection,_=listener.accept()
+                with connection:
+                    request=receive(connection);captured.append(json.dumps(request))
+                    connection.sendall(encode({'ok':True,'data':{'invented':True},'request_id':request['request_id'],'session':request['session'],'pid':os.getpid(),'mac':'0'*64}))
+        thread=threading.Thread(target=fake,daemon=True);thread.start()
+        info={**self.broker.session,'port':listener.getsockname()[1]}
+        with patch('ai_asset_hub_core.session_file.read',return_value=info):
+            with self.assertRaisesRegex(BrokerError,'CORE_UNAVAILABLE'):self.client.call('_health',{})
+        thread.join(2);self.assertFalse(thread.is_alive());self.assertNotIn(info['token'],captured[0])
+
+    def test_slow_unterminated_peer_is_bounded_and_does_not_kill_core(self):
+        import socket,time
+        connection=socket.create_connection(('127.0.0.1',self.broker.session['port']),timeout=2)
+        started=time.monotonic()
+        try:
+            connection.sendall(b'{');time.sleep(1.7)
+            self.assertTrue(connection.recv(4096));self.assertLess(time.monotonic()-started,3)
+        finally:connection.close()
+        self.assertEqual(self.client.call('_health',{})['status'],'ready')
+
+    def test_permissive_windows_discovery_acl_is_rejected(self):
+        if os.name!='nt':self.skipTest('Windows DACL verification')
+        import ctypes as c
+        from ctypes import wintypes as w
+        from ai_asset_hub_core.session_file import private
+        adv=c.WinDLL('advapi32',use_last_error=True);kernel=c.WinDLL('kernel32',use_last_error=True)
+        adv.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes=[w.LPCWSTR,w.DWORD,c.POINTER(c.c_void_p),c.POINTER(w.DWORD)]
+        adv.SetFileSecurityW.argtypes=[w.LPCWSTR,w.DWORD,c.c_void_p];kernel.LocalFree.argtypes=[c.c_void_p]
+        descriptor=c.c_void_p();self.assertTrue(adv.ConvertStringSecurityDescriptorToSecurityDescriptorW('D:P(A;;FA;;;WD)',1,c.byref(descriptor),None))
+        try:self.assertTrue(adv.SetFileSecurityW(str(self.broker.discovery),0x80000004,descriptor))
+        finally:kernel.LocalFree(descriptor)
+        try:
+            with self.assertRaisesRegex(BrokerError,'APP_NOT_RUNNING'):self.client.call('_health',{})
+        finally:private(self.broker.discovery,True)
+
+    def test_malformed_frames_and_oversized_responses_fail_without_raw_data(self):
+        import socket
+        from ai_asset_hub_core.mcp_broker import receive,MAX_FRAME
+        for raw in (b'{"duplicate":1,"duplicate":2}\n',b'x'*(MAX_FRAME+1)):
+            with socket.create_connection(('127.0.0.1',self.broker.session['port']),timeout=2) as connection:
+                connection.sendall(raw);result=receive(connection)
+                self.assertFalse(result['ok']);self.assertEqual(result['error'],'INVALID_PARAMS')
+        with patch.object(self.broker,'dispatch',return_value={'private':'x'*MAX_FRAME}):
+            with self.assertRaisesRegex(BrokerError,'MCP_RESPONSE_LIMIT'):self.client.call('_health',{})
+        self.assertEqual(self.client.call('_health',{})['status'],'ready')

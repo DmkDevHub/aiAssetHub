@@ -53,7 +53,7 @@ def main(argv=None):
                     from .mcp_broker import Broker
                     broker=Broker(runtime.database,application)
                 return serve(application, sys.stdin.buffer, sys.stdout.buffer)
-            except (BrokenPipeError, OSError):
+            except (BrokenPipeError, OSError, ValueError):
                 return 1
             finally:
                 if broker:broker.close()
