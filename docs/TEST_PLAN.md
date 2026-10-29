@@ -472,3 +472,8 @@ R08A-04: `npm run test:core` Python 111개 통과. 실제 파일 UUID·내용 �
 - 최종 npm 검증의 첫 실행은 설치본 컴파일과 CPU 경합 중 테스트 실행기의 30초 제한으로 중단되어 전체 통과로 처리하지 않았다. 빌드 종료 후 동일 명령 재실행은 152개 모두 통과했다. 제품/테스트 제한 시간은 변경하지 않았다.
 - `npm run build:installer` 및 `scripts/verify-installer.ps1 -Mcp` 통과. `.artifacts/r08c-installer-build.log`, `r08c-installed-check.log`, `m08-installed-host.json`. v6/실제 PID·Python 없는 PATH·5개 읽기 도구·최신 2026-07-28/레거시 2025-11-25·종료/명시 재시작·원본/Job/벡터 보존·격리 설치본 제거·기존 설치 보존 확인. Core Sidecar SHA256 c2e5d567bbe0caa1a4c7b143f2fdd14d4aa4538c5a33703882a45205dc0b4afe 일치. 새 005/006을 포함한 마이그레이션과 8개 메타데이터/컬렉션 모듈을 번들했다.
 - 설치 파일 23,756,869 bytes. 기존 NSIS Korean choowHowToInstall 문자열 경고 유지. 실제 GUI/OS 시각 배치·깨끗한 PC·대규모 성능은 미검증. 실제 화면 조작·사용자 원본 이동/수정/삭제·AI/임베딩 호출·원격 push는 수행하지 않았다. 제작 주체/출처 객체·권리/새 구매 이력은 M08D, 전체 상세 탭/검색 확장은 M08E 범위다.
+
+## ENV-01 이전 문서 검증 (2026-10-29)
+- 문서 변경만 수행했다. 현재 소스의 .gitignore/package.json, Python 고정 requirements, Core 패키징/테스트 실행기, Tauri MSVC/데이터 경로, Windows Vault 키 범위를 읽고 실제 명령/경계와 대조했다. 기존 PC 실측 Node 24.12.0/npm 11.6.2/Python 3.13.15/rustc·Cargo 1.99.1을 비교 기준으로 기록했다. 설치 요구사항은 공식 Tauri/Microsoft/Rust/Node/Python/Ollama 자료와 대조하고 문서에 출처를 연결했다.
+- System.Management.Automation.Language.Parser::ParseInput으로 NEW_PC_SETUP의 PowerShell fenced block 8개 검사: 구문 오류 0. Python pathlib/re 기반 로컬 Markdown 링크 검사(NEW_PC_SETUP/README/DEPLOYMENT): 36개 누락 0. git diff --check 통과. 명령 예제는 실제 설치/추론을 실행하지 않고 정적으로 검사했다.
+- 앱 코드 변경이 없어 npm/Cargo 전체 기능 테스트·설치본 재빌드는 이번 문서 작업에서 미실행이다. 302개 통과는 이전 M08C 검증 이력임을 구분했다. 새 PC의 실제 설치/네트워크 다운로드/기존 DB 복원/모델 이동/실행·화면 동작은 미검증이며 새 PC의 실제 결과를 별도로 기록해야 한다. 현재 PC 프로그램/사용자 DB/원본/모델은 변경하지 않았다.

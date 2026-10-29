@@ -1,5 +1,7 @@
 # DEPLOYMENT — Windows 실행·설치·업데이트
 
+새 PC에서 개발을 이어가려면 [개발 환경 이전 안내](NEW_PC_SETUP.md)의 조사·도구 설치·의존성 복원·무화면 검증 순서를 따른다. 아래 개별 마일스톤 기록은 당시 이력이다.
+
 ## 제공 방식
 - 제품: **Windows x64 설치형 앱**. 초기 배포는 Tauri NSIS `*-setup.exe` 선호.
 - 일반 사용자는 Python/SQLite 개발 환경을 별도로 설치하지 않는다.
