@@ -4,6 +4,7 @@ import { libraryUi, setDetailsCollapsed } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
 import AssetAnalysis from './AssetAnalysis.vue';
 import AssetAnnotations from './AssetAnnotations.vue';
+import AssetManagement from './AssetManagement.vue';
 import AssetMetadata from './AssetMetadata.vue';
 
 const props = withDefaults(defineProps<{ asset?: AssetSummary | null }>(), { asset: null });
@@ -49,6 +50,7 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
           <dl><dt>에셋명</dt><dd>{{ asset.name }}</dd><dt>유형</dt><dd>{{ asset.kind }}</dd></dl>
           <AssetMetadata :asset="asset" />
           <AssetAnnotations :asset-id="asset.id" :user-tags="asset.userTags" />
+          <AssetManagement :asset-id="asset.id" />
         </div>
         <div id="detail-panel-analysis" role="tabpanel" aria-labelledby="detail-tab-analysis"
           :hidden="activeTab !== 'analysis'" tabindex="0">

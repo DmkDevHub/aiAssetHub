@@ -1926,3 +1926,17 @@ test('MCP audit page retries a failed read and pages with the actual cursor',asy
  fail=false;dispatch(document.querySelector('button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.body.textContent,/연결 불가/);
  dispatch([...document.querySelectorAll('button')].find(b=>b.textContent==='이전 호출 더 보기'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[1].afterId,'audit-cursor');assert.ok(calls.every(c=>['mcp_connection','mcp_audit'].includes(c[0])));
 });
+
+
+test('management saves explicitly, preserves drafts on conflict and distinguishes unrated', async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];let conflict=true;
+ const value={favorite:false,rating:null,status:'unreviewed',notes:'memo',assetVersion:'v1',createdDate:'',modifiedDate:''};
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return command==='get_asset_management'?{ok:true,data:{value:{...value},revision:2}}:conflict?{ok:false,error:{code:'METADATA_CONFLICT'}}:{ok:true,data:{value:args.value,revision:3}};}};
+ app=createApp(components.AssetManagement,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(document.querySelector('.asset-management select').selectedIndex,0);assert.equal(calls.length,1);
+ const memo=document.querySelector('.asset-management textarea');memo.value='draft';dispatch(memo,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,1);
+ dispatch(document.querySelector('.asset-management form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[1][1].expectedRevision,2);assert.equal(calls[1][1].value.notes,'draft');assert.equal(memo.value,'draft');assert.equal(document.querySelector('.asset-management fieldset button').disabled,true);
+ conflict=false;dispatch([...document.querySelectorAll('.asset-management button')].at(-1),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(memo.value,'memo');assert.equal(document.querySelector('.asset-management fieldset button').disabled,false);
+});

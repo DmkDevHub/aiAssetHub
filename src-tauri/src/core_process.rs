@@ -229,6 +229,8 @@ impl CoreProcess {
                 | "asset.list"
                 | "asset.thumbnail"
                 | "asset.get"
+                | "asset.management"
+                | "asset.management.save"
                 | "asset.annotations"
                 | "asset.tags"
                 | "asset.annotate"

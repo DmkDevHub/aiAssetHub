@@ -41,3 +41,6 @@ retire_facet은 실제 링크의 사용 에셋 수를 조회해 사용 중이면
 
 ## R08B-01 기본 정보 연결
 표시명/설명/별칭은 기존 v4의 basic_text 필드 사용자 결정(객체)과 asset_user_annotations 투영을 한 트랜잭션으로 쓴다. 기존 title/description 조회·검색 계약을 유지하며 별칭은 사용자 결정에서만 읽는다. 미편집 기존 주석은 그대로 읽고 첫 저장 시 명시 결정으로 기록한다. 빈 별칭은 빈 배열로 확정하며 제안을 자동 적용하지 않는다. 새 DDL/마이그레이션은 없다. 이력은 로컬 업무 데이터이며 감사에 텍스트를 쓰지 않는다. 한도/구형 호출 호환/충돌은 [API 계약](API_CONTRACTS.md)을 따른다. 위 M08A의 공개 편집 미연결 기록 중 기본 텍스트만 연결했으며 분류·다중 파일·관계·전체 이력 UI와 별칭 검색은 후속 범위다.
+
+## R08B-02 관리 정보
+`management` 사용자 결정에 favorite(bool), rating(null 또는 정수 1~5), status(unreviewed/reviewing/approved/archived), notes(1024자), assetVersion(64자), createdDate/modifiedDate(빈 값 또는 실제 YYYY-MM-DD, 생성일≤수정일)를 저장한다. 날짜는 사용자 에셋 정보이며 OS 파일 시각과 독립적이다. 고정 Core/Tauri 명령만 허용하고 revision 비교와 이력을 한 트랜잭션으로 처리한다. v4 저장 기반을 사용하며 새 의존성/DDL/AI 호출은 없다. GUI 배치는 미검증이다.
