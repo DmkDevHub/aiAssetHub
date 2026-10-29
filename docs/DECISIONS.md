@@ -59,3 +59,7 @@ Ollama의 로컬 embedding capability 모델만 명시적으로 설정한다. SQ
 
 ## D-028 — M08 읽기 전용 MCP 채널
 설계에 명시한 공식 Python MCP SDK 2.3.0 및 전이 의존성을 고정한다. 기존 Core 실행 파일의 `--mcp` 모드를 Host가 별도 stdio Bridge 프로세스로 실행하며, 이 모드는 SQLite/분석 엔진을 열거나 앱을 시작하지 않는다. 실행 중 Core만 127.0.0.1 동적 포트에 읽기 전용 Broker를 열고 별도 스레드의 Core 소유 DB 연결로 처리한다. 세션별 난수 토큰·UUID·PID와 현재 사용자/SYSTEM 전용 보호 DACL의 발견 파일로 인증한다. 기존 Tauri 비공개 파이프와 쓰기 경계를 유지한다. reference Host는 공식 SDK Client의 실제 별도 프로세스 연결로 검증하고 특정 AI 제품의 설정/모델 실행 검증과 구분한다.
+
+
+## D-029 — 사용자 제공 통합 에셋 관리 요구사항 반영
+2026-10-29 첨부 원문을 [ASSET_MANAGEMENT_REQUIREMENTS](ASSET_MANAGEMENT_REQUIREMENTS.md)에 보존하고 [ASSET_METADATA](ASSET_METADATA.md)를 확장 설계 기준으로 추가한다. A01~A14 대표 유형·독립 분류 축, Group/Package/Asset/File·다중 파일, 사용자 확정 우선·공유 제작/출처/권리·이력·검색·다중 형식 수동 분석을 계획한다. 기존 tags/asset_tags와 분석 테이블은 재사용하고 실제 신규 스키마는 R08A-04~05에서 결정한다. ‘자동 분석’은 명시 승인한 작업 내 처리이며 기존 자동 호출 금지를 변경하지 않는다. 기술 스택·Core 단일 쓰기·원본 보존·화면 직접 조작 금지를 유지한다. 기존 완료 이력/작업 ID를 보존하고 M08A~H를 M09 전에, 선택 M08I를 M10 뒤에 배치한다. 현재 요청은 요구사항/문서/로드맵 반영으로 수행하며 신규 기능 구현·기존 DB 변환·원본 수정·재분석은 실행하지 않는다.
