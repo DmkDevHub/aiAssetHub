@@ -421,3 +421,6 @@ R08A-02: `npm run test:core` Python 107개 통과. 축 혼합/미지 값/버전 
 
 
 R08A-03: `npm run test:core` Python 109개 통과. 새 AI 제안 뒤 사용자 값/명시 빈 값 보존·선택 제안 재적용·관측 우선·미승인/버전 충돌/미지 claim/NaN 거부·이력 복사 검증. DB 영속성은 R08A-05에서 연결한다.
+
+
+R08A-04: `npm run test:core` Python 111개 통과. 실제 파일 UUID·내용 지문·내부 위치에 따른 구성 ID 안정성/변경 분리·미지 파일/잘못된 locator 거부를 검증했다. 계약은 파서/Unity 객체의 존재를 추측하지 않는다.
