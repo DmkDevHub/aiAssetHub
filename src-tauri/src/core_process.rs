@@ -243,6 +243,7 @@ impl CoreProcess {
                 | "asset.groups.delete"
                 | "asset.groups.membership"
                 | "asset.groups.assign"
+                | "asset.groups.move"
                 | "asset.annotations"
                 | "asset.tags"
                 | "asset.annotate"

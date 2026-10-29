@@ -105,8 +105,26 @@ class Collections(AnnotationService):
             before=self.group(params['group_id']);self.revision(params['expected_revision'],before['revision'])
             members=[r[0] for r in self.db.execute('SELECT asset_id FROM asset_group_members WHERE group_id=?',(before['id'],))]
             snapshots={asset:self.membership_value(asset) for asset in members}
+            children=[r[0] for r in self.db.execute('SELECT id FROM asset_groups WHERE parent_id=?',(before['id'],))]
+            for child in children:
+                old=self.group(child)
+                self.db.execute('UPDATE asset_groups SET parent_id=NULL,revision=revision+1 WHERE id=?',(child,))
+                self.log('group',child,old['revision']+1,'parent_deleted',old,self.group(child))
             self.db.execute('DELETE FROM asset_groups WHERE id=?',(before['id'],))
             for asset in members:self.member_version(asset,'group',snapshots[asset],'group_deleted')
             self.log('group',before['id'],before['revision']+1,'delete',before,None)
-            return {'deleted':before['id'],'affectedAssets':len(members)}
+            return {'deleted':before['id'],'affectedAssets':len(members),'promotedChildren':len(children)}
+        return self.transaction(operation)
+
+    def group_move(self, params):
+        self.keys(params,'group_id parent_id expected_revision')
+        if params['parent_id'] is not None and not valid_id(params['parent_id']): raise LibraryError('INVALID_PARAMS')
+        def operation():
+            before=self.group(params['group_id']);self.revision(params['expected_revision'],before['revision'])
+            parent=params['parent_id'];seen={before['id']}
+            while parent is not None:
+                if parent in seen: raise LibraryError('INVALID_PARAMS')
+                seen.add(parent);parent=self.group(parent)['parentId']
+            self.db.execute('UPDATE asset_groups SET parent_id=?,revision=revision+1 WHERE id=?',(params['parent_id'],before['id']))
+            result=self.group(before['id']);self.log('group',before['id'],result['revision'],'move',before,result);return result
         return self.transaction(operation)

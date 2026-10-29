@@ -2024,3 +2024,16 @@ test('group membership preserves unloaded group ids and conflicts keep the draft
  app=createApp(components.GroupManager,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();const check=document.querySelector('.group-manager li input');check.checked=true;dispatch(check,new Event('change',{bubbles:true}));await nextTick();assert.equal(calls.length,2);
  dispatch([...document.querySelectorAll('.group-manager button')].find(b=>b.textContent==='그룹 소속 저장'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.at(-1)[1].groupIds,['not-yet-loaded','visible']);assert.equal(check.checked,true);assert.equal([...document.querySelectorAll('.group-manager button')].find(b=>b.textContent==='그룹 소속 저장').disabled,true);assert.doesNotMatch(document.body.textContent,/private/);
 });
+
+
+test('group drag and keyboard moves require review, cancel locally and retain tree on failure',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];let reject=true;
+ const groups=[{id:'parent',name:'Parent',description:'',parentId:null,revision:1},{id:'child',name:'Child',description:'',parentId:null,revision:2}];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='group_list')return {ok:true,data:{items:groups,next_cursor:null}};assert.equal(command,'group_move');return reject?{ok:false,error:{code:'INVALID_PARAMS'}}:{ok:true,data:{...groups[1],parentId:args.parentId,revision:3}};}};
+ app=createApp(components.GroupManager);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();
+ const click=async(text)=>{dispatch([...document.querySelectorAll('.group-manager button')].find(b=>b.textContent===text),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();};
+ await click('그룹 새로고침');const rows=document.querySelectorAll('.group-manager li');dispatch(rows[1],new Event('dragstart',{bubbles:true}));dispatch(rows[0],new Event('drop',{bubbles:true,cancelable:true}));await nextTick();assert.equal(calls.length,1);assert.match(document.querySelector('.group-move-review').textContent,/Child.*Parent/);
+ await click('그룹 이동 취소');assert.equal(document.querySelector('.group-move-review'),null);assert.equal(calls.length,1);
+ await click('Child');const select=document.querySelector('.group-manager select');select.value='parent';dispatch(select,new Event('change',{bubbles:true}));await nextTick();await click('그룹 이동 준비');await click('그룹 이동 적용');assert.equal(calls.at(-1)[1].expectedRevision,2);assert.match(rows[1].textContent,/최상위/);assert.match(document.querySelector('.group-manager [role=alert]').textContent,/이동하지 못했습니다/);
+ reject=false;await click('그룹 이동 적용');assert.match(document.querySelectorAll('.group-manager li')[1].textContent,/상위: Parent/);assert.equal(document.querySelector('.group-move-review'),null);
+});

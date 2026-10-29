@@ -773,6 +773,19 @@ async fn group_assign(
 }
 
 #[tauri::command]
+async fn group_move(
+    state: tauri::State<'_, CoreState>,
+    group_id: String,
+    parent_id: Option<String>,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.groups.move", serde_json::json!({"group_id":group_id,"parent_id":parent_id,"expected_revision":expected_revision}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_annotations(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -1061,6 +1074,7 @@ pub fn run() {
             group_delete,
             group_membership,
             group_assign,
+            group_move,
             asset_annotations,
             edit_asset_tags,
             save_asset_annotation,

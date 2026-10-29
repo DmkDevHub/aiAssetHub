@@ -71,3 +71,22 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(upgraded.connection.execute("SELECT value_json FROM settings WHERE key='fixture'").fetchone()[0],'123')
             self.assertEqual(upgraded.connection.execute('SELECT count(*) FROM asset_groups').fetchone()[0],0)
         finally:upgraded.close()
+
+    def test_hierarchy_moves_reject_self_cycle_and_promote_children_on_delete(self):
+        service=Collections(self.db);a,b,c=[self.group(n) for n in ('a','b','c')]
+        move=lambda g,p,r:service.group_move(dict(group_id=g,parent_id=p,expected_revision=r))
+        move(b['id'],a['id'],1);move(c['id'],b['id'],1)
+        for target in (a['id'],c['id']):
+            with self.assertRaises(LibraryError):move(a['id'],target,1)
+        self.assertIsNone(service.group(a['id'])['parentId'])
+        with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):move(c['id'],None,1)
+        result=service.group_delete(dict(group_id=b['id'],expected_revision=2))
+        self.assertEqual(result['promotedChildren'],1)
+        self.assertIsNone(service.group(c['id'])['parentId']);self.assertEqual(service.group(c['id'])['revision'],3)
+        self.assertEqual((self.source/'나무.png').read_bytes(),b'original')
+
+    def test_failed_hierarchy_change_rolls_back_tree_and_history(self):
+        service=Collections(self.db);a=self.group();b=self.group('b')
+        self.db.connection.execute("CREATE TRIGGER fixture_move_failure BEFORE INSERT ON collection_history WHEN NEW.action='move' BEGIN SELECT RAISE(ABORT,'fixture'); END;")
+        with self.assertRaises(sqlite3.IntegrityError):service.group_move(dict(group_id=b['id'],parent_id=a['id'],expected_revision=1))
+        self.assertIsNone(service.group(b['id'])['parentId']);self.assertEqual(service.group(b['id'])['revision'],1)
