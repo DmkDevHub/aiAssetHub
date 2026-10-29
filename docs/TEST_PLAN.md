@@ -477,3 +477,83 @@ R08A-04: `npm run test:core` Python 111개 통과. 실제 파일 UUID·내용 �
 - 문서 변경만 수행했다. 현재 소스의 .gitignore/package.json, Python 고정 requirements, Core 패키징/테스트 실행기, Tauri MSVC/데이터 경로, Windows Vault 키 범위를 읽고 실제 명령/경계와 대조했다. 기존 PC 실측 Node 24.12.0/npm 11.6.2/Python 3.13.15/rustc·Cargo 1.99.1을 비교 기준으로 기록했다. 설치 요구사항은 공식 Tauri/Microsoft/Rust/Node/Python/Ollama 자료와 대조하고 문서에 출처를 연결했다.
 - System.Management.Automation.Language.Parser::ParseInput으로 NEW_PC_SETUP의 PowerShell fenced block 8개 검사: 구문 오류 0. Python pathlib/re 기반 로컬 Markdown 링크 검사(NEW_PC_SETUP/README/DEPLOYMENT): 36개 누락 0. git diff --check 통과. 명령 예제는 실제 설치/추론을 실행하지 않고 정적으로 검사했다.
 - 앱 코드 변경이 없어 npm/Cargo 전체 기능 테스트·설치본 재빌드는 이번 문서 작업에서 미실행이다. 302개 통과는 이전 M08C 검증 이력임을 구분했다. 새 PC의 실제 설치/네트워크 다운로드/기존 DB 복원/모델 이동/실행·화면 동작은 미검증이며 새 PC의 실제 결과를 별도로 기록해야 한다. 현재 PC 프로그램/사용자 DB/원본/모델은 변경하지 않았다.
+
+## ENV-02 새 PC 실제 환경 준비 (2026-10-29, 재부팅 대기 / 미완료)
+
+대상 소스 `f5d7bf768ecfdd7fce4a74cd0e5a48909aea58ea` (`main`), 저장소 `D:\ai_workspace\aiAssetHub`. 시작 시 `git status --short`는 비어 있었다. 기존 PC의 302개 통과 기록은 이 PC의 결과로 사용하지 않았다.
+
+### 환경 조사·실제 도구
+
+- OS API: `Microsoft Windows 10.0.26300`, 네이티브 X64, Intel64 Family 6 Model 158 Stepping 10. 레지스트리 DisplayVersion `26H2`, build `26300.9711`; ProductName은 `Windows 10 Pro`로 보고되어 OS 마케팅 명칭은 확정하지 않았다. CIM OS/CPU 조회는 접근 제한으로 실패해 .NET OSArchitecture/OSDescription·환경 변수·레지스트리로 확인했다.
+- 작업 전 C: 약 131.6 GB, D: 약 743.5 GB 여유. Git 2.53.0.windows.3은 Codex 제공 경로에서 사용 가능해 추가 설치하지 않았다. 기존 Git identity는 변경하지 않았다.
+- 초기 PATH에는 Codex Node 24.22.1이 있었으나 npm 명령이 없었다. 저장소에 이미 있던 공식 Node 배포본 24.22.2/npm 11.19.1을 프로젝트 전용으로 사용한다. ZIP SHA256 `ca1bff5d8ead13c9f2ea404a176db46bd430704d5b5113734049fa365e7799e2`가 저장된 공식 SHASUMS256 항목과 일치했다. 다른 프로그램/전역 PATH는 변경하지 않았다.
+- 초기 python은 WindowsApps 별칭뿐이며 일반 CPython·Rust·VS Build Tools·SDK는 조사 위치에서 확인되지 않았다. WebView2 Runtime `156.0.4314.50`은 HKLM EdgeUpdate 등록에서 확인돼 재설치하지 않았다. 실제 WebView2 화면 구동은 미검증이다.
+
+| 도구 | 최종 실제 버전 | 경로 / 설치 결과 |
+| --- | --- | --- |
+| Git | 2.53.0.windows.3 | `C:\Users\KDM_SERVER\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\git\cmd\git.exe` (기존) |
+| Node / npm | 24.22.2 / 11.19.1 | `D:\ai_workspace\aiAssetHub\.artifacts\tools\node-v24.22.2-win-x64` (ZIP 배포본 사용) |
+| CPython | 3.13.17, MSC v.1944, AMD64 | `C:\Program Files\Python313\python.exe` (신규 전체 사용자 설치, 종료 0) |
+| SQLite | 3.50.4 | 위 기반 CPython의 sqlite3 모듈, 별도 서버 설치 없음 |
+| rustup | 1.29.2 | `C:\Users\KDM_SERVER\.cargo\bin\rustup.exe` (신규) |
+| rustc / Cargo | 1.99.1 / 1.99.1 | `C:\Users\KDM_SERVER\.cargo\bin`, stable-x86_64-pc-windows-msvc; rustfmt/clippy 설치 |
+| VS Build Tools 2022 | 17.14.43 / 17.14.37824.6 | `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools` (신규) |
+| MSVC v143 | 디렉터리 14.44.35207 | 위 BuildTools의 `VC\Tools\MSVC`; 실제 Rust 링크 검사는 미실행 |
+| Windows SDK | 디렉터리 10.0.26100.0 | `C:\Program Files (x86)\Windows Kits\10`; 실제 컴파일 검사는 미실행 |
+| WebView2 | 156.0.4314.50 | 기존 런타임 등록 확인, 추가 설치 없음 |
+
+설치 근거: [Python 공식 배포](https://www.python.org/ftp/python/3.13.17/), [Node 배포 체크섬](https://nodejs.org/dist/v24.22.2/SHASUMS256.txt), [Rust 공식 설치](https://rust-lang.org/tools/install/), [Tauri Windows 요구사항](https://v2.tauri.app/start/prerequisites/). Python 설치기는 유효한 Python Software Foundation 서명, Build Tools 설치기는 유효한 Microsoft 서명을 확인했다. Rust는 `https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe`와 해당 `.sha256`을 새로 받아 해시를 비교한 뒤 실행했다. 기존 미서명 Rust 다운로드는 실행하지 않았다.
+
+### 설치·복원 명령 및 실측
+
+| 명령 / 단계 | 결과 | 근거 / 제한 |
+| --- | --- | --- |
+| Python `/quiet InstallAllUsers=0 PrependPath=0 Include_launcher=0 Include_test=0` | **실패**, 종료 3 | 기존 잔존 로그 및 이번 retry에서 MSI 2203 / 0x80070003, 사용자 Package Cache의 core.msi 경로 실패 |
+| Python `/quiet InstallAllUsers=1 PrependPath=0 Include_launcher=0 Include_test=0` | **통과**, 종료 0 | 공식 설치기로 전체 사용자 설치 재시도. 재부팅 요구 없음. 기존 프로그램 제거/보안 설정 변경 없음 |
+| `vs_BuildTools.exe --quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended` | 설치 성공, **종료 3010 / 재부팅 필요** | 관리자/시스템 영역 설치가 필요해 샌드박스 밖 실행을 사용. vswhere 최종 isComplete/isLaunchable=true. isRebootRequired=false 필드와 달리 설치기 종료 코드는 3010이므로 NEW_PC_SETUP §5에 따라 재부팅 우선 |
+| `rustup-init-verified.exe -y --no-modify-path --default-toolchain none` | **통과**, 종료 0 | 전역 PATH 변경 안 함. 기존 Rust 설치 없음 |
+| `rustup toolchain install stable-x86_64-pc-windows-msvc` / `rustup override set stable-x86_64-pc-windows-msvc` / `rustup component add rustfmt clippy --toolchain stable-x86_64-pc-windows-msvc` | **통과**, 모두 종료 0 | 저장소 override 적용. 최초 툴체인 설치 과정에서 rustup이 비어 있던 default도 stable로 설정했으며 기존 default를 교체한 것은 아님 |
+| `npm.cmd ci` | **통과**, 종료 0 | 97개 설치, 98개 audit, 16초, 보고된 취약점 0. 잠금 파일 수정 없음 |
+| `AI_ASSET_HUB_PYTHON=C:\Program Files\Python313\python.exe`, `npm.cmd run package:core` | **통과**, 종료 0 | 새 `.artifacts/core-build-venv` 생성, 고정 requirements 설치, PyInstaller 최종 빌드 로그 32.343초(패키지 다운로드/설치 시간 제외) |
+| `pip show Pillow PyInstaller mcp` / venv cfg / 파일·해시 확인 | **통과** (설치 메타데이터 검사) | Pillow 13.0.0, PyInstaller 6.22.3, MCP 2.3.0. 기반 Python 64비트·base_prefix 일치 확인. 기능 테스트를 대체하지 않음 |
+
+새 환경은 기존 venv 복사본을 사용하지 않았다. 기반 Python과 프로젝트 venv는 분리했다. 생성 파일:
+
+- `.artifacts/core-build-venv/Scripts/python.exe`, cfg 기반 `C:\Program Files\Python313`.
+- `src-tauri/binaries/core/ai-asset-hub-core/ai-asset-hub-core.exe` (8,602,474 bytes) 및 `_internal/`.
+- `src-tauri/binaries/ai-asset-hub-core-x86_64-pc-windows-msvc.exe` 및 `.artifacts/core-build-manifest.json`.
+- Sidecar SHA256: `403ddcf35b8f8554760bef1b4c9d2b38ed0835bb0ccd65c27a2f0d4cd8586d72` (파일 해시와 manifest 일치). 실행/파이프/DB 기능 검증은 아직 하지 않았다.
+
+### 재부팅으로 보류된 검증
+
+Build Tools의 3010 결과를 확인한 뒤 아래 검증은 시작하지 않았다. 기능 테스트 실행 수 **0개**이며 개발 환경 복원 전체를 완료로 표시하지 않는다. 자동 재부팅은 수행하지 않았다.
+
+| 명령 | 상태 |
+| --- | --- |
+| `npm.cmd run check` (Node·Python 자동 테스트 + 타입 검사 + Vite 빌드) | **미실행** — 재부팅 후 |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | **미실행** |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | **미실행** |
+| `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1` | **미실행** — 패키지 ignored 테스트도 추후 포함 |
+| `npm.cmd run build:installer` | **미실행** — 최종 NSIS 설치 파일/해시 없음 |
+| `./scripts/verify-installer.ps1 -Mcp` | **미실행** — 격리 무화면 설치·DB v6·공식 MCP Host·제거/기존 설치 보존 아직 미검증 |
+| Ollama 설치·모델 다운로드·실제 추론/임베딩 | **미실행** — 별도 요청 없음 |
+| 사용자 DB·원본 에셋 복사/이전 | **미실행** — 별도 승인된 복사본 없음 |
+
+### 재부팅 후 재개
+
+새 PowerShell 세션에서 아래 준비 후 NEW_PC_SETUP §7 명령을 하나씩 실행하고, 각각 종료 코드가 0일 때만 다음 단계로 진행한다. 설치본 빌드와 테스트를 동시에 실행하지 않는다.
+
+```powershell
+Set-Location D:\ai_workspace\aiAssetHub
+. ./.artifacts/Use-DevEnvironment.ps1
+rustup show
+& $env:AI_ASSET_HUB_PYTHON --version
+node --version
+npm.cmd --version
+```
+
+현재 PC 전용 `.artifacts/Use-DevEnvironment.ps1`은 기반 Python·Sidecar 폴더와 프로젝트 Node/Cargo PATH를 현재 세션에만 설정한다. `.artifacts/Run-NewPcStep.ps1 -Step check` → `fmt` → `clippy` → `rust-tests` → `installer` → `verify`를 각각 별도 프로세스로 실행하면 실제 명령별 로그와 종료 코드/초 단위 소요 시간이 `.artifacts/new-pc-steps.jsonl`에 기록되도록 준비했다. **이 실행 보조 스크립트 자체와 이후 단계는 아직 미실행**이다. 새 다운로드/실행이 네트워크·레지스트리 샌드박스에 막히면 승인된 범위에서 권한 확장 후 재실행해야 한다.
+
+현재 로그: `.artifacts/new-pc-python-{retry,machine}*.log`, `new-pc-rustup-install.log`, `new-pc-rust-toolchain.log`, `new-pc-npm-ci.log`, `new-pc-package-core.log`. 환경 스냅샷 `new-pc-inventory.json`, VS 상태 `new-pc-vswhere.json`, 종료 코드 요약 `new-pc-provision-status.json`. Build Tools의 3010은 대기 프로세스 실측을 위 요약에 기록했다. 설치 도구/로그/venv/Sidecar는 Git 제외 상태다.
+
+사용자 DB·원본 에셋·모델·기존 프로그램 제거/덮어쓰기·전역 보안 설정 변경·앱/브라우저 화면 실행·Computer Use·다음 기능 개발·원격 push는 수행하지 않았다. 실제 GUI/OS 시각 배치·깨끗한 PC 실행·성능·서명/업데이트는 미검증이다. 문서 변경만 커밋하며 ENV-02 체크는 미완료로 유지한다.

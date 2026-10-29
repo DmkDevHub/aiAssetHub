@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### 2026-10-29 — [ENV-02] 새 PC 도구·의존성·Sidecar 준비 (검증 대기)
+- Windows x64 도구 조사 후 공식 CPython 3.13.17, Node 24.22.2/npm 11.19.1, Rust 1.99.1, Build Tools 2022/MSVC/SDK를 준비하고 잠금 의존성과 새 프로젝트 venv/Sidecar를 생성했다. 기존 Git/WebView2는 재설치하지 않았다.
+- Build Tools 종료 3010(재부팅 필요)에 따라 후속 내부 테스트·타입/Rust 검사·설치본 빌드/검증은 미실행. 실제 버전·실패 로그·재개 명령을 TEST_PLAN에 기록했으며 ENV-02는 미완료다.
+
 ### 2026-10-28 — 설계 문서 세트 작성
 - 신규 v0.5 요구사항, Blueberry 참고 UI, 수동 AI 분석 정책, 모델·검색·MCP·Unity·배포 구조 및 세분화 ROADMAP을 문서화.
 - **작성 당시 상태: 실제 소스 코드 미작성. 모든 ROADMAP 개발 항목 미완료.**
