@@ -234,6 +234,8 @@ impl CoreProcess {
                 | "asset.composition"
                 | "asset.composition.save"
                 | "asset.link.candidates"
+                | "asset.relations"
+                | "asset.relations.save"
                 | "asset.annotations"
                 | "asset.tags"
                 | "asset.annotate"

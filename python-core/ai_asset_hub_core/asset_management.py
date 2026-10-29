@@ -113,6 +113,16 @@ class AssetManagement(AnnotationService):
                 FROM asset_components c JOIN asset_files f ON f.id=c.file_id JOIN assets a ON a.id=f.asset_id
                 JOIN library_roots l ON l.id=a.library_root_id WHERE l.enabled=1 AND c.id>? ORDER BY c.id LIMIT 3''', (after or '',)).fetchall()
             items = [{'id': r[0], 'name': r[1]+': '+r[2][-160:], 'fileId': r[3], 'available': bool(r[4])} for r in rows[:2]]
+        elif kind in ('asset', 'incoming'):
+            extra = '' if kind == 'asset' else ''' AND EXISTS (SELECT 1 FROM metadata_decisions d,json_each(d.value_json) j
+                WHERE d.asset_id=a.id AND d.field='relations' AND json_extract(j.value,'$.targetId')=?)'''
+            args = [after or '', params['asset_id']]
+            if kind == 'incoming': args.append(params['asset_id'])
+            rows = self.db.execute('''SELECT a.id,coalesce(u.title_override,a.display_name) FROM assets a
+                JOIN library_roots l ON l.id=a.library_root_id LEFT JOIN asset_user_annotations u ON u.asset_id=a.id
+                WHERE l.enabled=1 AND a.id>? AND a.id!=?''' + extra + ' ORDER BY a.id LIMIT 3', args).fetchall()
+            items = [{'id': r[0], 'name': r[1][-160:], 'available': True,
+                      'relations': [link['kind'] for link in self.relation_value(r[0]) if link['targetId'] == params['asset_id']] if kind == 'incoming' else []} for r in rows[:2]]
         else: raise LibraryError('INVALID_PARAMS')
         return {'items': items, 'next_cursor': rows[1][0] if len(rows) > 2 else None}
 
@@ -144,3 +154,56 @@ class AssetManagement(AnnotationService):
             self.db.execute('DELETE FROM asset_file_members WHERE asset_id=?', (params['asset_id'],))
             self.db.executemany('INSERT INTO asset_file_members VALUES (?,?,?)', [(params['asset_id'], f, r) for f, r in sorted(pairs)])
         return self.commit(params, 'composition', value, self.composition, project)
+
+    def relation_value(self, asset):
+        row = self.db.execute("SELECT value_json FROM metadata_decisions WHERE asset_id=? AND field='relations'", (asset,)).fetchone()
+        return json.loads(row[0]) if row else []
+
+    def relations(self, params):
+        self.get(params)
+        state = self.metadata.effective(params['asset_id'], 'relations')
+        links = self.relation_value(params['asset_id'])
+        details = []
+        for link in links:
+            row = self.db.execute('''SELECT coalesce(u.title_override,a.display_name),l.enabled FROM assets a
+                JOIN library_roots l ON l.id=a.library_root_id LEFT JOIN asset_user_annotations u ON u.asset_id=a.id WHERE a.id=?''', (link['targetId'],)).fetchone()
+            details.append({**link, 'name': row[0][-160:] if row else '사용 불가', 'available': bool(row and row[1])})
+        return {'value': links, 'revision': state['revision'], 'items': details}
+
+    def save_relations(self, params):
+        self.validate_request(params)
+        links = params['value']
+        if not isinstance(links, list) or len(links) > 16: raise LibraryError('INVALID_PARAMS')
+        seen = set()
+        for link in links:
+            if not isinstance(link, dict) or set(link) != {'targetId', 'kind'} or not valid_id(link['targetId']) or link['kind'] not in ('related', 'original_of', 'variant_of', 'derived_from') or link['targetId'] == params['asset_id']:
+                raise LibraryError('INVALID_PARAMS')
+            pair = (link['targetId'], link['kind'])
+            if pair in seen: raise LibraryError('INVALID_PARAMS')
+            seen.add(pair)
+
+        def validate_graph():
+            # Runs under BEGIN IMMEDIATE, including changes on other assets.
+            for target, _ in seen: self.require_asset(target)
+            graph = {}
+            for asset, value in self.db.execute("SELECT asset_id,value_json FROM metadata_decisions WHERE field='relations'"):
+                for link in json.loads(value):
+                    parent, child = link['targetId'], asset
+                    if link['kind'] == 'related': continue
+                    if link['kind'] == 'original_of': parent, child = child, parent
+                    graph.setdefault(child, set()).add(parent)
+            # Kahn traversal avoids recursion limits on long legitimate ancestry chains.
+            nodes = set(graph) | {p for parents in graph.values() for p in parents}
+            degree = {node: 0 for node in nodes}
+            for parents in graph.values():
+                for parent in parents: degree[parent] += 1
+            pending = [node for node in nodes if degree[node] == 0]
+            count = 0
+            while pending:
+                node = pending.pop(); count += 1
+                for parent in graph.get(node, ()):
+                    degree[parent] -= 1
+                    if degree[parent] == 0: pending.append(parent)
+            if count != len(nodes): raise LibraryError('INVALID_PARAMS')
+
+        return self.commit(params, 'relations', links, self.relations, validate_graph)

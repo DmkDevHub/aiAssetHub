@@ -94,3 +94,43 @@ class ManagementTests(unittest.TestCase):
         self.assertEqual(len(set(ids)),5)
         self.assertEqual(service.candidates(dict(asset_id=self.id,kind='component',after_id=None))['items'],[])
         with self.assertRaises(LibraryError): service.candidates(dict(asset_id=self.id,kind='file',after_id='made-up'))
+
+    def test_relations_direction_incoming_and_cycle_rollback(self):
+        from uuid import uuid4
+        service=AssetManagement(self.db)
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        for n in range(2): (self.source/f'related-{n}.wav').write_bytes(b'fixture')
+        AssetService(self.db).scan({'library_id':library})
+        others=[r[0] for r in self.db.connection.execute('SELECT id FROM assets WHERE id!=? ORDER BY id',(self.id,))]
+        first,second=others
+        save=lambda asset,target,kind,rev=0:service.save_relations(dict(asset_id=asset,value=[dict(targetId=target,kind=kind)],expected_revision=rev))
+        save(self.id,first,'derived_from');save(first,second,'variant_of')
+        incoming=service.candidates(dict(asset_id=first,kind='incoming',after_id=None))
+        self.assertEqual(incoming['items'][0]['id'],self.id)
+        self.assertEqual(incoming['items'][0]['relations'],['derived_from'])
+        for asset,target,kind,rev in [(second,self.id,'derived_from',0),(self.id,self.id,'related',1),(self.id,str(uuid4()),'related',1)]:
+            with self.subTest(kind=kind), self.assertRaises(LibraryError):save(asset,target,kind,rev)
+        with self.assertRaises(LibraryError):
+            service.save_relations(dict(asset_id=self.id,value=[dict(targetId=first,kind='derived_from'),dict(targetId=second,kind='original_of')],expected_revision=1))
+        self.assertEqual(service.relations({'asset_id':self.id})['revision'],1)
+        self.assertEqual(service.relations({'asset_id':second})['revision'],0)
+        save(second,self.id,'related')  # non-ancestry relation is not a derivation cycle
+        self.db.close(); self.db=Database(self.base/'db.sqlite');service=AssetManagement(self.db)
+        self.assertEqual(service.relations({'asset_id':self.id})['value'],[dict(targetId=first,kind='derived_from')])
+        self.assertEqual((self.source/'나무.png').read_bytes(),b'original')
+
+    def test_relations_clear_duplicate_and_disabled_targets(self):
+        service=AssetManagement(self.db)
+        other_root=self.base/'other';other_root.mkdir();(other_root/'fixture.wav').write_bytes(b'fixture')
+        from ai_asset_hub_core.libraries import LibraryService
+        root=LibraryService(self.db).register({'path':str(other_root)})['library']['id']
+        AssetService(self.db).scan({'library_id':root})
+        other=self.db.connection.execute('SELECT id FROM assets WHERE id!=?',(self.id,)).fetchone()[0]
+        link=dict(targetId=other,kind='original_of')
+        with self.assertRaises(LibraryError):service.save_relations(dict(asset_id=self.id,value=[link,link],expected_revision=0))
+        service.save_relations(dict(asset_id=self.id,value=[link],expected_revision=0))
+        self.db.connection.execute('UPDATE library_roots SET enabled=0 WHERE id=?',(root,))
+        self.assertFalse(service.relations({'asset_id':self.id})['items'][0]['available'])
+        with self.assertRaises(LibraryError):service.save_relations(dict(asset_id=self.id,value=[link],expected_revision=1))
+        saved=service.save_relations(dict(asset_id=self.id,value=[],expected_revision=1))
+        self.assertEqual(saved['revision'],2);self.assertEqual(saved['value'],[])

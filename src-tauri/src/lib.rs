@@ -618,6 +618,36 @@ async fn asset_link_candidates(
 }
 
 #[tauri::command]
+async fn get_asset_relations(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request("asset.relations", serde_json::json!({"asset_id":asset_id}))
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn save_asset_relations(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    value: serde_json::Value,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.relations.save", serde_json::json!({"asset_id":asset_id,"value":value,"expected_revision":expected_revision}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_annotations(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -895,6 +925,8 @@ pub fn run() {
             get_asset_composition,
             save_asset_composition,
             asset_link_candidates,
+            get_asset_relations,
+            save_asset_relations,
             asset_annotations,
             edit_asset_tags,
             save_asset_annotation,

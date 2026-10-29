@@ -1953,3 +1953,15 @@ test('file composition links only selected catalog references and saves explicit
  dispatch([...document.querySelectorAll('.asset-composition button')].find(b=>b.textContent==='파일 구성 저장'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(calls.at(-1)[0],'save_asset_composition');assert.deepEqual(calls.at(-1)[1].value.files,[{fileId:'owned',role:'source'},{fileId:'registered',role:'dependency'}]);assert.equal(calls.at(-1)[1].expectedRevision,0);
 });
+
+
+test('relations select real candidates, send direction and retain draft after rejected cycle',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='get_asset_relations')return {ok:true,data:{value:[],revision:4,items:[]}};if(command==='asset_link_candidates')return {ok:true,data:{items:[{id:'real-target',name:'<script>original</script>',relations:['original_of']}],next_cursor:null}};return {ok:false,error:{code:'INVALID_PARAMS',message:'private details'}};}};
+ app=createApp(components.AssetRelations,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ const select=document.querySelector('.asset-relations select');select.value='derived_from';dispatch(select,new Event('change',{bubbles:true}));await nextTick();
+ dispatch([...document.querySelectorAll('.asset-relations button')].find(b=>b.textContent==='등록 에셋 찾기'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelector('.relation-candidates script'),null);
+ dispatch(document.querySelector('.relation-candidates button'),new MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(calls.length,2);
+ dispatch([...document.querySelectorAll('.asset-relations button')].find(b=>b.textContent==='관계 저장'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.at(-1)[1].value,[{targetId:'real-target',kind:'derived_from'}]);assert.equal(calls.at(-1)[1].expectedRevision,4);
+ assert.match(document.querySelector('.asset-relations').textContent,/real-target/);assert.match(document.querySelector('.asset-relations [role=status]').textContent,/파생 순환/);assert.doesNotMatch(document.body.textContent,/private details/);
+});
