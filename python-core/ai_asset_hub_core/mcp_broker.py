@@ -32,8 +32,8 @@ def encode(value):
 
 
 class Broker:
-    def __init__(self,database):
-        self.path=database.path;self.stop_event=threading.Event();self.current=None
+    def __init__(self,database,application=None):
+        self.path=database.path;self.application=application;self.stop_event=threading.Event();self.current=None
         self.socket=socket.socket();self.socket.bind(('127.0.0.1',0));self.socket.listen(4);self.socket.settimeout(.05)
         self.session={'version':1,'port':self.socket.getsockname()[1],'pid':os.getpid(),'session':str(uuid4()),'token':secrets.token_hex(32)}
         try:self.discovery=session_file.publish(self.path.parent,self.session)
@@ -44,7 +44,7 @@ class Broker:
         if tool=='_health' and arguments=={}:return {'status':'ready'}
         from .mcp_queries import McpQueries
         from .libraries import LibraryError
-        try:return McpQueries(database).dispatch(tool,arguments)
+        try:return McpQueries(database,self.application).dispatch(tool,arguments)
         except LibraryError as error:
             raise BrokerError(str(error) if str(error) in ('INVALID_PARAMS','MCP_TOOL_NOT_ALLOWED','MCP_ASSET_NOT_FOUND','MCP_SEARCH_LIMIT') else 'CORE_UNAVAILABLE') from None
 

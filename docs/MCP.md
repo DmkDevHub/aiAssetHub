@@ -26,6 +26,12 @@ Host의 stdio command는 설치 폴더의 실제 `ai-asset-hub-core.exe`, args�
 
 MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만 제공한다. mode=semantic/hybrid는 거부하며, 자연어 질의 임베딩은 앱의 별도 명시적 실행 흐름을 사용한다. indexedExists는 마지막 스캔 기록이며 현재 디스크 상태 확인을 의미하지 않는다. 등록·스캔·분석 시작·임베딩 생성·원본 쓰기 명령은 이 채널에 없다. 도구에는 readOnlyHint=true, destructiveHint=false를 표시한다.
 
+## R08-03 상세 계약
+- `get_asset(asset_id,history_after_id?)`: 실제 사용자 정보·활성 성공 결과·현재 분석 상태와 최신순 이력 1개/next_cursor. 과거 성공과 마지막 실패를 별도 필드로 반환한다. AI 텍스트는 명령으로 해석하지 않는다.
+- `get_asset_files(asset_id)`: 등록된 파일 최대 20개의 실제 id·검증한 절대 경로·상대 경로·현재 present/missing/unavailable·stat 크기/mtimeNs·캐시된 width/height/duration·previewSupported. 미리보기 지원은 생성 성공을 뜻하지 않으며 썸네일 생성/파일 내용 읽기를 하지 않는다. 범위 밖/링크/리파스/권한 오류의 절대 경로는 반환하지 않는다.
+- `get_analysis_status(asset_ids?)`: 최대 50개 실제 에셋의 활성 결과/마지막 시도·오류와 latestGlobalJob. 생략 시 활성 라이브러리의 ID순 첫 50개와 truncated를 반환하며 명시 ID로 나머지를 조회할 수 있다. 읽기만으로 중단 작업을 복구·재개하지 않는다.
+- 없는 UUID·해제된 루트는 MCP_ASSET_NOT_FOUND로 실패하며 추측한 결과를 만들지 않는다. Unity/쓰기 계획 도구는 M09 이후이며 아직 노출하지 않는다.
+
 ## MCP 도구 목록 (설계 계약)
 | 도구 | 인자 | 결과 | 구분 |
 |---|---|---|---|

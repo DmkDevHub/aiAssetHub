@@ -51,7 +51,7 @@ def main(argv=None):
             try:
                 if runtime and runtime.database.health().get('status')=='ready':
                     from .mcp_broker import Broker
-                    broker=Broker(runtime.database)
+                    broker=Broker(runtime.database,application)
                 return serve(application, sys.stdin.buffer, sys.stdout.buffer)
             except (BrokenPipeError, OSError):
                 return 1

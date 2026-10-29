@@ -16,6 +16,7 @@ class McpTests(unittest.TestCase):
         base=ROOT/'.artifacts/mcp-tests';base.mkdir(parents=True,exist_ok=True)
         self.temp=tempfile.TemporaryDirectory(dir=base);self.root=Path(self.temp.name)
         self.runtime=CoreRuntime(self.root/'data','development')
+        self.db=self.runtime.database
         self.broker=Broker(self.runtime.database);self.client=BrokerClient(self.root/'data')
 
     def tearDown(self):
@@ -38,12 +39,16 @@ class McpTests(unittest.TestCase):
             async with Client(config,read_timeout_seconds=5) as client:
                 self.assertEqual(client.server_info.name,'AI Asset Hub')
                 self.assertEqual(client.server_info.version,'0.5.0')
-                self.assertEqual({t.name for t in (await client.list_tools()).tools},{'list_libraries','search_assets'})
+                self.assertEqual({t.name for t in (await client.list_tools()).tools},{'list_libraries','search_assets','get_asset','get_asset_files','get_analysis_status'})
                 self.assertTrue(client.protocol_version)
                 libraries=await client.call_tool('list_libraries',{})
                 self.assertFalse(libraries.is_error);self.assertEqual(libraries.structured_content['items'][0]['id'],library)
                 results=await client.call_tool('search_assets',{'query':'나무'})
                 self.assertFalse(results.is_error);self.assertEqual(results.structured_content['items'][0]['id'],identifier)
+                detail=await client.call_tool('get_asset',{'asset_id':identifier});self.assertFalse(detail.is_error)
+                self.assertIsNone(detail.structured_content['activeResult'])
+                files=await client.call_tool('get_asset_files',{'asset_id':identifier});self.assertEqual(files.structured_content['files'][0]['availability'],'present')
+                status=await client.call_tool('get_analysis_status',{'asset_ids':[identifier]});self.assertFalse(status.structured_content['items'][0]['hasActiveResult'])
         asyncio.run(host())
 
     def add_asset(self,name='숲 나무.png'):
@@ -72,3 +77,28 @@ class McpTests(unittest.TestCase):
         self.assertEqual(len({first['items'][0]['id'],second['items'][0]['id']}),2);self.assertIsNone(second['next_cursor'])
         for params in ({'query':'x','filters':{'folder_parts':['..']}},{'query':'x','limit':True},{'query':'x','after_id':'invented-id'},{'query':'x','limit':21}):
             with self.assertRaisesRegex(BrokerError,'INVALID_PARAMS'):self.client.call('search_assets',params)
+
+    def test_details_keep_active_success_and_latest_failure_distinct_without_preview_writes(self):
+        import test_analysis
+        _,identifier=self.add_asset()
+        test_analysis.AnalysisTests.history(self,identifier,'completed',True)
+        test_analysis.AnalysisTests.history(self,identifier,'failed',timestamp='2026-10-28T00:00:01Z')
+        with patch('ai_asset_hub_core.thumbnails.thumbnail',side_effect=AssertionError('no thumbnail generation')),patch('ai_asset_hub_core.inference.infer',side_effect=AssertionError('no inference')):
+            detail=self.client.call('get_asset',{'asset_id':identifier})
+            self.assertEqual(detail['activeResult']['description'],'fixture successful')
+            self.assertEqual(detail['history']['items'][0]['status'],'failed')
+            state=self.client.call('get_analysis_status',{'asset_ids':[identifier]})['items'][0]
+            self.assertTrue(state['hasActiveResult']);self.assertEqual(state['lastAttemptState'],'failed')
+            files=self.client.call('get_asset_files',{'asset_id':identifier})['files'];self.assertEqual(files[0]['availability'],'present')
+            (self.root/'source/숲 나무.png').unlink()
+            self.assertEqual(self.client.call('get_asset_files',{'asset_id':identifier})['files'][0]['availability'],'missing')
+
+    def test_unknown_and_disabled_asset_details_are_not_fabricated(self):
+        from uuid import uuid4
+        from ai_asset_hub_core.libraries import LibraryService
+        library,identifier=self.add_asset();LibraryService(self.db).unregister({'library_id':library})
+        for tool in ('get_asset','get_asset_files'):
+            for value in (identifier,str(uuid4())):
+                with self.assertRaisesRegex(BrokerError,'MCP_ASSET_NOT_FOUND'):self.client.call(tool,{'asset_id':value})
+            with self.assertRaisesRegex(BrokerError,'INVALID_PARAMS'):self.client.call(tool,{'asset_id':'invented-id'})
+        with self.assertRaisesRegex(BrokerError,'MCP_ASSET_NOT_FOUND'):self.client.call('get_analysis_status',{'asset_ids':[identifier]})
