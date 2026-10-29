@@ -563,6 +563,61 @@ async fn save_asset_management(
 }
 
 #[tauri::command]
+async fn get_asset_composition(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.composition",
+                serde_json::json!({"asset_id":asset_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn save_asset_composition(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    value: serde_json::Value,
+    expected_revision: u64,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.composition.save", serde_json::json!({"asset_id":asset_id,"value":value,"expected_revision":expected_revision}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn asset_link_candidates(
+    state: tauri::State<'_, CoreState>,
+    asset_id: String,
+    kind: String,
+    after_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.link.candidates",
+                serde_json::json!({"asset_id":asset_id,"kind":kind,"after_id":after_id}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_annotations(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -837,6 +892,9 @@ pub fn run() {
             get_asset,
             get_asset_management,
             save_asset_management,
+            get_asset_composition,
+            save_asset_composition,
+            asset_link_candidates,
             asset_annotations,
             edit_asset_tags,
             save_asset_annotation,

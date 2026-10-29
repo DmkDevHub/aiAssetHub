@@ -1940,3 +1940,16 @@ test('management saves explicitly, preserves drafts on conflict and distinguishe
  conflict=false;dispatch([...document.querySelectorAll('.asset-management button')].at(-1),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(memo.value,'memo');assert.equal(document.querySelector('.asset-management fieldset button').disabled,false);
 });
+
+
+test('file composition links only selected catalog references and saves explicitly',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ const state={value:{files:[{fileId:'owned',role:'source'}],components:[]},revision:0,availability:'partial',files:[{fileId:'owned',role:'source',name:'original.png',owned:true,available:true}],components:[]};
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='get_asset_composition')return {ok:true,data:state};if(command==='asset_link_candidates')return {ok:true,data:{items:[{id:'registered',name:'<b>dependency</b>',available:true}],next_cursor:'next-real-id'}};return {ok:true,data:{...state,value:args.value,revision:1}};}};
+ app=createApp(components.AssetComposition,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(document.querySelector('.asset-composition li button').disabled,true);assert.match(document.querySelector('.asset-composition').textContent,/부분 가용/);
+ dispatch([...document.querySelectorAll('.asset-composition button')].find(b=>b.textContent==='등록된 참조 찾기'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(document.querySelector('.reference-candidates b'),null);dispatch(document.querySelector('.reference-candidates button'),new MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(calls.length,2);
+ dispatch([...document.querySelectorAll('.asset-composition button')].find(b=>b.textContent==='파일 구성 저장'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls.at(-1)[0],'save_asset_composition');assert.deepEqual(calls.at(-1)[1].value.files,[{fileId:'owned',role:'source'},{fileId:'registered',role:'dependency'}]);assert.equal(calls.at(-1)[1].expectedRevision,0);
+});

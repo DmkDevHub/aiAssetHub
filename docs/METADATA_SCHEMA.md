@@ -44,3 +44,6 @@ retire_facet은 실제 링크의 사용 에셋 수를 조회해 사용 중이면
 
 ## R08B-02 관리 정보
 `management` 사용자 결정에 favorite(bool), rating(null 또는 정수 1~5), status(unreviewed/reviewing/approved/archived), notes(1024자), assetVersion(64자), createdDate/modifiedDate(빈 값 또는 실제 YYYY-MM-DD, 생성일≤수정일)를 저장한다. 날짜는 사용자 에셋 정보이며 OS 파일 시각과 독립적이다. 고정 Core/Tauri 명령만 허용하고 revision 비교와 이력을 한 트랜잭션으로 처리한다. v4 저장 기반을 사용하며 새 의존성/DDL/AI 호출은 없다. GUI 배치는 미검증이다.
+
+## R08B-03 구성 참조
+`composition` 결정은 files(fileId/role, 최대 16개)와 components(기존 관측 UUID 최대 16개)를 기록한다. asset_file_members 투영·결정·이력이 한 트랜잭션이다. 소유 파일의 source 역할은 제거할 수 없다. 명시 연결만 하며 asset_files.asset_id와 원본은 바꾸지 않는다. 구성 요소는 연결 파일의 현재 해시와 일치하는 기존 관측만 선택 가능하다. 신규 파서/mesh·clip 추출은 M08F이며 수동 문자열을 실제 관측으로 만들지 않는다. 후보는 활성 라이브러리 실제 ID를 2개씩 페이지로 조회한다. 가용성은 마지막 스캔 기준이며 비활성 루트는 사용 불가, 변경된 해시 참조는 stale로 표시한다.

@@ -36,3 +36,5 @@ export {default as ModelPolicy} from '../../src/components/ModelPolicy.vue';
 export {default as AssetAnalysis} from '../../src/components/AssetAnalysis.vue';
 
 export {default as AssetManagement} from '../../src/components/AssetManagement.vue';
+
+export {default as AssetComposition} from '../../src/components/AssetComposition.vue';
