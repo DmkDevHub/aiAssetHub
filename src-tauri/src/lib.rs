@@ -786,6 +786,55 @@ async fn group_move(
 }
 
 #[tauri::command]
+async fn group_query(
+    state: tauri::State<'_, CoreState>,
+    group_id: String,
+    query: String,
+    criteria: serde_json::Value,
+    after_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.groups.query", serde_json::json!({"group_id":group_id,"query":query,"criteria":criteria,"after_id":after_id}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn group_batch_preview(
+    state: tauri::State<'_, CoreState>,
+    asset_ids: Vec<String>,
+    add: Vec<String>,
+    remove: Vec<String>,
+    after_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.lock().map_err(|_| "CORE_UNAVAILABLE")?.library_request("asset.groups.batch_preview", serde_json::json!({"asset_ids":asset_ids,"add":add,"remove":remove,"after_id":after_id}))
+    }).await.map_err(|_| "CORE_UNAVAILABLE".to_string())?.map_err(str::to_owned)
+}
+
+#[tauri::command]
+async fn group_batch_apply(
+    state: tauri::State<'_, CoreState>,
+    plan: serde_json::Value,
+    confirmed: bool,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(
+                "asset.groups.batch_apply",
+                serde_json::json!({"plan":plan,"confirmed":confirmed}),
+            )
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn asset_annotations(
     state: tauri::State<'_, CoreState>,
     asset_id: String,
@@ -1075,6 +1124,9 @@ pub fn run() {
             group_membership,
             group_assign,
             group_move,
+            group_query,
+            group_batch_preview,
+            group_batch_apply,
             asset_annotations,
             edit_asset_tags,
             save_asset_annotation,

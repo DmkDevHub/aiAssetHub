@@ -90,3 +90,57 @@ class CollectionTests(unittest.TestCase):
         self.db.connection.execute("CREATE TRIGGER fixture_move_failure BEFORE INSERT ON collection_history WHEN NEW.action='move' BEGIN SELECT RAISE(ABORT,'fixture'); END;")
         with self.assertRaises(sqlite3.IntegrityError):service.group_move(dict(group_id=b['id'],parent_id=a['id'],expected_revision=1))
         self.assertIsNone(service.group(b['id'])['parentId']);self.assertEqual(service.group(b['id'])['revision'],1)
+
+    def test_group_compound_filters_apply_before_paging_and_semantic_ranking(self):
+        from ai_asset_hub_core.semantic_search import criteria,matches
+        service=Collections(self.db);g=self.group();library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        for n in range(5):(self.source/f'sound-{n}.wav').write_bytes(b'fixture')
+        AssetService(self.db).scan({'library_id':library})
+        identifiers=[r[0] for r in self.db.connection.execute('SELECT id FROM assets ORDER BY id')]
+        for asset in identifiers:service.group_assign(dict(asset_id=asset,group_ids=[g['id']],expected_revision=0))
+        last=identifiers[-1];service.tags(dict(asset_id=last,add=['unique'],remove=[]))
+        result=service.group_query(dict(group_id=g['id'],query='',criteria={'tag':'unique'},after_id=None))
+        self.assertEqual(result['ids'],[last]);self.assertIsNone(result['next_cursor'])
+        self.assertTrue(matches(self.db,last,criteria({'group_id':g['id']})))
+        service.group_assign(dict(asset_id=last,group_ids=[],expected_revision=1))
+        self.assertFalse(matches(self.db,last,criteria({'group_id':g['id']})))
+        self.assertEqual(service.group_query(dict(group_id=g['id'],query='',criteria={'tag':'unique'},after_id=None))['ids'],[])
+        page=service.group_query(dict(group_id=g['id'],query='sound',criteria={'kind':'WAV','library_id':library,'analysis':'unanalyzed'},after_id=None))
+        self.assertGreaterEqual(len(page['ids']),4)
+
+    def test_bulk_review_has_no_writes_and_apply_is_atomic_with_stale_plan_rejection(self):
+        import copy
+        service=Collections(self.db);g=self.group();library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        (self.source/'other.wav').write_bytes(b'fixture');AssetService(self.db).scan({'library_id':library})
+        ids=[r[0] for r in self.db.connection.execute('SELECT id FROM assets')]
+        params=dict(asset_ids=ids,add=[g['id']],remove=[],after_id=None)
+        preview=service.group_batch_preview(params)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_group_members').fetchone()[0],0)
+        stale=copy.deepcopy(preview['plan']);service.group_assign(dict(asset_id=ids[0],group_ids=[],expected_revision=0))
+        with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):service.group_batch_apply(dict(plan=stale,confirmed=True))
+        current=service.group_batch_preview(params)
+        with self.assertRaises(LibraryError):service.group_batch_apply(dict(plan=current['plan'],confirmed=False))
+        self.db.connection.execute("CREATE TRIGGER fixture_bulk_fail BEFORE INSERT ON asset_group_members WHEN NEW.asset_id='"+ids[1]+"' BEGIN SELECT RAISE(ABORT,'fixture'); END;")
+        with self.assertRaises(sqlite3.IntegrityError):service.group_batch_apply(dict(plan=current['plan'],confirmed=True))
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_group_members').fetchone()[0],0)
+        self.db.connection.execute('DROP TRIGGER fixture_bulk_fail')
+        self.assertEqual(service.group_batch_apply(dict(plan=current['plan'],confirmed=True))['updated'],2)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_group_members').fetchone()[0],2)
+        self.assertEqual((self.source/'나무.png').read_bytes(),b'original')
+
+    def test_group_paging_and_membership_response_budget(self):
+        service=Collections(self.db)
+        ids=[self.group('😀'*128)['id'] for _ in range(32)]
+        result=service.group_assign(dict(asset_id=self.id,group_ids=ids,expected_revision=0))
+        self.assertLess(len(json.dumps(result,ensure_ascii=False).encode()),16000)
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        for n in range(201):(self.source/f'page-{n}.wav').write_bytes(b'fixture')
+        AssetService(self.db).scan({'library_id':library})
+        assets=[r[0] for r in self.db.connection.execute('SELECT id FROM assets')]
+        self.db.connection.executemany('INSERT OR IGNORE INTO asset_group_members VALUES (?,?)',[(ids[0],a) for a in assets])
+        page=service.group_query(dict(group_id=ids[0],query='',criteria={},after_id=None))
+        self.assertEqual(len(page['ids']),200)
+        next_page=service.group_query(dict(group_id=ids[0],query='',criteria={},after_id=page['next_cursor']))
+        self.assertEqual(len(next_page['ids']),2)
+        self.assertFalse(set(page['ids'])&set(next_page['ids']))
+        self.assertIsNone(next_page['next_cursor'])

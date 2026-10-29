@@ -2011,7 +2011,7 @@ test('tag editing sends revision and preserves text drafts on a concurrent tag e
 test('logical group create is explicit and deletes require review without file commands',async()=>{
  app.unmount();globalThis.isTauri=true;const calls=[];
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='group_list')return {ok:true,data:{items:[],next_cursor:null}};if(command==='group_create')return {ok:true,data:{id:'real-group',name:args.value.name,description:'',parentId:null,revision:1}};return {ok:true,data:{deleted:args.groupId}};}};
- app=createApp(components.GroupManager);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();dispatch(document.querySelector('.group-manager > button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ app=createApp(components.GroupManager);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();dispatch([...document.querySelectorAll('.group-manager > button')].find(b=>b.textContent==='그룹 새로고침'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  const input=document.querySelector('.group-manager form input');input.value='<b>group</b>';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,1);
  dispatch(document.querySelector('.group-manager form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1)[0],'group_create');assert.equal(document.querySelector('.group-manager li b'),null);
  dispatch(document.querySelector('.group-manager li button'),new MouseEvent('click',{bubbles:true}));await nextTick();const del=[...document.querySelectorAll('.group-manager button')].find(b=>b.textContent==='그룹 삭제');assert.equal(del.disabled,true);
@@ -2036,4 +2036,23 @@ test('group drag and keyboard moves require review, cancel locally and retain tr
  await click('그룹 이동 취소');assert.equal(document.querySelector('.group-move-review'),null);assert.equal(calls.length,1);
  await click('Child');const select=document.querySelector('.group-manager select');select.value='parent';dispatch(select,new Event('change',{bubbles:true}));await nextTick();await click('그룹 이동 준비');await click('그룹 이동 적용');assert.equal(calls.at(-1)[1].expectedRevision,2);assert.match(rows[1].textContent,/최상위/);assert.match(document.querySelector('.group-manager [role=alert]').textContent,/이동하지 못했습니다/);
  reject=false;await click('그룹 이동 적용');assert.match(document.querySelectorAll('.group-manager li')[1].textContent,/상위: Parent/);assert.equal(document.querySelector('.group-move-review'),null);
+});
+
+
+test('bulk group assignment previews before writing and invalidates a changed selection',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];const ids=ref(['asset-a']);
+ const plan={assetIds:['asset-a'],add:['group'],remove:[],revisions:[0],groupVersions:[{id:'group',revision:1}]};
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='group_list')return {ok:true,data:{items:[{id:'group',name:'Group'}],next_cursor:null}};if(command==='group_batch_preview')return {ok:true,data:{plan,items:[{assetId:'asset-a',before:[],after:['group'],revision:0}],next_cursor:null}};return {ok:false,error:{code:'METADATA_CONFLICT'}};}};
+ app=createApp({render:()=>h(components.BulkGroups,{assetIds:ids.value})});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();assert.equal(calls.length,0);
+ const click=async(text)=>{dispatch([...document.querySelectorAll('.bulk-groups button')].find(b=>b.textContent===text),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();};
+ await click('일괄 그룹 목록 불러오기');const select=document.querySelector('.bulk-groups select');select.value='group';dispatch(select,new Event('change',{bubbles:true}));await nextTick();await click('1개 소속 변경 검토');assert.ok(!calls.some(c=>c[0]==='group_batch_apply'));
+ ids.value=['asset-b'];await nextTick();assert.ok(![...document.querySelectorAll('.bulk-groups button')].some(b=>b.textContent==='검토한 소속 변경 적용'));
+ ids.value=['asset-a'];await nextTick();await click('1개 소속 변경 검토');await click('검토한 소속 변경 적용');assert.equal(calls.at(-1)[1].confirmed,true);assert.match(document.querySelector('.bulk-groups').textContent,/충돌/);
+});
+
+test('group browsing filters with Core criteria and never falls back to unrelated assets',async()=>{
+ await mountWorkspace([{id:'a',name:'alpha',kind:'PNG'},{id:'b',name:'beta',kind:'PNG'}]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);assert.equal(command,'group_query');return {ok:true,data:{ids:['b'],next_cursor:null}};}};
+ components.selectGroup('actual-group');await nextTick();await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,1);assert.match(document.querySelector('.asset-card').textContent,/beta/);assert.equal(calls.at(-1)[1].groupId,'actual-group');assert.equal(calls.at(-1)[1].criteria.group_id,'actual-group');
+ dom.window.__TAURI_INTERNALS__={invoke:async()=>{throw new Error('private');}};components.setSearchQuery('failure');await nextTick();await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,0);assert.match(document.querySelector('.library-workspace').textContent,/그룹 검색을 완료하지 못했습니다/);components.resetCollections();
 });

@@ -44,3 +44,6 @@ export {default as AssetRelations} from '../../src/components/AssetRelations.vue
 export {default as AssetMetadataHistory} from '../../src/components/AssetMetadataHistory.vue';
 
 export {default as GroupManager} from '../../src/components/GroupManager.vue';
+
+export {default as BulkGroups} from '../../src/components/BulkGroups.vue';
+export {collectionUi,selectGroup,resetCollections} from '../../src/stores/collections';

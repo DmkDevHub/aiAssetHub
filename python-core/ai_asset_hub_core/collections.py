@@ -7,6 +7,9 @@ from .annotations import AnnotationService
 
 
 class Collections(AnnotationService):
+    def __init__(self,database):
+        super().__init__(database);self.database=database
+
     @staticmethod
     def keys(params, keys):
         if not isinstance(params, dict) or set(params) != set(keys.split()): raise LibraryError('INVALID_PARAMS')
@@ -84,7 +87,7 @@ class Collections(AnnotationService):
     def group_membership(self, params):
         self.keys(params,'asset_id');self.require_asset(params['asset_id'])
         value=self.membership_value(params['asset_id'])
-        return {**value,'items':[self.group(identifier) for identifier in value['ids']]}
+        return {**value,'items':[{'id':identifier,'name':self.group(identifier)['name'][:64]} for identifier in value['ids']]}
 
     def group_assign(self, params):
         self.keys(params,'asset_id group_ids expected_revision');ids=params['group_ids']
@@ -127,4 +130,62 @@ class Collections(AnnotationService):
                 seen.add(parent);parent=self.group(parent)['parentId']
             self.db.execute('UPDATE asset_groups SET parent_id=?,revision=revision+1 WHERE id=?',(params['parent_id'],before['id']))
             result=self.group(before['id']);self.log('group',before['id'],result['revision'],'move',before,result);return result
+        return self.transaction(operation)
+
+    def group_query(self, params):
+        from .semantic_search import criteria,matches
+        self.keys(params,'group_id query criteria after_id');self.group(params['group_id'])
+        query=params['query'];cursor=params['after_id']
+        if not isinstance(query,str) or len(query)>256 or len(query.split())>16 or (cursor is not None and not valid_id(cursor)): raise LibraryError('INVALID_PARAMS')
+        filters=criteria(params['criteria']);filters['group_id']=params['group_id']
+        terms=unicodedata.normalize('NFKC',query).casefold().split()
+        # Evaluate every filter before pagination, including current analysis state and folder segments.
+        rows=self.db.execute('''SELECT m.asset_id,d.searchable_text FROM asset_group_members m
+            JOIN search_documents d ON d.asset_id=m.asset_id WHERE m.group_id=? AND m.asset_id>? ORDER BY m.asset_id''',(params['group_id'],cursor or ''))
+        ids=[]
+        for identifier,text in rows:
+            if all(term in text for term in terms) and matches(self.database,identifier,filters):
+                ids.append(identifier)
+                if len(ids)==201:break
+        return {'ids':ids[:200],'next_cursor':ids[199] if len(ids)>200 else None}
+
+    def batch_plan(self, asset_ids, add, remove):
+        if not isinstance(asset_ids,list) or not 1<=len(asset_ids)<=100 or any(not valid_id(i) for i in asset_ids) or len(set(asset_ids))!=len(asset_ids): raise LibraryError('INVALID_PARAMS')
+        for ids in (add,remove):
+            if not isinstance(ids,list) or len(ids)>8 or any(not valid_id(i) for i in ids) or len(set(ids))!=len(ids): raise LibraryError('INVALID_PARAMS')
+        if not add and not remove or set(add)&set(remove): raise LibraryError('INVALID_PARAMS')
+        groups=[self.group(i) for i in sorted(set(add+remove))]
+        ids=sorted(asset_ids);targets=[]
+        for asset in ids:
+            self.require_asset(asset);before=self.membership_value(asset)
+            after=sorted((set(before['ids'])-set(remove))|set(add))
+            if len(after)>32:raise LibraryError('INVALID_PARAMS')
+            targets.append({'assetId':asset,'before':before['ids'],'after':after,'revision':before['revision']})
+        return {'assetIds':ids,'add':sorted(add),'remove':sorted(remove),'revisions':[t['revision'] for t in targets],
+                'groupVersions':[{ 'id':g['id'],'revision':g['revision']} for g in groups]},targets
+
+    def group_batch_preview(self, params):
+        self.keys(params,'asset_ids add remove after_id')
+        def operation():
+            plan,targets=self.batch_plan(params['asset_ids'],params['add'],params['remove'])
+            cursor=params['after_id']
+            if cursor is not None and (not valid_id(cursor) or cursor not in plan['assetIds']):raise LibraryError('INVALID_PARAMS')
+            rows=[t for t in targets if cursor is None or t['assetId']>cursor]
+            return {'plan':plan,'items':rows[:2],'next_cursor':rows[1]['assetId'] if len(rows)>2 else None,'targetCount':len(targets)}
+        return self.transaction(operation)
+
+    def group_batch_apply(self, params):
+        self.keys(params,'plan confirmed')
+        if params['confirmed'] is not True:raise LibraryError('INVALID_PARAMS')
+        plan=params['plan'];self.keys(plan,'assetIds add remove revisions groupVersions')
+        if not isinstance(plan['revisions'],list) or any(type(r) is not int or r<0 for r in plan['revisions']):raise LibraryError('INVALID_PARAMS')
+        def operation():
+            current,targets=self.batch_plan(plan['assetIds'],plan['add'],plan['remove'])
+            if current != plan:raise LibraryError('METADATA_CONFLICT')
+            for target in targets:
+                asset=target['assetId'];before=self.membership_value(asset)
+                self.db.execute('DELETE FROM asset_group_members WHERE asset_id=?',(asset,))
+                self.db.executemany('INSERT INTO asset_group_members VALUES (?,?)',[(i,asset) for i in target['after']])
+                self.member_version(asset,'group',before,'batch_assign')
+            return {'updated':len(targets)}
         return self.transaction(operation)

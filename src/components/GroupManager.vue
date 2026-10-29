@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {ref,watch,onBeforeUnmount} from 'vue';
+import {collectionUi,selectGroup,collectionsChanged} from '../stores/collections';
 import {invoke,isTauri} from '@tauri-apps/api/core';
 type Group={id:string;name:string;description:string;parentId:string|null;revision:number};
 const props=defineProps<{assetId?:string}>();
@@ -43,7 +44,7 @@ async function save(remove=false){
   if(r.error?.code==='METADATA_CONFLICT'){conflict.value=true;error.value='다른 변경이 저장되었습니다. 초안을 확인한 후 새로고침하세요.';return;}if(!r.ok)throw new Error();
   if(remove){const removed=selected.value?.id;groups.value=groups.value.filter(g=>g.id!==removed).map(g=>g.parentId===removed?{...g,parentId:null,revision:g.revision+1}:g);}
   else groups.value=[...groups.value.filter(g=>g.id!==r.data.id),r.data];
-  edit();notice.value='저장했습니다.';
+  edit();notice.value='저장했습니다.';collectionsChanged();if(remove)selectGroup(null);
  }catch{if(token===generation)error.value='그룹을 저장하지 못했습니다.';}
  finally{if(token===generation)busy.value=false;}
 }
@@ -51,7 +52,7 @@ async function assign(){
  if(!props.assetId||busy.value||!loaded.value||conflict.value||!isTauri())return;
  const token=generation;busy.value=true;error.value='';
  try{const r=await invoke<{ok:boolean;data:{ids:string[];revision:number};error?:{code:string}}>('group_assign',{assetId:props.assetId,groupIds:[...memberIds.value],expectedRevision:memberRevision.value});if(token!==generation)return;
- if(r.error?.code==='METADATA_CONFLICT'){conflict.value=true;error.value='다른 소속 변경이 저장되었습니다. 초안을 확인한 후 새로고침하세요.';return;}if(!r.ok)throw new Error();memberIds.value=r.data.ids;memberRevision.value=r.data.revision;notice.value='소속을 저장했습니다.';
+ if(r.error?.code==='METADATA_CONFLICT'){conflict.value=true;error.value='다른 소속 변경이 저장되었습니다. 초안을 확인한 후 새로고침하세요.';return;}if(!r.ok)throw new Error();memberIds.value=r.data.ids;memberRevision.value=r.data.revision;notice.value='소속을 저장했습니다.';collectionsChanged();
  }catch{if(token===generation)error.value='그룹 소속을 저장하지 못했습니다.';}
  finally{if(token===generation)busy.value=false;}
 }
@@ -59,6 +60,7 @@ watch(()=>props.assetId,()=>{generation++;busy.value=false;loaded.value=false;gr
 </script>
 <template>
  <section class="group-manager" :aria-label="assetId?'에셋 그룹 소속':'논리 그룹 관리'" @keydown.esc="pendingMove=undefined;dragged=undefined">
+  <button v-if="!assetId" type="button" @click="selectGroup(null)">전체 그룹 필터 해제</button>
   <h3>{{ assetId?'그룹 소속':'사용자 그룹' }}</h3>
   <button type="button" :disabled="busy" @click="load()">그룹 새로고침</button>
   <p v-if="loaded&&!groups.length">등록된 그룹이 없습니다.</p>
@@ -66,7 +68,7 @@ watch(()=>props.assetId,()=>{generation++;busy.value=false;loaded.value=false;gr
    <button v-if="!assetId" class="group-root-drop" type="button" @dragover.prevent @drop.prevent.stop="drop(null)">최상위 그룹 (여기로 놓아 이동 준비)</button>
    <ul><li v-for="g in groups" :key="g.id" :data-group-id="g.id" :draggable="!assetId&&!busy" @dragstart="dragged=g" @dragend="dragged=undefined" @dragover.prevent @drop.prevent.stop="drop(g.id)">
     <label v-if="assetId"><input v-model="memberIds" type="checkbox" :value="g.id" />{{ g.name }}</label>
-    <button v-else type="button" @click="edit(g)">{{ g.name }}</button>
+    <template v-else><button type="button" @click="edit(g)">{{ g.name }}</button><button type="button" :aria-pressed="collectionUi.groupId===g.id" @click="selectGroup(g.id)">{{ g.name }} 에셋 보기</button></template>
     <small>상위: {{ g.parentId?(groups.find(p=>p.id===g.parentId)?.name||g.parentId):'최상위' }}</small>
    </li></ul>
    <button v-if="cursor" type="button" @click="load(true)">그룹 더 보기</button>
