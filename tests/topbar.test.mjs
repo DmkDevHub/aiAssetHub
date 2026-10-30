@@ -1838,6 +1838,17 @@ test('metadata export is explicit, contains selected public fields, and invalida
  const format=document.querySelector('.metadata-exchange select');format.value='csv';dispatch(format,new Event('change',{bubbles:true}));await nextTick();assert.equal(document.querySelector('.metadata-exchange textarea'),null);assert.equal(calls.length,1);
 });
 
+test('metadata import needs explicit review and approval and clears changed or failed plans',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push(args);return args.method==='exchange.preview'?{ok:true,data:{items:[{assetId:'fixture',before:{tags:[]},after:{tags:['file']},conflicts:[]}],planToken:'fixture-token',next_cursor:null,targetCount:1,changedCount:1,conflictCount:0}}:{ok:false,error:{code:'METADATA_CONFLICT'}};}};
+ app=createApp(components.MetadataImport);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();assert.equal(calls.length,0);
+ const text=document.querySelector('.metadata-import textarea');text.value='{"fixture":true}';dispatch(text,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,0);
+ dispatch([...document.querySelectorAll('.metadata-import button')].find(b=>b.textContent==='가져오기 검토'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const apply=[...document.querySelectorAll('.metadata-import button')].find(b=>b.textContent==='검토한 가져오기 적용');assert.equal(apply.disabled,true);
+ const approved=[...document.querySelectorAll('.metadata-import input[type=checkbox]')].at(-1);approved.checked=true;dispatch(approved,new Event('change',{bubbles:true}));await nextTick();dispatch(apply,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[1].method,'exchange.apply');assert.equal(calls[1].params.confirmed,true);assert.equal(calls[1].params.use_current_versions,false);assert.equal(document.querySelector('.metadata-import ol'),null);assert.match(document.querySelector('.metadata-import').textContent,/전체 변경을 취소/);
+});
+
 test('AI classification review requires preview and explicit approval and rejects stale apply',async()=>{
  app.unmount();globalThis.isTauri=true;const calls=[];
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push(args);return args.method==='analysis.review'?{ok:true,data:{before:{primary:null,facets:{}},after:{primary:'A01',facets:{role:['role.item']}},expectedRevision:0,planToken:'fixture-token',hasChanges:true}}:{ok:false,error:{code:'METADATA_CONFLICT'}};}};

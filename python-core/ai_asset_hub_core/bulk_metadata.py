@@ -8,11 +8,13 @@ from .collections import Collections
 from .creators import Creators
 from .provenance import Provenance
 from .source_records import Sources
+from .packages import Packages
+from .asset_management import AssetManagement
 from .libraries import LibraryError,valid_id
 from .metadata_values import MetadataError
 from .taxonomy import TaxonomyError
 
-FIELDS=frozenset(('groups','classification','creators','sources','tags'))
+FIELDS=frozenset(('groups','classification','creators','sources','tags','basic','packages','relations'))
 
 
 def bounded(value):
@@ -38,7 +40,37 @@ def edit_set(before,change,normalize,limit):
 
 
 class BulkMetadata(Catalog):
+    def validate_relations(self,updates):
+        graph={};values={r[0]:json.loads(r[1]) for r in self.db.execute("SELECT asset_id,value_json FROM metadata_decisions WHERE field='relations'")};values.update(updates)
+        for asset,links in values.items():
+            for link in links:
+                if link['kind']=='related':continue
+                child,parent=(link['targetId'],asset) if link['kind']=='original_of' else (asset,link['targetId'])
+                graph.setdefault(child,set()).add(parent)
+        nodes=set(graph)|{p for parents in graph.values() for p in parents};degree={node:0 for node in nodes}
+        for parents in graph.values():
+            for parent in parents:degree[parent]+=1
+        pending=[node for node in nodes if not degree[node]];count=0
+        while pending:
+            node=pending.pop();count+=1
+            for parent in graph.get(node,()):
+                degree[parent]-=1
+                if not degree[parent]:pending.append(parent)
+        if count!=len(nodes):raise LibraryError('INVALID_PARAMS')
+
     def read_field(self,asset,field):
+        if field=='basic':
+            state=AnnotationService(self.database).get({'asset_id':asset})
+            return {key:state[key] for key in ('title','description','aliases')},state['revision'],[]
+        if field=='packages':
+            state=self.membership_value(asset,'package')
+            refs=[list(r) for r in self.db.execute('SELECT p.id,p.revision,p.enabled FROM asset_packages p JOIN asset_package_members m ON m.package_id=p.id WHERE m.asset_id=? ORDER BY p.id',(asset,))]
+            return state['ids'],state['revision'],refs
+        if field=='relations':
+            state=AssetManagement(self.database).relations({'asset_id':asset})
+            # Bind the whole existing graph so edits on other assets cannot make a reviewed graph cyclic.
+            refs=[list(r) for r in self.db.execute("SELECT asset_id,value_json,revision FROM metadata_decisions WHERE field='relations' ORDER BY asset_id")]
+            return state['value'],state['revision'],refs
         if field=='groups':
             state=self.membership_value(asset);return state['ids'],state['revision'],[self.group(i) for i in state['ids']]
         if field=='classification':
@@ -61,7 +93,23 @@ class BulkMetadata(Catalog):
 
     def next_value(self,asset,field,before,change):
         resources=[]
-        if field=='groups':
+        if field=='basic':
+            self.keys(change,'title description aliases')
+            after={'title':AssetManagement.text(change['title'],128),'description':AssetManagement.text(change['description'],1024),'aliases':AnnotationService.aliases(change['aliases'])}
+        elif field=='packages':
+            after=edit_set(before,change,lambda ids:identifiers(ids,16),16)
+            resources=[{key:value[key] for key in ('id','revision')} for value in (Packages(self.database).package(i) for i in after)]
+        elif field=='relations':
+            if not isinstance(change,list) or len(change)>16:raise LibraryError('INVALID_PARAMS')
+            seen=set();after=[]
+            for item in change:
+                self.keys(item,'targetId kind')
+                if not valid_id(item['targetId']) or item['targetId']==asset or item['kind'] not in ('related','original_of','variant_of','derived_from'):raise LibraryError('INVALID_PARAMS')
+                pair=(item['targetId'],item['kind'])
+                if pair in seen:raise LibraryError('INVALID_PARAMS')
+                seen.add(pair);self.require_asset(item['targetId']);after.append(dict(item))
+                resources.append([item['targetId'],True])
+        elif field=='groups':
             after=edit_set(before,change,identifiers,32)
             resources=[self.group(i) for i in after]
         elif field=='tags':
@@ -87,6 +135,7 @@ class BulkMetadata(Catalog):
                 assigned=types.assignment(after['primary'],after['navigation'],version=types.version)
                 axes=facets.assignment(after['facets'],version=facets.version)
                 after.update(primary=assigned['primary'],navigation=assigned['navigation'],facets=axes['values'])
+                if all(after[k]==before[k] for k in ('primary','navigation','type_version','facet_version')) and facets.assignment(before['facets'],version=facets.version)==axes:after=copy.deepcopy(before)
             except (MetadataError,TaxonomyError,TypeError):raise LibraryError('INVALID_PARAMS') from None
         elif field=='creators':
             service=Provenance(self.database)
@@ -107,12 +156,15 @@ class BulkMetadata(Catalog):
         elif field=='sources':
             if not isinstance(change,dict) or set(change) not in ({'append'},{'records'}):raise LibraryError('INVALID_PARAMS')
             values=change.get('append',change.get('records'))
-            if not isinstance(values,list) or len(values)>8:raise LibraryError('BULK_LIMIT')
+            if not isinstance(values,list) or len(values)>(8 if 'append' in change else 16):raise LibraryError('BULK_LIMIT')
             after=copy.deepcopy(before)
+            seen=set()
             for value in values:
                 self.keys(value,'site productName' if 'append' in change else 'id site productName')
                 public={'site':self.text(value['site'],128),'productName':self.text(value['productName'],256)}
                 if 'records' in change:
+                    if not valid_id(value['id']) or value['id'] in seen:raise LibraryError('INVALID_PARAMS')
+                    seen.add(value['id'])
                     found=next((r for r in after if r.get('id')==value['id']),None)
                     if found is None:raise LibraryError('INVALID_PARAMS')
                     found.update(public)
@@ -121,7 +173,7 @@ class BulkMetadata(Catalog):
         else:raise LibraryError('INVALID_PARAMS')
         return after,resources
 
-    def targets(self,request):
+    def targets(self,request,check_graph=True):
         if not isinstance(request,dict) or set(request)-{'asset_ids','changes','expected'} or not {'asset_ids','changes'}<=set(request):raise LibraryError('INVALID_PARAMS')
         assets=identifiers(request['asset_ids'],100)
         changes=request['changes'];expected=request.get('expected',{})
@@ -141,6 +193,7 @@ class BulkMetadata(Catalog):
             attempt=self.db.execute('SELECT id,status FROM analysis_runs WHERE asset_id=? ORDER BY rowid DESC LIMIT 1',(asset,)).fetchone()
             target={'assetId':asset,'before':before,'after':after,'versions':versions,'conflicts':conflicts,'changed':before!=after}
             targets.append(target);snapshots.append([target,resources,identity,files,list(active or []),list(attempt or [])])
+        if check_graph:self.validate_relations({t['assetId']:t['after']['relations'] for t in targets if 'relations' in t['after']})
         return targets,digest({'request':request,'snapshots':snapshots,'policy':'bulk-metadata.v1'})
 
     def preview(self,params):
@@ -164,7 +217,10 @@ class BulkMetadata(Catalog):
         for field,after in target['after'].items():
             before=target['before'][field]
             if before==after:continue
-            if field=='groups':self.group_assign({'asset_id':asset,'group_ids':after,'expected_revision':versions[field]})
+            if field=='basic':AnnotationService(self.database).save({'asset_id':asset,**after,'expected_revision':versions[field]})
+            elif field=='packages':Packages(self.database).package_assign({'asset_id':asset,'package_ids':after,'expected_revision':versions[field]})
+            elif field=='relations':self.metadata._decide(asset,'relations','set',versions[field],True,after,None)
+            elif field=='groups':self.group_assign({'asset_id':asset,'group_ids':after,'expected_revision':versions[field]})
             elif field=='classification':self.save_classification({'asset_id':asset,'value':after,'expected_revision':versions[field],'confirmed':True})
             elif field=='tags':
                 old={v.casefold() for v in before};new={v.casefold() for v in after}
@@ -190,6 +246,7 @@ class BulkMetadata(Catalog):
             if token!=params['plan_token'] or any(t['conflicts'] for t in targets):raise LibraryError('METADATA_CONFLICT')
             changed=[t for t in targets if t['changed']]
             for target in changed:self.apply_target(target)
+            self.validate_relations({})
             if changed:
                 from uuid import uuid4
                 self.db.execute("INSERT INTO audit_events VALUES (?,'user','bulk.apply','metadata',NULL,'succeeded',strftime('%Y-%m-%dT%H:%M:%fZ','now'),?)",
