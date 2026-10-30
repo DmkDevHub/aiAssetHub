@@ -37,6 +37,13 @@ class OwnedRecords(Provenance):
     field = 'source'
     confirmation = False
 
+    def __init__(self, database):
+        super().__init__(database)
+        self.database = database
+
+    def validate_owner(self, value, subject, before=None):
+        pass
+
     def record(self, identifier):
         if not valid_id(identifier): raise LibraryError('INVALID_PARAMS')
         row = self.db.execute(f'SELECT id,asset_id,package_id,value_json,revision,enabled FROM {self.table} WHERE id=?', (identifier,)).fetchone()
@@ -69,6 +76,7 @@ class OwnedRecords(Provenance):
         value = self.value(params['value'])
         def operation():
             kind, owner = self.subject(params['subject']); identifier = str(uuid4())
+            self.validate_owner(value, params['subject'])
             self.db.execute(f'INSERT INTO {self.table} VALUES (?,?,?,?,1,1)',
                             (identifier, owner if kind == 'asset' else None, owner if kind == 'package' else None, json.dumps(value, ensure_ascii=False)))
             result = self.record(identifier)
@@ -83,6 +91,7 @@ class OwnedRecords(Provenance):
             before = self.record(params['record_id']); self.subject(before['subject'])
             if not before['enabled']: raise LibraryError('INVALID_PARAMS')
             Collections.revision(params['expected_revision'], before['revision'])
+            self.validate_owner(value, before['subject'], before)
             self.db.execute(f'UPDATE {self.table} SET value_json=?,revision=revision+1 WHERE id=?', (json.dumps(value, ensure_ascii=False), before['id']))
             result = self.record(before['id'])
             self.event(before['subject'], before['id'], self.field, result['revision'], 'update', before, result)
