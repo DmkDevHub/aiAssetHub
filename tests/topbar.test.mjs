@@ -1815,6 +1815,16 @@ test('technical observations are read only until explicit collection and escape 
  assert.equal(calls[1][1].method,'asset.technical.collect');assert.equal(calls[1][1].params.confirmed,true);assert.equal(document.querySelector('.technical-metadata img'),null);assert.match(document.querySelector('.technical-metadata pre').textContent,/channels/);assert.match(document.querySelector('.technical-metadata').textContent,/재확인이 필요한/);
 });
 
+test('bulk metadata preview is explicit and editing a draft invalidates the paged review',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push(args);return {ok:true,data:{items:[{assetId:'fixture',before:{tags:[]},after:{tags:['<b>tag</b>']},conflicts:[],changed:true}],planToken:'fixture-token',next_cursor:null,targetCount:1,changedCount:1,conflictCount:0}};}};
+ app=createApp(components.BulkMetadata,{assetIds:['fixture']});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();assert.equal(calls.length,0);
+ const input=document.querySelector('.bulk-metadata input');input.value='<b>tag</b>';dispatch(input,new Event('input',{bubbles:true}));await nextTick();
+ dispatch([...document.querySelectorAll('.bulk-metadata button')].find(b=>b.textContent==='일괄 변경 검토'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[0].method,'bulk.preview');assert.equal(document.querySelector('.bulk-metadata b'),null);assert.match(document.querySelector('.bulk-metadata').textContent,/변경 1개/);
+ input.value='changed';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(document.querySelector('.bulk-metadata ol'),null);assert.equal(calls.length,1);
+});
+
 test('AI classification review requires preview and explicit approval and rejects stale apply',async()=>{
  app.unmount();globalThis.isTauri=true;const calls=[];
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push(args);return args.method==='analysis.review'?{ok:true,data:{before:{primary:null,facets:{}},after:{primary:'A01',facets:{role:['role.item']}},expectedRevision:0,planToken:'fixture-token',hasChanges:true}}:{ok:false,error:{code:'METADATA_CONFLICT'}};}};

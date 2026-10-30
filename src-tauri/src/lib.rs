@@ -12,6 +12,7 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
         && matches!(
             method,
             "asset.technical"
+                | "bulk.preview"
                 | "analysis.review"
                 | "analysis.review.apply"
                 | "asset.technical.collect"

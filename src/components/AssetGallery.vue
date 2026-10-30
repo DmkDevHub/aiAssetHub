@@ -7,6 +7,7 @@ import { sortAssets } from '../services/assetSearch';
 import EmbeddingTools from './EmbeddingTools.vue';
 import ManualAnalysis from './ManualAnalysis.vue';
 import BulkGroups from './BulkGroups.vue';
+import BulkMetadata from './BulkMetadata.vue';
 import BulkTags from './BulkTags.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, toRef, watch } from 'vue';
@@ -88,7 +89,7 @@ function moveAssetFocus(event: KeyboardEvent) {
       <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
     </div>
 
-    <BulkGroups v-if="selection.size" :asset-ids="[...selection]" />
+    <BulkMetadata v-if="selection.size" :asset-ids="[...selection]" /><BulkGroups v-if="selection.size" :asset-ids="[...selection]" />
     <BulkTags v-if="selection.size" :asset-ids="[...selection]" />
     <div v-if="items.length === 0" class="gallery-empty" role="status">
       <span class="gallery-empty-mark" aria-hidden="true">◇</span>

@@ -67,3 +67,5 @@ export {default as CatalogManager} from '../../src/components/CatalogManager.vue
 
 export {default as AdvancedFilters} from '../../src/components/AdvancedFilters.vue';
 export {catalogFilters,applyCatalogFilters,resetCatalogFilters} from '../../src/stores/catalogFilters';
+
+export {default as BulkMetadata} from '../../src/components/BulkMetadata.vue';
