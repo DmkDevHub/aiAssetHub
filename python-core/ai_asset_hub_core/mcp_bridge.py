@@ -41,9 +41,11 @@ def create_server(directory):
         return await call('get_asset',{'asset_id':asset_id,'history_after_id':history_after_id,'schema_version':schema_version},ctx)
 
     @server.tool(annotations=annotations,structured_output=True)
-    async def get_asset_files(asset_id:str,ctx:Context,schema_version:StrictInt=1)->dict[str,Any]:
-        """Read registered files' current presence, safe local paths and cached preview metadata. schema_version accepts 1 (default) or 2 (version marker). Never reads file contents or creates previews."""
-        return await call('get_asset_files',{'asset_id':asset_id,'schema_version':schema_version},ctx)
+    async def get_asset_files(asset_id:str,ctx:Context,schema_version:StrictInt=1,after_component_id:str|None=None)->dict[str,Any]:
+        """Read registered files' presence and safe paths. Version 1 preserves legacy preview metadata. Version 2 adds public file roles (evidence excluded), cached parser metrics/staleness, registered-only dependency status and 50 observed components per page; use after_component_id only with version 2. No content reads, parsing, hashing, previews or inference."""
+        arguments={'asset_id':asset_id,'schema_version':schema_version}
+        if after_component_id is not None:arguments['after_component_id']=after_component_id
+        return await call('get_asset_files',arguments,ctx)
 
     @server.tool(annotations=annotations,structured_output=True)
     async def get_analysis_status(ctx:Context,asset_ids:list[str]|None=None,schema_version:StrictInt=1)->dict[str,Any]:

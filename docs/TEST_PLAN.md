@@ -824,3 +824,15 @@ Git 제외 재현 로그/보고: `.artifacts/m08g-node.log`, `m08g-python.log`, 
 초기 루트 cwd의 직접 unittest 호출은 모듈 경로 누락으로 실패해 `python-core` cwd로 교정했다. 제한된 샌드박스에서는 기존 `_health` 연결도 `CORE_UNAVAILABLE`였고 stdio 검사가 대기해 중단했다. 승인된 샌드박스 밖 재실행은18개 통과(7.668초); 이후 실행 권한 변경 뒤 최종 위19개 및 전체255개를 통과했다. 이 실행 환경 실패를 기능 성공으로 계산하지 않았다.
 
 미검증: 새 설치본 빌드/업그레이드·설치본 reference Host 통합(R08H-04), 특정 Codex/Claude 제품 설정/모델·구형 프로토콜의 새 확장 조합·GUI/OS 화면·대규모 성능. Rust 코드는 변경하지 않았고 이번 작업에서 Rust 테스트는 미실행이다. 파일 역할/기술/종속 확장은 R08H-02, Unity 계획은 R08H-03에 남긴다. 새 의존성/DB 마이그레이션·자동 분석/임베딩/외부 호출·실제 원본 변경·화면 조작·원격 push 없음.
+
+## R08H-02 — MCP 구성 파일·기술·종속 조회 (2026-10-30)
+
+- `python-core` cwd의 `../.artifacts/core-build-venv/Scripts/python.exe -B -m unittest discover -s tests -p test_mcp_files.py -v`: 최초 새 테스트 **5/5**, 0.632초. 실제 임시 SQLite와 등록 OBJ/WAV/텍스트 fixture를 사용했다. 이후 구성 결정 clear/null 방어와 접근 불가 구성 요소의 stale 처리를 보강하고 전체 회귀로 다시 검증했다. 중간 루트 cwd에서 `-s tests`를 지정한 호출은 0개로 실패했으며 검증 성공으로 계산하지 않는다.
+- `$env:AI_ASSET_HUB_PYTHON='C:\Program Files\Python313\python.exe'; node scripts/run-python-checks.mjs`: 최종 **260/260**, 31.181초. `.artifacts/r08h02-core.log`. 기존 MCP19개 및 새 파일 조회5개 포함. 권한 실패의 상대 경로 숨김 회귀를 보강한 최종 결과이며 중간 전체260개도 30.248/31.455초에 통과했다.
+- 저장소 Node24 PATH의 `node --test`: **157/157**, 6.171초, `.artifacts/r08h02-node.log`. `npm.cmd run build`: 타입 검사·Vite 통과(435ms). `git diff --check` 통과.
+
+검증한 행동: v1 소유 파일/기존 메타데이터 유지·v2 파일 역할/현재 상태·evidence 전용 제외·여러 활성 루트의 명시 구성/해제 루트 차단·등록 종속 파일 ID/누락 상태·미등록 참조 unresolved/외부·부모 이동 blocked·모듈 선언 수와 원문 비노출·실제 parser 수치와 파일 수정 시 stale·미관측 null·관측/선택 구성 요소56개 fixture의50/6페이지·사용자 결정 clear·커서 검증·범위 밖 경로 숨김·기존 Windows junction 테스트의 v1/v2 차단을 확인했다. 페이지 fixture의 추가55개는 저장된 합성 material 구성 요소이며 파서가 실제55개 재질을 추출했다는 의미가 아니다. 실제 OBJ parser의 mesh1개는 별도로 검증했다. 증빙/연락/원문 URL·선언명·자유문자열은 공개 투영에 포함하지 않는다.
+
+공식 SDK 별도 stdio Bridge Host에서 버전2 파일 역할·미관측 상태·구성 커서 전달을 검증했고 기존5도구·오류/인증·감사/레드랙션·응답 크기 상한 회귀도 통과했다. 직접 조회 전후 SQLite dump/total_changes 동일 및 원본 open/파서/AI/임베딩 호출 금지 mock·Job/벡터0을 확인했다. 실제 사용자 DB/에셋·외부 모델·앱/브라우저 화면은 사용하지 않았다. Core Broker 요청 감사는 기존 허용된 기록이다.
+
+미검증/제한: 설치본/패키징(R08H-04)·특정 제품 Host/레거시 협상의 새 확장 조합·GUI/OS 화면·대규모 성능. Rust 변경이 없어 Rust 검사는 이번 작업 미실행이다. 기술 투영은 알려진 parser schema의 공개 수치/불리언/format으로 제한하며 자유문자열/클립 상세·원문 참조를 반환하지 않는다. 미등록 종속 파일의 존재를 탐색하거나 내용을 디코드하지 않으므로 unresolved를 missing으로 오인하지 않는다. 크기/mtime 기반 stale은 동일 크기/mtime 덮어쓰기·조회 후 교체를 검출하는 해시 보증이 아니다. 구성 파일20개·구성 요소50개 페이지·파일별 선언 종속128개·기존 전체 응답64KiB 상한을 유지한다. 새 의존성/마이그레이션·스캔/자동 분석/임베딩/다운로드·실제 원본 수정·화면 조작·push 없음.

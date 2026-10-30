@@ -57,6 +57,11 @@ class McpTests(unittest.TestCase):
                     self.assertEqual(legacy.structured_content,explicit.structured_content)
                     modern=await client.call_tool(tool,{**args,'schema_version':2})
                     self.assertFalse(modern.is_error,modern.content);self.assertEqual(modern.structured_content['schemaVersion'],2)
+                    if tool=='get_asset_files':
+                        self.assertEqual(modern.structured_content['files'][0]['roles'],['source'])
+                        self.assertIsNone(modern.structured_content['files'][0]['technical']['observation'])
+                        page=await client.call_tool(tool,{**args,'schema_version':2,'after_component_id':identifier})
+                        self.assertFalse(page.is_error,page.content)
                     invalid=await client.call_tool(tool,{**args,'schema_version':True});self.assertTrue(invalid.is_error)
                 modern=await client.call_tool('search_assets',{'query':'공개제작사','schema_version':2,'filters':{'types':['A01'],'group_ids':[group],'package_ids':[package],'creator_ids':[creator],'creator_roles':['producer']}})
                 self.assertFalse(modern.is_error,modern.content);self.assertEqual(modern.structured_content['items'][0]['id'],identifier)
@@ -313,6 +318,8 @@ class McpTests(unittest.TestCase):
         result=subprocess.run(['cmd','/c','mklink','/J',str(nested),str(outside)],capture_output=True,creationflags=subprocess.CREATE_NO_WINDOW)
         self.assertEqual(result.returncode,0)
         try:
-            files=self.client.call('get_asset_files',{'asset_id':identifier})['files'];self.assertEqual(files[0]['availability'],'unavailable');self.assertNotIn('path',files[0])
+            for version in (1,2):
+                files=self.client.call('get_asset_files',{'asset_id':identifier,'schema_version':version})['files']
+                self.assertEqual(files[0]['availability'],'unavailable');self.assertNotIn('path',files[0]);self.assertIsNone(files[0]['relativePath'])
         finally:nested.rmdir()
         self.assertEqual((outside/'asset.png').read_bytes(),b'outside fixture')

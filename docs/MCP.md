@@ -92,6 +92,17 @@ MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만
 | `packages[]` | 활성 소속 실제 id/name |
 | `creators[]` | 실제 id/name/enabled/deleted/role/subjectKind/subjectId. 직접 에셋 연결과 활성 패키지 연결의 출처를 구분하고 비활성 주체 참조도 상태와 함께 보존 |
 
-연락처·홈페이지/프로필 URL·제작 주체 설명·그룹/패키지 설명·구매 금액/날짜·라이선스 증빙·비공개 출처 레코드를 확장 투영에 넣지 않는다. 이름·분류·기존 사용자/AI 설명은 비신뢰 데이터다. 목록/파일/분석 상태 도구의 버전 2는 버전 표식만 추가하며 기존 경로 검증과 상태 의미를 유지한다. 파일 역할/종속·기술 확장은 R08H-02, Unity 계획 계약은 R08H-03, 설치본 reference Host 회귀는 R08H-04 범위다.
+연락처·홈페이지/프로필 URL·제작 주체 설명·그룹/패키지 설명·구매 금액/날짜·라이선스 증빙·비공개 출처 레코드를 확장 투영에 넣지 않는다. 이름·분류·기존 사용자/AI 설명은 비신뢰 데이터다. 목록/분석 상태 도구의 버전 2는 버전 표식만 추가하며 기존 경로 검증과 상태 의미를 유지한다. 파일 역할/종속·기술 확장은 아래 R08H-02, Unity 계획 계약은 R08H-03, 설치본 reference Host 회귀는 R08H-04 범위다.
 
 응답은 기존 64KiB Broker 프레임 한도를 따르고 초과 시 일부 정보를 조용히 누락하지 않고 `MCP_RESPONSE_LIMIT`로 실패한다. 검색은 limit를 낮춰 재조회할 수 있다. 읽기에는 분석/임베딩/스캔/URL 접속/원본 변경이 없으며 Core의 기존 요청 감사만 기록한다. 필터 원문과 비공개 값은 감사에 넣지 않는다. 상세는 [통합 설계](ASSET_METADATA.md)를 따른다. Unity 실제 쓰기는 M09의 별도 계획·승인·실제 Editor 결과를 요구한다.
+
+## R08H-02 — 구성 파일·기술·종속 조회
+`get_asset_files(asset_id,schema_version=2,after_component_id?)`는 원본 소유 파일만 반환하는 버전 1을 유지하면서, 버전 2에서 에셋의 공개 구성 파일과 관측 구성 요소를 조회한다. `after_component_id`는 버전 2 전용 UUID 커서다. 다른 도구나 버전 1에 전달하면 실패한다.
+
+- `files[]`: `asset_file_members`의 실제 파일 ID별로 source/dependency/preview 역할을 합쳐 ID순 반환한다. evidence 역할과 evidence 전용 구성 파일은 제외한다. 최대 20파일 초과는 `MCP_SEARCH_LIMIT`이다. 기존 경로/캐시 치수/previewSupported에 ownerAssetId·roles·technical·dependencies를 추가한다. 파일 소유 루트가 비활성이면 ID/역할·unavailable만 유지하고 소유자/경로/기술/구성 요소를 노출하지 않는다.
+- 매 호출에 활성 등록 루트·상대 경로 일치·부모 전체 링크/리파스·실제 경로 범위를 검증한 뒤 stat한다. present/missing/unavailable을 구분하고, 범위 밖/권한/리파스 오류의 절대·상대 경로는 숨긴다. 최상위 `availability`는 모두 present이면 available, 일부 present이면 partial, present 없이 unavailable이 있으면 unavailable, 나머지는 missing이다. 이는 디코드/엔진 호환 성공이 아니다.
+- `technical`: 해당 파일을 증거로 저장한 최신 `technical-observation.v1` parser claim의 공개 투영이다. `observation`은 schema/source/inputFingerprint/value, `stale`은 저장된 크기/mtime과 현재 stat의 차이 또는 파일 접근 실패다. 관측이 없거나 모르는 스키마면 둘 다 null이다. AI 제안이나 사용자 선언을 파서 실측으로 바꾸지 않는다. value에는 치수/채널/길이/샘플/프레임/메시/정점/삼각형/재질/본/애니메이션/문서 행·열/글리프 등의 유한 수치·null, 이미지 투명도 불리언과 허용된 format만 담는다. 자유문자열·스크립트 선언명·재질/클립명·ZIP 내부 이름·URL·원문 참조는 제외한다.
+- `dependencies.items[]`: 저장된 parser dependencies 최대 128건의 index/status/fileId다. 단순 상대 참조를 현재 활성 등록 파일의 정확한 DB 경로와 대조하며 하나로 특정될 때만 실제 fileId를 반환한다. 대상에도 같은 경로 검증/stat를 적용하고 안전할 때만 path/relativePath를 추가한다. 미등록/모호한 참조는 unresolved, URL/절대/드라이브/부모 이동/인코딩·query 참조는 blocked다. 미등록 경로는 stat하지 않으며 원문 참조는 반환하지 않는다. 모듈명·Unity GUID는 `unresolvedDeclarationCount`로만 제공하고 파일 UUID로 추측하지 않는다. `resolution=registered-files-only`는 종속 파일 내용의 디코드/해결을 뜻하지 않으며 선언의 최신성은 상위 technical.stale을 함께 확인한다.
+- `components[]`: 공개 구성 파일의 저장된 실제 id/fileId/kind/locator·사용자 구성의 selected·stale을 최대 50개씩 ID순 조회한다. 더 있으면 `next_component_cursor`를 다음 호출의 after_component_id로 보낸다. 관측 fingerprint가 바뀌거나 파일 접근/수정이 감지되면 stale=true, 비교 관측이 없으면 null이다. locator는 내부 파서 참조이며 Unity 객체 ID/임포트 성공이 아니다. 페이지마다 파일 목록도 다시 검증하며 페이지 사이 변경을 고정 snapshot으로 보장하지 않는다.
+
+`modelCalled=false,contentRead=false,evidenceExcluded=true`를 반환한다. 읽기는 원본 open/해시/재파싱·스캔·다운로드·압축 해제·분석/임베딩을 실행하지 않는다. 저장 관측과 stat만 사용하므로 같은 크기/mtime으로 덮어쓴 내용이나 호출 직후 파일 교체까지 검출한다고 주장하지 않는다. 일부 형식의 클립/코덱/단위 등 자유문자열·중첩 상세는 현재 공개 투영에 포함하지 않는다. 64KiB 전체 응답 한도 초과는 기존 `MCP_RESPONSE_LIMIT`이며 구성 요소 페이지 축소만으로 큰 파일/종속 목록이 해결되지 않을 수도 있다. 새 설치본 통합은 R08H-04 범위다.

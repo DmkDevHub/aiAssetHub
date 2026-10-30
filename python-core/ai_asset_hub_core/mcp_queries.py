@@ -106,6 +106,10 @@ class McpQueries:
                 'history':AssetAnalysis(self.database).history(history)}
 
     def files(self,params):
+        if getattr(self,'version',1)==2:
+            identifier=self.require(params,('after_component_id',))
+            from .mcp_files import McpFiles
+            return McpFiles(self.database,self.safe_path).get(identifier,params.get('after_component_id'))
         identifier=self.require(params);result=[]
         rows=self.db.execute('''SELECT f.id,f.absolute_path,f.relative_path,f.extension,l.absolute_path,o.width,o.height,o.duration_ms
             FROM asset_files f JOIN assets a ON a.id=f.asset_id JOIN library_roots l ON l.id=a.library_root_id
