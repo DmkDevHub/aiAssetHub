@@ -715,3 +715,10 @@ R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 �
 로그/증거는 .artifacts/m08e-final-{check,fmt,package-core,clippy,rust-tests,installer,verify,packaged-recheck}.log, m08e-final-steps.jsonl, m08e-final-{installed-result,installed-host,hashes,versions}.json이다. 마지막 git diff --check로 공백 오류도 검사한다. R08E-01~05 커밋은 각각2ce7a1f/bb49d30/517cfd4/13f976e/f5417da이며 R08E-06은 이 기록과 함께 한 단위로 커밋한다.
 
 실제 GUI·OS 시각 배치/상호작용·깨끗한 PC·기존 설치 업그레이드/서명·10,000개 등 대규모 성능은 **미검증**이다. 복합 조회는 활성10,000개 한도 초과 시 명시 실패하며 대규모 목표 성능을 달성했다고 주장하지 않는다. 실제 모델/임베딩·Ollama/모델 다운로드·유료 호출·URL 자동 접속·사용자 DB/원본 이전·수정/이동/삭제·화면/브라우저 조작·원격 push는 **미실행**이다. 다음 M08F 기능 개발로 자동 진행하지 않는다.
+## R08F-01 — 2026-10-30 내부 자동화 기록
+
+- `node --test`: 148/148 통과 (6.240초). 가상 DOM에서 미확인 형식 개수·계약 버전·입력 지문 표시 및 사전 검토만으로 작업 미생성 확인.
+- `$env:AI_ASSET_HUB_PYTHON='C:\Program Files\Python313\python.exe'; node scripts/run-python-checks.mjs`: 207/207 통과 (25.024초). 지원/미지원/미확인·계약 안정성·사전/프롬프트/출력 버전 변경 시 검토 무효·명시 시작 snapshot 보존·대기 작업의 추론 전 계약 변경 차단 포함. 기존 비용/취소/원본/분석 이력 회귀 통과.
+- `npm.cmd run build`: 타입 검사 및 Vite 통과 (Vite 573ms). `git diff --check` 통과.
+- 초기 샌드박스 Core 실행은 로컬 MCP 소켓 실패 후 러너 30초 제한에 도달했다. 제한 밖 첫 재실행은 206개 중 잘못된 신규 사전 fixture로 INVALID_DICTIONARY, venv 실행기로 PID 불일치가 발생했다. DB 계약에 맞게 fixture를 수정하고 NEW_PC_SETUP 지침의 기반 CPython으로 재실행해 위 207개 전체 통과를 확인했다. 잘못된 상대 경로의 별도 분석 테스트 시도는 실행되지 않았으며 전체 재실행에 해당 테스트가 포함된다.
+- 로그: `.artifacts/r08f01-node.log`, `r08f01-python.log`, `r08f01-build.log` (Git 제외). AI 응답은 기존 격리 fixture/mock이며 실제 모델/유료 API·설치본·시각 배치·OS 화면은 이번 작업에서 미검증. 원본/사용자 DB 변경 및 화면 직접 조작 없음.

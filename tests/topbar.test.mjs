@@ -1768,12 +1768,15 @@ test('manual target preview sends selected mode and shows server count without s
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
   calls.push([command,args]);
   if(command==='list_models')return {ok:true,data:{items:[{id:'fixture-model-id',modelId:'fixture',enabled:true,selected:true,inspection:{modalities:['image']}}],next_cursor:null}};
-  return {ok:true,data:{targetCount:2,missingCount:0,planToken:'fixture-token'}};
+  return {ok:true,data:{targetCount:2,missingCount:0,planToken:'fixture-token',unknownFormatCount:1,snapshot:{analysisContract:{version:'asset-analysis.v1',inputSchema:'bounded-image.v1',outputSchema:'asset-description.v2',reviewInputFingerprint:'fixture-input-digest'}}}};
  }};
  dispatch(document.querySelector('.analysis-open'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  const selects=document.querySelectorAll('[role=dialog] select');selects[0].value='all';dispatch(selects[0],new Event('change',{bubbles:true}));selects[1].value='all';dispatch(selects[1],new Event('change',{bubbles:true}));await nextTick();
  const preview=[...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent==='대상 확인');dispatch(preview,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(calls[1][0],'preview_analysis');assert.equal(calls[1][1].plan.mode,'all');assert.match(document.querySelector('[role=dialog] [role=status]').textContent,/대상 2개/);assert.equal(calls.length,2);
+ assert.match(document.querySelector('[role=dialog]').textContent,/형식 미확인 1개/);
+ assert.match(document.querySelector('[role=dialog]').textContent,/asset-analysis.v1/);
+ assert.match(document.querySelector('[role=dialog]').textContent,/fixture-input-digest/);
 });
 
 test('analysis start is explicit after review and uses a stable idempotency ID',async()=>{

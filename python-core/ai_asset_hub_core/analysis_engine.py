@@ -61,6 +61,10 @@ class AnalysisEngine:
                     db.execute('COMMIT')
                 except Exception:db.execute('ROLLBACK');raise
                 try:
+                    from .analysis_contract import contract
+                    approved=snapshot.get('analysisContract')
+                    if approved is not None and {k:v for k,v in approved.items() if k!='reviewInputFingerprint'}!=contract(database):
+                        raise LibraryError('ANALYSIS_PLAN_CHANGED')
                     try:checked=ModelService(database).validate({'id':snapshot['registryId'],'modality':'image'},reserved=True)
                     except OSError:raise LibraryError('MODEL_POLICY_DENIED') from None
                     if not checked['compatible']:raise LibraryError(checked['reason'])

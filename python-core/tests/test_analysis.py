@@ -22,6 +22,47 @@ class AnalysisTests(unittest.TestCase):
         result={'mode':'all','scope':'all','library_id':None,'folder_parts':[],'selected_ids':[],'model_id':self.model}
         result.update(updates);return result
 
+    def test_versioned_support_contract_is_read_only_and_does_not_guess_unknown_formats(self):
+        from unittest.mock import patch
+        from ai_asset_hub_core.analysis_contract import input_support
+        for name in ('audio.wav','unknown.mystery'):(self.source/name).write_bytes(b'fixture')
+        library=self.db.connection.execute('SELECT library_root_id FROM assets').fetchone()[0]
+        AssetService(self.db).scan({'library_id':library})
+        with patch('ai_asset_hub_core.inference.infer',side_effect=AssertionError('no inference')):
+            preview=AnalysisPlan(self.db).preview(self.params())
+        self.assertEqual((preview['eligibleCount'],preview['unsupportedCount'],preview['unknownFormatCount']),(1,2,1))
+        self.assertEqual(input_support('FILE.PNG'),'supported')
+        self.assertEqual(input_support('file.wav'),'unsupported')
+        self.assertEqual(input_support('file'),'unknown')
+        contract=preview['snapshot']['analysisContract']
+        self.assertEqual(len(contract['supportMatrix']),14)
+        self.assertTrue(all(r['structuredClassification']=='unsupported' for r in contract['supportMatrix']))
+        self.assertEqual(contract['multiFileAnalysis'],'unsupported')
+        self.assertFalse(contract['transfer']['originalFile'])
+        self.assertEqual(len(contract['reviewInputFingerprint']),64)
+        self.assertTrue(contract['dictionaries'])
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
+        self.assertEqual(AnalysisPlan(self.db).preview(self.params())['planToken'],preview['planToken'])
+
+    def test_contract_and_dictionary_changes_invalidate_review_and_persist_on_explicit_start(self):
+        import json
+        from unittest.mock import patch
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        preview=AnalysisPlan(self.db).preview(self.params())
+        request={'plan':self.params(),'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False}
+        with patch('ai_asset_hub_core.analysis_contract.OUTPUT_VERSION','fixture-next-version'):
+            with self.assertRaisesRegex(LibraryError,'ANALYSIS_PLAN_CHANGED'):AnalysisJobs(self.db).start(request)
+        with patch('ai_asset_hub_core.inference.PROMPT','fixture-new-prompt'):
+            with self.assertRaisesRegex(LibraryError,'ANALYSIS_PLAN_CHANGED'):AnalysisJobs(self.db).start(request)
+        self.db.connection.execute("INSERT INTO classification_dictionaries VALUES ('fixture-new-version','type',?)",(json.dumps({'version':'fixture-new-version','categories':[]}),))
+        with self.assertRaisesRegex(LibraryError,'ANALYSIS_PLAN_CHANGED'):AnalysisJobs(self.db).start(request)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
+        preview=AnalysisPlan(self.db).preview(self.params());request['plan_token']=preview['planToken']
+        job=AnalysisJobs(self.db).start(request)['jobId']
+        stored=json.loads(self.db.connection.execute('SELECT model_snapshot_json FROM analysis_jobs WHERE id=?',(job,)).fetchone()[0])
+        self.assertEqual(stored['analysisContract'],preview['snapshot']['analysisContract'])
+        self.assertEqual(stored['profileVersion'],preview['snapshot']['profileVersion'])
+
     def history(self, identifier, status, active=False, timestamp='2026-10-28T00:00:00Z'):
         job,run,result=[str(uuid4()) for _ in range(3)];db=self.db.connection
         db.execute("INSERT INTO analysis_jobs(id,request_id,scope_json,model_snapshot_json,requested_count,status,created_at,initiated_by) VALUES (?,?,'{}','{}',1,?,?,'fixture')",(job,str(uuid4()),status,timestamp))
@@ -30,6 +71,24 @@ class AnalysisTests(unittest.TestCase):
         if active:
             db.execute("INSERT INTO analysis_results(id,run_id,asset_id,description,tags_json,features_json,created_at) VALUES (?,?,?,'fixture successful','[]','{}',?)",(result,run,identifier,timestamp))
             db.execute('INSERT INTO asset_active_results VALUES (?,?,?)',(identifier,result,timestamp))
+
+    def test_queued_job_refuses_changed_contract_before_inference(self):
+        import time
+        from unittest.mock import patch
+        from ai_asset_hub_core.analysis_jobs import AnalysisJobs
+        from ai_asset_hub_core.analysis_engine import AnalysisEngine
+        preview=AnalysisPlan(self.db).preview(self.params())
+        job=AnalysisJobs(self.db).start({'plan':self.params(),'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
+        engine=AnalysisEngine(self.db)
+        with patch('ai_asset_hub_core.analysis_contract.OUTPUT_VERSION','fixture-changed'),patch('ai_asset_hub_core.inference.infer') as inference:
+            engine.launch(job)
+            deadline=time.monotonic()+5
+            while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
+            engine.close()
+            inference.assert_not_called()
+        status=AnalysisJobs(self.db).status({'job_id':job})
+        self.assertEqual(status['failed'],1)
+        self.assertEqual(status['errors'][0]['code'],'ANALYSIS_PLAN_CHANGED')
 
     def test_modes_count_success_and_last_failure_independently_without_creating_jobs(self):
         (self.source/'other.txt').write_text('fixture')

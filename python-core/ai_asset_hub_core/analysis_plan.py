@@ -45,15 +45,17 @@ class AnalysisPlan:
         from .models import ModelService
         from .model_policy import BudgetPolicy,money
         from .analysis_input import source_info
+        from .analysis_contract import contract, digest, input_support
         from decimal import Decimal
         targets=self.targets(params)
         checked=ModelService(self.database).validate({'id':params['model_id'],'modality':'image'})
         if not checked['compatible']:raise LibraryError(checked['reason'])
-        snapshot=checked['snapshot'];live=[];eligible=0;unsupported=0;over_limit=0;formats={'image':0,'audio':0,'threeD':0,'other':0}
+        snapshot=checked['snapshot'];live=[];eligible=0;unsupported=0;unknown=0;over_limit=0;formats={'image':0,'audio':0,'threeD':0,'other':0}
         from pathlib import Path
         for row in targets:
             extension=Path(row[2]).suffix.lower()
-            image=extension in ('.png','.jpg','.jpeg')
+            support=input_support(row[2]);image=support=='supported'
+            if support=='unknown':unknown+=1
             kind='image' if image else 'audio' if extension in ('.wav','.mp3','.flac','.ogg','.m4a') else 'threeD' if extension in ('.fbx','.obj','.gltf','.glb','.blend') else 'other'
             formats[kind]+=1
             if not image:unsupported+=1
@@ -70,9 +72,11 @@ class AnalysisPlan:
             cost=(Decimal(pricing['prompt'])*context+Decimal(pricing['completion'])*512+Decimal(pricing.get('image','0'))+Decimal(pricing.get('request','0')))*eligible
         if eligible:BudgetPolicy(self.db).check(params['model_id'],str(cost),eligible)
         snapshot['analysisLimits']={'outputTokens':1024 if snapshot['kind']=='local' else 512,'inputBytes':20_000_000,'imageEdge':512,'promptSchema':'asset-description.v2'}
-        token=hashlib.sha256(json.dumps({'request':params,'targets':live,'model':snapshot['profileVersion'],'cost':str(cost),'eligible':eligible,'limits':snapshot['analysisLimits']},sort_keys=True).encode('utf-8')).hexdigest()
+        snapshot['analysisContract']=contract(self.database)
+        snapshot['analysisContract']['reviewInputFingerprint']=digest(live)
+        token=hashlib.sha256(json.dumps({'request':params,'targets':live,'model':snapshot['profileVersion'],'cost':str(cost),'eligible':eligible,'limits':snapshot['analysisLimits'],'contract':snapshot['analysisContract']},sort_keys=True).encode('utf-8')).hexdigest()
         response={'eligibleCount':eligible,'unsupportedCount':unsupported,'overLimitCount':over_limit,'formats':formats,'targetCount':len(targets),'missingCount':sum(row[3]!='present' for row in live),'planToken':token,
                 'estimatedUpperBoundUsd':str(cost),'costIsEstimate':True,'externalTransfer':snapshot['kind']=='external',
-                'paid':snapshot['inspection'].get('costClass')=='paid','snapshot':snapshot,'inferenceCalled':False}
+                'paid':snapshot['inspection'].get('costClass')=='paid','unknownFormatCount':unknown,'snapshot':snapshot,'inferenceCalled':False}
         if internal:response['_inputVersions']={row[0]:{'size':row[1],'mtimeNs':row[2],'status':row[3]} for row in live}
         return response
