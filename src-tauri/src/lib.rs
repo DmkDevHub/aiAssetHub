@@ -25,7 +25,7 @@ async fn metadata_request(
                 | "catalog.tag.get"
                 | "catalog.tag.save"
                 | "catalog.tag.delete"
-                | "catalog.options"
+                | "catalog.query" | "catalog.options"
                 | "catalog.scope"
                 | "creator.list"
                 | "creator.get"
@@ -118,22 +118,13 @@ async fn embedding_rebuild(
     .map_err(str::to_owned)
 }
 
-#[derive(Default, serde::Deserialize, serde::Serialize)]
-#[serde(default, deny_unknown_fields)]
-struct SemanticCriteria {
-    library_id: Option<String>,
-    folder_parts: Vec<String>,
-    kind: String,
-    tag: String,
-    analysis: String,
-}
 #[tauri::command]
 async fn embedding_query(
     state: tauri::State<'_, CoreState>,
     query: String,
     mode: String,
     confirmed: bool,
-    criteria: Option<SemanticCriteria>,
+    criteria: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -142,7 +133,7 @@ async fn embedding_query(
             .map_err(|_| "CORE_UNAVAILABLE")?
             .library_request(
                 "embedding.query",
-                serde_json::json!({"query":query,"mode":mode,"confirmed":confirmed,"criteria":criteria.unwrap_or_default()}),
+                serde_json::json!({"query":query,"mode":mode,"confirmed":confirmed,"criteria":criteria.unwrap_or_else(|| serde_json::json!({}))}),
             )
     })
     .await

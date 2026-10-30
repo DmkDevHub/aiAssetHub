@@ -53,7 +53,9 @@ class McpQueries:
         if not isinstance(params,dict) or set(params)-{'query','filters','limit','after_id','mode'} or params.get('mode','keyword')!='keyword':raise LibraryError('INVALID_PARAMS')
         query=params.get('query');limit=params.get('limit',10);cursor=params.get('after_id')
         if not isinstance(query,str) or len(query)>256 or type(limit) is not int or not 1<=limit<=20 or cursor is not None and not valid_id(cursor):raise LibraryError('INVALID_PARAMS')
-        filters=criteria(params.get('filters',{}));result=[];examined=0
+        raw=params.get('filters',{})
+        if not isinstance(raw,dict) or set(raw)-{'library_id','folder_parts','kind','tag','analysis','group_id'}:raise LibraryError('INVALID_PARAMS')
+        filters=criteria(raw);result=[];examined=0
         if any(any(ord(c)<32 or c==':' for c in part) for part in filters['folder_parts']):raise LibraryError('INVALID_PARAMS')
         while True:
             if query.strip():page=SearchService(self.database).search({'query':query,'after_id':cursor});ids=page['ids'];next_page=page['next_cursor']

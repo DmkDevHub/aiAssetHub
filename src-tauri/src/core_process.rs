@@ -276,7 +276,7 @@ impl CoreProcess {
                 | "catalog.tag.get"
                 | "catalog.tag.save"
                 | "catalog.tag.delete"
-                | "catalog.options"
+                | "catalog.query" | "catalog.options"
                 | "catalog.scope"
                 | "source.list"
                 | "source.get"

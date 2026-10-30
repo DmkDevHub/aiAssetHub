@@ -13,6 +13,8 @@ class Catalog(Collections):
         if type(params.get('include_inactive',False)) is not bool:raise LibraryError('INVALID_PARAMS')
         if cursor is not None and (not isinstance(cursor, str) or len(cursor) > 128): raise LibraryError('INVALID_PARAMS')
         queries = {
+            'formats': "SELECT DISTINCT coalesce(nullif(upper(ltrim(extension,'.')),''),'FILE'),coalesce(nullif(upper(ltrim(extension,'.')),''),'FILE'),NULL FROM asset_files WHERE coalesce(nullif(upper(ltrim(extension,'.')),''),'FILE')>? ORDER BY 1 LIMIT 21",
+            'license_labels': "SELECT DISTINCT json_extract(value_json,'$.label'),json_extract(value_json,'$.label'),NULL FROM provenance_licenses WHERE enabled=1 AND json_extract(value_json,'$.label')>? ORDER BY 1 LIMIT 21",
             'groups': 'SELECT id,name,parent_id FROM asset_groups WHERE id>? ORDER BY id LIMIT 21',
             'packages': 'SELECT id,name,NULL FROM asset_packages WHERE enabled=1 AND id>? ORDER BY id LIMIT 21',
             'creators': 'SELECT id,name,NULL FROM creators WHERE enabled=1 AND deleted=0 AND id>? ORDER BY id LIMIT 21',

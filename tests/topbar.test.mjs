@@ -93,6 +93,7 @@ beforeEach(async (t) => {
   globalThis.isTauri = false;
   components.resetCollections();
   components.resetNavigation();
+  components.resetCatalogFilters();
   components.setSearchQuery("");
   components.setTheme("dark");
   components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
@@ -2151,4 +2152,11 @@ test('tag dictionary deletion shows real AI/user impact and cannot silently remo
  const calls=[];const plan={tag_id:'tag-fixture',revision:1,userAssets:[{asset_id:'asset-fixture',revision:2}],aiReferences:1,canDelete:false};
  await mountMetadataComponent('CatalogManager',{},async(command,args)=>{calls.push(args);if(args.method==='catalog.options')return {ok:true,data:{items:[{id:'tag-fixture',name:'공유 태그'}],next_cursor:null}};if(args.method==='catalog.tag.get')return {ok:true,data:{id:'tag-fixture',label:'공유 태그',enabled:true,revision:1,plan}};throw new Error('unexpected write');});
  await metaField('관리할 사전','tags');dispatch(metaButton('사전 목록 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();dispatch(metaButton('공유 태그'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();dispatch(metaButton('사전 삭제 영향 검토'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(metaButton('검토한 사전 항목 삭제').disabled,true);assert.match(document.body.textContent,/AI 참조 1개/);assert.ok(calls.every(c=>['catalog.options','catalog.tag.get'].includes(c.method)));
+});
+
+test('advanced filters apply OR selections explicitly and persist without model calls',async()=>{
+ const calls=[];await mountMetadataComponent('AdvancedFilters',{},async(command,args)=>{calls.push(args);return {ok:true,data:{items:[{id:args.params.kind==='facets'?'style.pixel':'fixture-'+args.params.kind,name:'한글 선택',axis:'style'}],next_cursor:null}};});
+ dispatch(metaButton('필터 선택 목록 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();const list=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith('스타일')).querySelector('select');list.options[1].selected=true;dispatch(list,new dom.window.Event('change',{bubbles:true}));await nextTick();assert.equal(components.catalogFilters.active,false);
+ dispatch(document.querySelector('form'),new dom.window.Event('submit',{bubbles:true,cancelable:true}));await nextTick();assert.deepEqual(components.catalogFilters.value.styles,['style.pixel']);assert.ok(calls.every(c=>c.method==='catalog.options'));assert.equal(components.catalogFilters.active,true);
+ dispatch(metaButton('복합 필터 해제'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(components.catalogFilters.active,false);
 });

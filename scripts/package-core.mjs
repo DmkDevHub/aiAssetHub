@@ -29,7 +29,7 @@ run(python, ['-m', 'PyInstaller', '--noconfirm', '--onedir', '--console', '--nou
   '--hidden-import', 'ai_asset_hub_core.asset_composition',
   join(root, 'python-core', 'desktop_entry.py')]);
 const packagedModules = readFileSync(join(artifacts, 'pyinstaller-work', 'ai-asset-hub-core', 'PYZ-00.toc'), 'utf8');
-for (const module of ['metadata_store', 'metadata_values', 'classification_axes', 'taxonomy', 'asset_composition', 'asset_management', 'collections', 'packages', 'creators', 'provenance', 'source_records', 'license_records', 'provenance_policy', 'catalog', 'catalog_admin']) {
+for (const module of ['metadata_store', 'metadata_values', 'classification_axes', 'taxonomy', 'asset_composition', 'asset_management', 'collections', 'packages', 'creators', 'provenance', 'source_records', 'license_records', 'provenance_policy', 'catalog', 'catalog_admin', 'catalog_query']) {
   if (!packagedModules.includes(`'ai_asset_hub_core.${module}'`)) throw new Error(`Core contract module missing from bundle: ${module}`);
 }
 const source = join(binaries, 'core', 'ai-asset-hub-core', 'ai-asset-hub-core.exe');

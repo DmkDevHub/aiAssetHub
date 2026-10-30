@@ -100,6 +100,10 @@ class EmbeddingTests(unittest.TestCase):
             self.assertAlmostEqual(rows[0]['score'],.8)
             job['criteria']={'tag':'selected-tag'}
             self.assertEqual([r['id'] for r in search(self.db,job,control)],[self.id])
+            from ai_asset_hub_core.metadata_store import MetadataStore
+            MetadataStore(self.db).classify(self.id,facets={'style':['style.pixel']},expected_revision=0,confirmed=True)
+            job['criteria']={'styles':['style.pixel']}
+            self.assertEqual([r['id'] for r in search(self.db,job,control)],[self.id])
 
     def test_model_switch_and_atomic_rebuild_never_mix_spaces_or_drop_old_data_on_failure(self):
         import struct,time
