@@ -216,3 +216,6 @@ Tauri 인자는 camelCase, Core 인자는 snake_case이며 기존 안전 응답 
 입력 객체의 키는 표와 정확히 일치해야 한다. value는 `name,kind,brand,homepageUrl,profileUrl,contact,country,description` 8개 필드를 모두 받으며 선택 정보는 빈 문자열이다. 상세 값 계약은 METADATA_SCHEMA의 R08D-01 절을 따른다. 목록은 `id,name,kind,brand,country,enabled,revision`만 반환하고 연락처·URL·설명을 포함하지 않는다. 전체 정보는 명시적인 get/쓰기 응답으로만 제공한다. 비활성 주체도 get으로 조회·수정·복원 가능하며 삭제 API는 없다.
 
 커서는 실제 존재하는 UUID여야 하며 UUID 오름차순 keyset이다. 같은 이름의 서로 다른 주체는 별도 UUID로 보존한다. 잘못된 필드/UUID/유형/URL은 INVALID_PARAMS, 오래된 revision은 METADATA_CONFLICT, SQL 오류는 비밀 없는 DB_UNAVAILABLE이다. 쓰기·레드랙션 감사 기록은 같은 BEGIN IMMEDIATE 트랜잭션이며 한쪽 실패 시 전체 롤백한다. 조회·저장·활성 변경으로 URL 접속·스캔·AI/임베딩·외부 과금을 시작하지 않는다.
+
+## R08D-02 주체 역할 연결 (v8)
+`creator.links {subject}`와 `creator.links.save {subject,links,expected_revision}`를 Core/Rust 내부 허용 목록에 추가한다. subject는 `{kind:asset|package,id:실제 UUID}`, links는 최대 16개 `{creator_id,role}`이며 role은 creator(제작자)/producer(제작사)/distributor(배포사)다. 중복 역할 쌍·미지 주체·새 비활성 주체 연결은 거부하며 이미 연결된 비활성 주체는 유지/해제할 수 있다. 응답은 링크 버전과 현재 주체의 공개 요약이며 이름/브랜드는 64자 요약이다. 연락처/URL을 반환하지 않는다. 공유 정보 수정은 live 조회에 반영하고 구매 스냅샷/AI/원본은 변경하지 않는다. 링크·버전·불변 provenance_history·원문 없는 감사는 한 트랜잭션이다. UI는 M08E, Rust/설치 통합 회귀는 M08D 최종 검증에서 수행한다.

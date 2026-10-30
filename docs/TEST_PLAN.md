@@ -625,3 +625,7 @@ Sidecar SHA256 `403ddcf35b8f8554760bef1b4c9d2b38ed0835bb0ccd65c27a2f0d4cd8586d72
 로그/보고서: `.artifacts/r08d-01-creators.log`, `r08d-01-check.log`, `r08d-01-package-core.log`, `r08d-01-clippy.log`, `r08d-01-rust-tests.log`, `r08d-01-installer.log`, `r08d-01-verify.log`, `r08d-01-steps.jsonl`, `r08d-01-installed-result.json`, `r08d-01-installed-host.json`, `r08d-01-hashes.json`. 문서/코드 공백 검사는 `git diff --check`로 확인한다.
 
 이번 작업은 R08D-01만 완료한다. 제작 주체와 에셋/패키지의 역할 연결(R08D-02), 출처/구매·라이선스(R08D-03~04), 전체 변경 원문 이력/삭제 영향/내보내기 보호 확장(R08D-05), 실제 관리 UI(M08E)는 미구현/미검증이다. 실제 GUI/OS 화면·깨끗한 PC·기존 설치 업그레이드·대규모 성능은 미검증이다. 연락처는 이 사전 DB에 일반 텍스트로 저장되며 비밀 저장소로 제공하지 않는다. 실제 사용자 DB·원본·모델·유료 API를 다루지 않았고 화면/브라우저 조작·AI/임베딩·다음 작업·원격 push는 수행하지 않았다.
+
+## R08D-02 (2026-10-30)
+Core 역할 연결 API와 v8 asset/package FK 링크·독립 revision·append-only provenance_history를 구현했다. Python 역할/공유 수정·해제/구매 당시 기록·원본 보존, 비활성/중복/미지 ID·stale revision 거부, 후반 SQL 실패 원자성, 최대 Unicode 16개 연결 응답 16KiB 미만·불변 이력을 검증했다. `npm run test:core` 최초 174개 통과는 imported TestCase 9개가 중복 발견된 결과이며 모듈 import로 고쳤다. 최종 명령/개수는 아래에 기록한다. 새 스키마 기대값은 테스트·설치 검증이 실제 마이그레이션 개수를 사용하도록 수정했다. 사용자 DB/원본·모델·GUI는 건드리지 않았다. Rust 기능/패키지/설치 통합 회귀는 M08D 최종 단계에서 실행한다.
+R08D-02 최종: npm run test:core 종료 0, Python 165개/18.493초 통과. 로그 .artifacts/r08d-02-core-final.log; cargo fmt 종료 0. 변경은 역할 연결 모듈/008 SQL·Core/Rust 허용 목록·스키마 테스트/패키징 가드·계약/검증/로드맵 문서다.

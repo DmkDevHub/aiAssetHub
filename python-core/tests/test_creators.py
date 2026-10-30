@@ -158,7 +158,7 @@ class CreatorTests(unittest.TestCase):
         tables = [r[0] for r in self.db.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name!='schema_migrations'")]
         before = {t: self.db.connection.execute('SELECT * FROM ' + t).fetchall() for t in tables}
         self.db.close(); self.db = Database(self.base / 'v6.sqlite')
-        self.assertEqual(self.db.health()['schema_version'], 7)
+        self.assertEqual(self.db.health()['schema_version'], len(list(migration_directory().glob('*.sql'))))
         self.assertEqual(before, {t: self.db.connection.execute('SELECT * FROM ' + t).fetchall() for t in tables})
         backup = sqlite3.connect(self.db.backup_path)
         try: self.assertEqual(backup.execute('PRAGMA user_version').fetchone()[0], 6)

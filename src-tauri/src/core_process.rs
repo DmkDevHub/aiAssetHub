@@ -256,6 +256,8 @@ impl CoreProcess {
                 | "asset.packages.defaults"
                 | "asset.packages.effective"
                 | "asset.packages.override"
+                | "creator.links"
+                | "creator.links.save"
                 | "creator.list"
                 | "creator.get"
                 | "creator.create"
@@ -352,6 +354,13 @@ impl CoreProcess {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn latest_schema_version() -> usize {
+        std::fs::read_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../db/migrations"))
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.path().extension().is_some_and(|e| e == "sql"))
+            .count()
+    }
 
     fn verify_creator_dictionary(core: &mut CoreProcess) {
         let mut value = json!({"name":"제작 주체", "kind":"company", "brand":"fixture brand",
@@ -480,7 +489,10 @@ mod tests {
             CoreProcess::new(LaunchSpec::packaged(directory).with_data(data.clone(), "production"));
         let first = core.start().unwrap();
         assert_eq!(first["data"]["database"]["status"], "ready");
-        assert_eq!(first["data"]["database"]["schema_version"], 7);
+        assert_eq!(
+            first["data"]["database"]["schema_version"],
+            latest_schema_version()
+        );
         verify_model_registry(&mut core);
         verify_creator_dictionary(&mut core);
         let source = data
@@ -715,7 +727,10 @@ mod tests {
             CoreProcess::new(LaunchSpec::development().with_data(prod.clone(), environment));
         let health = core.start().unwrap();
         assert_eq!(health["data"]["database"]["status"], "ready");
-        assert_eq!(health["data"]["database"]["schema_version"], 7);
+        assert_eq!(
+            health["data"]["database"]["schema_version"],
+            latest_schema_version()
+        );
         core.stop();
         assert!(prod.join("asset_hub.sqlite").is_file());
         assert_eq!(core.start().unwrap()["data"]["database"]["status"], "ready");
