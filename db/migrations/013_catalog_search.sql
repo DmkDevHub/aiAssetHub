@@ -6,11 +6,11 @@ CREATE VIEW catalog_search_projection AS
 SELECT a.id AS asset_id,search_normalize(base.searchable_text||' '||
  coalesce((SELECT group_concat(j.value,' ') FROM metadata_decisions d,json_each(d.value_json,'$.aliases') j WHERE d.asset_id=a.id AND d.field='basic_text'),'')||' '||
  coalesce((SELECT group_concat(t.ko||' '||t.en||' '||t.code||' '||t.aliases_json,' ') FROM asset_classification_selections s JOIN classification_terms t ON t.version=s.type_version AND t.axis='type' AND (s.primary_code=t.code OR s.primary_code LIKE t.code||'.%') WHERE s.asset_id=a.id),'')||' '||
- coalesce((SELECT group_concat(t.ko||' '||t.en||' '||t.code||' '||t.aliases_json,' ') FROM asset_classification_links m JOIN classification_terms t ON t.version=m.version AND t.axis=m.axis AND t.code=m.code WHERE m.asset_id=a.id),'')||' '||
+ coalesce((SELECT group_concat(t.ko||' '||t.en||' '||t.code||' '||t.aliases_json,' ') FROM asset_classification_links m JOIN classification_terms t ON t.version=m.version AND t.axis=m.axis AND (t.code=m.code OR (m.axis='type' AND m.code LIKE t.code||'.%')) WHERE m.asset_id=a.id),'')||' '||
  coalesce((SELECT group_concat(g.name,' ') FROM asset_group_members m JOIN catalog_group_ancestors p ON p.child=m.group_id JOIN asset_groups g ON g.id=p.parent WHERE m.asset_id=a.id),'')||' '||
  coalesce((SELECT group_concat(p.name||' '||p.version,' ') FROM asset_package_members m JOIN asset_packages p ON p.id=m.package_id WHERE m.asset_id=a.id AND p.enabled=1),'')||' '||
  coalesce((SELECT group_concat(c.name||' '||c.brand||' '||m.role,' ') FROM asset_creator_links m JOIN creators c ON c.id=m.creator_id WHERE m.asset_id=a.id),'')||' '||
- coalesce((SELECT group_concat(c.name||' '||c.brand||' '||m.role,' ') FROM asset_package_members p JOIN package_creator_links m ON m.package_id=p.package_id JOIN creators c ON c.id=m.creator_id WHERE p.asset_id=a.id),'')) AS searchable_text
+ coalesce((SELECT group_concat(c.name||' '||c.brand||' '||m.role,' ') FROM asset_package_members p JOIN asset_packages k ON k.id=p.package_id AND k.enabled=1 JOIN package_creator_links m ON m.package_id=p.package_id JOIN creators c ON c.id=m.creator_id WHERE p.asset_id=a.id),'')) AS searchable_text
 FROM assets a JOIN asset_search_source base ON base.asset_id=a.id;
 CREATE TABLE catalog_documents (asset_id TEXT PRIMARY KEY REFERENCES assets(id) ON DELETE CASCADE,searchable_text TEXT NOT NULL,version INTEGER NOT NULL,updated_at TEXT NOT NULL);
 CREATE VIRTUAL TABLE catalog_fts USING fts5(searchable_text,content='catalog_documents',content_rowid='rowid',tokenize='unicode61');

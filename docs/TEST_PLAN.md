@@ -684,3 +684,34 @@ v13 공개 검색 projection·catalog_documents/FTS5·대상 한정 트리거로
 ## R08E-05 (2026-10-30)
 복합 조건 catalog.query와 공유 의미 검색 predicate, 명시 필터 적용/취소 UI를 구현했다. 분류·그룹 선조/패키지·제작자/역할·독립 축/엔진 선언·사용자 태그 ID·형식·크기/관측 수치·라이선스 선언/검토·관리/분석·존재를 실제 DB에서 조회한다. 같은 축 OR·다른 축 AND이며 미확인은 0과 구분한다. 필터는 200개 페이지와 mocked 의미 순위 이전에 적용한다. MCP 신규 메타데이터 계약은 확장하지 않았다.
 최종 npm.cmd run check 종료 0: Node 145·Python 200개, 타입/Vite 통과 (r08e-05-check-pass.log). 초기 테스트 fixture 파일 INSERT 컬럼 수와 자동 생성 파일 연결 중복 오류를 각각 수정했다. 제품 제약은 유지했다. 테스트는 임시 DB/원본 fixture만 사용했고 Job/벡터 생성 없음·원본 보존을 확인했다. 실제 GUI·대규모 성능·실제 추론 미검증; 최종 Rust/설치 검증은 R08E-06에서 수행한다.
+
+## R08E-06 / M08E 전체 내부 검증 (2026-10-30)
+
+R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 탭·저장/취소·민감 원문 승인·충돌 초안, 제작/분류/그룹/태그 관리, v12 관리 정책·v13 공개 FTS, 복합 조건 선적용과 Core 정렬을 연결했다. 최종 변경은 catalog_query.py/공유 semantic predicate·Application/Rust IPC·Vue Gallery/LibraryView/filter store·013 공개 projection·DB/DOM/동봉/설치 Host 테스트·관련 계약/현황 문서다. 새 의존성/기술 스택·기존001~011 SQL·잠금 파일 변경은 없다.
+
+정렬은 size/size_desc/registered/registered_asc/modified/creator와 name/kind/analysis/relevance/source를 통합했다. 가용 고유 file ID 합계(다중 역할 중복 제외), 부분 누락/전체 누락/null/0, 생성/수정 시각·공개 제작 역할·동률 UUID를 검증했다. 필터·정렬 후200개 페이지를 나누고 문맥/DB 변경에 묶인 불투명 커서를 사용한다. 정렬 중 선택은 유지하고 변경 완료 시 첫 페이지, 갱신 시 유효 페이지로 보정한다. 의미 검색 정렬은 승인 실행으로 받은 상위50개를 재사용하며 모델을 재호출하지 않는다. R08E-05 통합 보완으로 현재 구매 선언의 무료/유료/미확인·통화 조건을 추가했고 금액 원문 반환/색인은 없다. 최종 코드 검토에서 탐색 분류만 지정된 경우의 선조 색인, 비활성 패키지 제작사 제외를013에 반영하고 두 경계를 회귀 단언에 추가했다. 새13은 이번 M08E의 미배포 가산 마이그레이션이며 기존001~011은 보존했다.
+
+실제 도구: Windows x64, Node24.22.2/npm11.19.1, CPython3.13.17(기반 및 프로젝트 build venv), rustc1.99.1(58cf8f9c3)/cargo1.99.1, PyInstaller6.22.3. 새 필수 도구 설치·관리자 권한·재부팅은 필요하지 않았다. .artifacts/Use-DevEnvironment.ps1로 ENV-02 도구 경로를 복원하고 아래 단계를 순차 실행했다.
+
+| 명령 | 실제 결과 |
+| --- | --- |
+| npm.cmd run check | 최종 종료0, Node148개(5.533초)·Python204개(24.947초), vue-tsc/tsc·Vite(0.397초) 통과. 전체37.079초 |
+| cargo fmt --manifest-path src-tauri/Cargo.toml -- --check | 종료0, 0.202초 |
+| npm.cmd run package:core | 최종 단독 종료0, 25.283초. 계약 모듈16개 PYZ 검사·001~013 SQL 동봉 |
+| cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings | 종료0, 경고 없음, 17.264초 |
+| cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1 | 종료0, 16개 통과/ignored0, 테스트6.78초·전체15.577초 |
+| npm.cmd run build:installer | 종료0, 114.665초(Release45.71초). 웹/Sidecar 재빌드 포함 |
+| ./scripts/verify-installer.ps1 -Mcp | 종료0, 33.587초. 격리 무화면 설치·Core/SQLite/MCP·제거 통과 |
+| cargo test --manifest-path src-tauri/Cargo.toml --lib --locked packaged_core_needs_no_python_or_development_path -- --include-ignored --test-threads=1 | 종료0, 최종 설치 빌드가 다시 생성한 Sidecar의 패키지 전용1개 재검사 통과(고유 테스트 수에 중복 가산하지 않음), 전체4.349초 |
+
+고유 내부 테스트 합계 **368개(Node148+Python204+Rust16)** 통과. 개발/동봉 Core의 실제 파이프에 catalog 공개 검색·조건·정렬·분류 조회·private 미검색과 재시작 보존을 추가했다. Rust는 main 창의 고정 metadata 명령만 허용하고 helper 창·분석/임베딩/스캔/SQL 우회 명령은 거부함을 화면 없이 검사했다. DOM 테스트는 불투명 페이지/정렬 대기 중 선택·반복 페이지 실패 차단·의미 순위 재사용/추가 모델 호출 없음까지 검증했다.
+
+실패/수정 기록: R08E-06 첫 Node 실행은147통과/1실패였다(r08e-06-check.log). mock 환경이 mount 후 isTauri를 변경했을 때 computed의 단락 평가가 sort 의존성을 수집하지 않아 잘못된 페이지 오류 후 기존 항목이 남았다. sort를 명시적 reactive 의존성으로 읽도록 수정했고148개 모두 통과했다. 그 뒤 구매 조건/FTS 경계 보완에 따라 전체 check를 재실행해 위 최종 결과를 얻었다. R08E-05 fixture INSERT/중복 연결 오류 수정은 앞 절에 기록했다. 제약·타임아웃·실패 처리를 완화하지 않았다.
+
+격리 설치본은 Python 없는 PATH, DB v13/SQLite3.50.4 ready/WAL, 실제 PID/빈 stderr/Core 종료를 확인했다. 공식 SDK Host 최신2026-07-28·레거시2025-11-25는 fixture의 private 연락처·서명 URL·금액·조건/메모·증빙 기본 제외, 정지 시 오류·명시 재시작 보존을 확인했다. 설치 Core에도 실제 공개 제작자+구매 상태/통화 조건·크기/제작사 정렬·private 미검색 단언을 실행했다. 보고서 catalogFiltersAndSortVerified/provenancePrivateDefaultsVerified/noAnalysisOrEmbeddingCreated/sourceUnchanged=true, guiOpened/pythonOnPath=false다. 검증용 설치/프로세스 제거를 통과했고 기존 설치/사용자 AppData는 보존했다. 기존 NSIS Korean choowHowToInstall 경고6040(요약1 warning)은 유지한다. 이번 MCP 검증은 재시도 없이 통과했으며 ENV-02의 과거 일시 실패 원인 해결을 주장하지 않는다.
+
+최종 설치 파일: src-tauri/target/release/bundle/nsis/AI Asset Hub_0.5.0_x64-setup.exe, **24,115,516 bytes**, SHA256 `e89df127af137f25b499ea237377ef31173cb647f3614136373a8e23128058e9`. 소스/설치/Host Sidecar SHA256 `1a1b2576a64cb0e2a1ab0e8f6c0b7713546fa6e4a6ee604e1a8ec129b26693bc` 일치(8,661,334 bytes). 빌드 manifest/PYZ16개/13개SQL 검사 포함이다.
+
+로그/증거는 .artifacts/m08e-final-{check,fmt,package-core,clippy,rust-tests,installer,verify,packaged-recheck}.log, m08e-final-steps.jsonl, m08e-final-{installed-result,installed-host,hashes,versions}.json이다. 마지막 git diff --check로 공백 오류도 검사한다. R08E-01~05 커밋은 각각2ce7a1f/bb49d30/517cfd4/13f976e/f5417da이며 R08E-06은 이 기록과 함께 한 단위로 커밋한다.
+
+실제 GUI·OS 시각 배치/상호작용·깨끗한 PC·기존 설치 업그레이드/서명·10,000개 등 대규모 성능은 **미검증**이다. 복합 조회는 활성10,000개 한도 초과 시 명시 실패하며 대규모 목표 성능을 달성했다고 주장하지 않는다. 실제 모델/임베딩·Ollama/모델 다운로드·유료 호출·URL 자동 접속·사용자 DB/원본 이전·수정/이동/삭제·화면/브라우저 조작·원격 push는 **미실행**이다. 다음 M08F 기능 개발로 자동 진행하지 않는다.

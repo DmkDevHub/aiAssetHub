@@ -276,7 +276,9 @@ impl CoreProcess {
                 | "catalog.tag.get"
                 | "catalog.tag.save"
                 | "catalog.tag.delete"
-                | "catalog.query" | "catalog.options"
+                | "catalog.order"
+                | "catalog.query"
+                | "catalog.options"
                 | "catalog.scope"
                 | "source.list"
                 | "source.get"
@@ -447,6 +449,28 @@ mod tests {
         let creator_id = creator["data"]["id"].as_str().unwrap().to_owned();
         let links = core.library_request("creator.links.save", json!({"subject":subject,"links":[{"creator_id":creator_id,"role":"creator"}],"expected_revision":0})).unwrap();
         assert_eq!(links["data"]["revision"], 1);
+        let found = core.library_request("catalog.query", json!({"query":"fixture rights creator","criteria":{"creator_ids":[creator_id],"creator_roles":["creator"]},"sort":"creator","after_id":null})).unwrap();
+        assert_eq!(found["ok"], true);
+        assert_eq!(found["data"]["ids"], json!([asset_id]));
+        assert_eq!(found["data"]["inferenceCalled"], false);
+        let private_search = core
+            .library_request(
+                "catalog.query",
+                json!({"query":"private-fixture-contact","criteria":{},"after_id":null}),
+            )
+            .unwrap();
+        assert_eq!(private_search["data"]["ids"], json!([]));
+        let ordered = core
+            .library_request(
+                "catalog.order",
+                json!({"asset_ids":[asset_id],"sort":"size_desc"}),
+            )
+            .unwrap();
+        assert_eq!(ordered["data"]["ids"], json!([asset_id]));
+        let classification = core
+            .library_request("catalog.classification", json!({"asset_id":asset_id}))
+            .unwrap();
+        assert_eq!(classification["ok"], true);
         let source = core.library_request("source.create", json!({"subject":subject,"value":{"site":"fixture","productName":"declared","originalUrl":"","productUrl":"","downloadUrl":"https://example.com/?key=private-fixture-url","purchase":{"amount":"0","currency":"KRW","purchasedOn":"2024-02-29","downloadedOn":""}}})).unwrap();
         assert_eq!(source["ok"], true);
         let source_id = source["data"]["id"].as_str().unwrap().to_owned();

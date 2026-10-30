@@ -2160,3 +2160,38 @@ test('advanced filters apply OR selections explicitly and persist without model 
  dispatch(document.querySelector('form'),new dom.window.Event('submit',{bubbles:true,cancelable:true}));await nextTick();assert.deepEqual(components.catalogFilters.value.styles,['style.pixel']);assert.ok(calls.every(c=>c.method==='catalog.options'));assert.equal(components.catalogFilters.active,true);
  dispatch(metaButton('복합 필터 해제'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(components.catalogFilters.active,false);
 });
+
+test('Core sorting follows opaque pages and retains selected IDs while sort is pending',async()=>{
+ await mountWorkspace([{id:'a',name:'alpha',kind:'PNG'},{id:'b',name:'beta',kind:'PNG'}]);
+ await clickElement('.asset-select');assert.match(document.querySelector('.selection-count').textContent,/1개/);
+ globalThis.isTauri=true;const calls=[];let release;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
+  calls.push([command,args]);assert.equal(command,'metadata_request');assert.equal(args.method,'catalog.query');
+  if(!args.params.after_id)return new Promise(r=>release=()=>r({ok:true,data:{ids:['b'],next_cursor:'opaque-page-token'}}));
+  assert.equal(args.params.after_id,'opaque-page-token');return {ok:true,data:{ids:['a'],next_cursor:null}};
+ }};
+ await metaField('정렬','size_desc');assert.match(document.querySelector('.selection-count').textContent,/1개/);
+ release();await new Promise(r=>setImmediate(r));await nextTick();
+ assert.deepEqual([...document.querySelectorAll('.asset-card')].map(e=>e.dataset.assetId),['b','a']);
+ assert.equal(document.querySelector('[data-asset-id="a"] .asset-select').getAttribute('aria-pressed'),'true');
+ assert.equal(calls.length,2);assert.ok(calls.every(c=>c[1].params.sort==='size_desc'));
+});
+
+test('sorting semantic results reuses the approved ranking and never invokes the embedding model again',async()=>{
+ await mountWorkspace([{id:'a',name:'alpha',kind:'PNG'},{id:'b',name:'beta',kind:'PNG'}]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='embedding_query')return {ok:true,data:{jobId:'fixture'}};if(command==='embedding_work')return {ok:true,data:{status:'completed',results:[{id:'b',score:.9,reason:'semantic'},{id:'a',score:.5,reason:'semantic'}]}};assert.equal(command,'metadata_request');assert.equal(args.method,'catalog.order');assert.deepEqual(args.params.asset_ids,['b','a']);return {ok:true,data:{ids:['a','b']}};}};
+ await metaField('검색 방식','semantic');components.setSearchQuery('횃불');await nextTick();
+ dispatch(metaButton('로컬 검색 실행'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ await metaField('정렬','creator');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.deepEqual([...document.querySelectorAll('.asset-card')].map(e=>e.dataset.assetId),['a','b']);
+ assert.deepEqual(calls.map(c=>c[0]),['embedding_query','embedding_work','metadata_request']);
+ await metaField('정렬','relevance');await nextTick();assert.equal(document.querySelector('.asset-card').dataset.assetId,'b');assert.equal(calls.length,3);
+});
+
+test('invalid sorted pages fail closed without dropping the chosen sort or filters',async()=>{
+ await mountWorkspace([{id:'a',name:'alpha',kind:'PNG'}]);globalThis.isTauri=true;
+ dom.window.__TAURI_INTERNALS__={invoke:async()=>({ok:true,data:{ids:['a'],next_cursor:'same-cursor'}})};
+ await metaField('정렬','registered');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(document.querySelectorAll('.asset-card').length,0);assert.match(document.body.textContent,/복합 검색·정렬을 완료하지 못했습니다/);
+ assert.equal(components.catalogFilters.sort,'registered');
+});

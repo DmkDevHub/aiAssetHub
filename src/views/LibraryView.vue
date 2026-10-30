@@ -32,21 +32,27 @@ const availableItems = computed(() => assets.items.filter((item) => libraries.ro
 const searchMode=toRef(catalogFilters,'searchMode'),semanticResults=ref<{id:string;score:number;reason:string}[]|null>(null);
 let semanticTimer:ReturnType<typeof setInterval>|undefined;
 const tag=toRef(catalogFilters,'tag'),kind=toRef(catalogFilters,'kind'),analysis=toRef(catalogFilters,'analysis');
+const sort=toRef(catalogFilters,'sort');
 const sourceItems = computed(() => props.items ?? availableItems.value);
 const kinds=computed(()=>[...new Set(sourceItems.value.map(item=>item.kind))].sort());
 const tags = computed(() => [...new Set(sourceItems.value.flatMap(item => [...item.userTags ?? []]))].sort((a,b)=>a.localeCompare(b,'ko')));
 const searchIds = ref<Set<string>|null>(null), searchError=ref(''), searching=ref(false);
+const coreOrdered=ref(false),semanticOrder=ref<string[]|null>(null),orderError=ref(''),ordering=ref(false);
+let orderGeneration=0;
 let searchGeneration=0;
-onBeforeUnmount(()=>{searchGeneration++;if(semanticTimer)clearInterval(semanticTimer);});
-watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis, ()=>libraryUi.selectedFolderId,()=>collectionUi.groupId,()=>collectionUi.revision,()=>navigation.revision,()=>navigation.mode,()=>catalogFilters.revision], async ([query])=>{
-  const token=++searchGeneration; semanticResults.value=null;if(semanticTimer)clearInterval(semanticTimer);searchIds.value=null; searchError.value=''; searching.value=false;
-  if(searchMode.value!=='keyword' || (!query.trim()&&!collectionUi.groupId&&!(navigation.mode!=='folders'&&navigation.selected[navigation.mode])&&!catalogFilters.active) || !isTauri())return;
+onBeforeUnmount(()=>{searchGeneration++;orderGeneration++;if(semanticTimer)clearInterval(semanticTimer);});
+async function refreshSearch(reset=true){
+  const query=searchState.searchQuery;
+  const token=++searchGeneration;if(reset){semanticResults.value=null;searchIds.value=null;coreOrdered.value=false;}if(semanticTimer)clearInterval(semanticTimer);searchError.value=''; searching.value=false;
+  if(searchMode.value!=='keyword' || !isTauri())return;
+  if(!query.trim()&&!collectionUi.groupId&&!(navigation.mode!=='folders'&&navigation.selected[navigation.mode])&&!catalogFilters.active&&sort.value==='source'){searchIds.value=null;coreOrdered.value=false;return;}
   if(query.length>256 || query.trim().split(/\s+/).length>16){searchError.value='검색어는 256자, 16개 단어까지 입력하세요.';return;}
   searching.value=true;
   try {
     const ids=new Set<string>();
-    if(catalogFilters.active){
-      let cursor:string|null=null;do{const r:{ids:string[];next_cursor:string|null}=await metadata('catalog.query',{query,criteria:searchCriteria(),after_id:cursor});if(token!==searchGeneration)return;for(const id of r.ids){if(ids.has(id))throw new Error();ids.add(id);}cursor=r.next_cursor;if(cursor!==null&&(cursor!==r.ids.at(-1)||ids.size>100000))throw new Error();}while(cursor);
+    const orderedQuery=catalogFilters.active||sort.value!=='source';
+    if(orderedQuery){
+      const cursors=new Set<string>();let cursor:string|null=null;do{const r:{ids:string[];next_cursor:string|null}=await metadata('catalog.query',{query,criteria:searchCriteria(),after_id:cursor,sort:sort.value});if(token!==searchGeneration)return;if(!Array.isArray(r.ids))throw new Error();for(const id of r.ids){if(typeof id!=='string'||ids.has(id))throw new Error();ids.add(id);}cursor=r.next_cursor;if(cursor!==null){if(typeof cursor!=='string'||!r.ids.length||cursors.has(cursor)||ids.size>10000)throw new Error();cursors.add(cursor);}}while(cursor);
     }else if(collectionUi.groupId){
       let cursor:string|null=null;
       do{
@@ -59,11 +65,21 @@ watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis
       let cursor:string|null=null;do{const r:{ids:string[];next_cursor:string|null}=await metadata('catalog.scope',{kind:navigation.mode,id:navigation.selected[navigation.mode],after_id:cursor});if(token!==searchGeneration)return;for(const id of r.ids){if(ids.has(id))throw new Error();ids.add(id);}cursor=r.next_cursor;if(cursor!==null&&(cursor!==r.ids.at(-1)||ids.size>100000))throw new Error();}while(cursor);
       if(query.trim()){const found=await coreSearch(query,()=>token===searchGeneration);for(const id of ids)if(!found.has(id))ids.delete(id);}
     }else{for(const id of await coreSearch(query,()=>token===searchGeneration))ids.add(id);}
-    if(token===searchGeneration)searchIds.value=ids;
+    if(token===searchGeneration){searchIds.value=ids;coreOrdered.value=orderedQuery;}
   }
-  catch { if(token===searchGeneration)searchError.value=catalogFilters.active?'복합 검색을 완료하지 못했습니다. 필터를 유지하고 다시 조회하세요.':collectionUi.groupId?'그룹 검색을 완료하지 못했습니다. 다시 조회하세요.':'전문 검색을 완료하지 못했습니다. 현재 파일명·태그 일치 결과를 표시합니다.'; }
+  catch { if(token===searchGeneration){searchIds.value=null;searchError.value=catalogFilters.active||sort.value!=='source'?'복합 검색·정렬을 완료하지 못했습니다. 필터를 유지하고 다시 조회하세요.':collectionUi.groupId?'그룹 검색을 완료하지 못했습니다. 다시 조회하세요.':'전문 검색을 완료하지 못했습니다. 현재 파일명·태그 일치 결과를 표시합니다.';} }
   finally { if(token===searchGeneration)searching.value=false; }
-}, {immediate:true});
+}
+watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis, ()=>libraryUi.selectedFolderId,()=>collectionUi.groupId,()=>collectionUi.revision,()=>navigation.revision,()=>navigation.mode,()=>catalogFilters.revision],()=>refreshSearch(),{immediate:true});
+watch(sort,()=>{if(searchMode.value==='keyword')void refreshSearch(false);});
+watch([semanticResults,sort],async()=>{
+ const epoch=++orderGeneration;semanticOrder.value=null;orderError.value='';ordering.value=false;
+ if(!semanticResults.value||['source','relevance'].includes(sort.value)||!isTauri())return;
+ const ids=semanticResults.value.map(r=>r.id);ordering.value=true;
+ try{const r=await metadata<{ids:string[]}>('catalog.order',{asset_ids:ids,sort:sort.value});if(epoch!==orderGeneration)return;if(!Array.isArray(r.ids)||r.ids.length!==ids.length||new Set(r.ids).size!==ids.length||r.ids.some(id=>!ids.includes(id)))throw new Error();semanticOrder.value=r.ids;}
+ catch{if(epoch===orderGeneration)orderError.value='검색 결과 정렬을 완료하지 못했습니다. 다시 정렬하세요.';}
+ finally{if(epoch===orderGeneration)ordering.value=false;}
+});
 function searchCriteria(){
  let library:string|null=null,parts:string[]=[];
  const selected=libraryUi.selectedFolderId;
@@ -87,13 +103,17 @@ async function semanticSearch(){
  }catch{if(token===searchGeneration){searching.value=false;searchError.value='의미 검색을 시작하지 못했습니다. 임베딩 모델과 준비된 결과를 확인하세요.';}}
 }
 const items = computed(() => {
+  const requiresSort=sort.value!=='source'&&isTauri();
   const folderItems=filterFolder(sourceItems.value, libraryUi.selectedFolderId);
   if(searchMode.value!=='keyword' && searchState.searchQuery.trim()) {
-    const ranked=(semanticResults.value??[]).flatMap(row=>{const item=folderItems.find(i=>i.id===row.id);return item?[{...item,searchScore:row.score,matchReason:row.reason}]:[];});
+    if(orderError.value)return [];
+    const rows=semanticOrder.value?semanticOrder.value.flatMap(id=>semanticResults.value?.find(r=>r.id===id)??[]):semanticResults.value??[];
+    const ranked=rows.flatMap(row=>{const item=folderItems.find(i=>i.id===row.id);return item?[{...item,searchScore:row.score,matchReason:row.reason}]:[];});
     return stateFilter(keywordFilter(ranked,'',tag.value),kind.value,analysis.value);
   }
-  if((catalogFilters.active||collectionUi.groupId||(navigation.mode!=='folders'&&navigation.selected[navigation.mode]))&&!searchIds.value)return [];
-  const matches=searchIds.value ? keywordFilter(folderItems.filter(item=>searchIds.value!.has(item.id)), '', tag.value)
+  if((catalogFilters.active||requiresSort&&(!searching.value||!!searchError.value)||collectionUi.groupId||(navigation.mode!=='folders'&&navigation.selected[navigation.mode]))&&!searchIds.value)return [];
+  const candidates=coreOrdered.value&&searchIds.value?[...searchIds.value].flatMap(id=>folderItems.find(i=>i.id===id)??[]):folderItems;
+  const matches=searchIds.value ? keywordFilter(candidates.filter(item=>searchIds.value!.has(item.id)), '', tag.value)
     : keywordFilter(folderItems, searchState.searchQuery, tag.value);
   return stateFilter(matches,kind.value,analysis.value);
 });
@@ -140,9 +160,11 @@ function moveRegion(event: KeyboardEvent) {
       :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
       <template #management><CatalogNavigation /><CatalogManager /><LibraryManagement v-show="navigation.mode==='folders'" /><PackageManager v-show="navigation.mode==='packages'" /></template>
     </LibraryTreePanel>
-    <AssetGallery :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" @select="selectedId = $event">
+    <AssetGallery :ordered-by-core="coreOrdered || searchMode!=='keyword' && semanticResults!==null" :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" @select="selectedId = $event">
       <template #filters><AdvancedFilters /><p v-if="collectionUi.groupId">그룹 필터: {{ collectionUi.groupId }}</p><label>검색 방식 <select v-model="searchMode" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
       <button v-if="searchMode!=='keyword'" type="button" :disabled="searching || !searchState.searchQuery.trim()" @click="semanticSearch">로컬 검색 실행</button>
+      <p v-if="ordering" role="status">검색 결과 정렬 중…</p><p v-if="orderError" role="alert">{{ orderError }}</p>
+      <button v-if="searchError && searchMode==='keyword'" type="button" :disabled="searching" @click="refreshSearch(false)">검색·정렬 다시 조회</button>
       <p v-if="searchMode!=='keyword'">입력만으로 임베딩을 생성하지 않습니다. 준비된 벡터가 있을 때 실행한 검색어만 로컬 모델에 전달하며, 기본순은 관련도 상위 50개입니다. 점수는 확률이 아닙니다. 혼합 모드에서 준비된 벡터가 없으면 키워드 결과만 표시합니다.</p><p v-if="searchMode==='keyword' && searchState.searchQuery.trim()">파일명·별칭·분류·그룹·패키지·제작 주체·현재 활성 AI 설명/태그에서 오프라인 검색합니다.</p><p v-if="searching" role="status">로컬 전문 검색 중…</p><p v-if="searchError" role="alert">{{ searchError }}</p><label class="tag-filter">사용자 태그 <select v-model="tag" aria-label="사용자 태그 필터"><option value="">전체 태그</option><option v-for="value in tags" :key="value" :value="value">{{ value }}</option></select></label>
       <label class="tag-filter">타입 <select v-model="kind" aria-label="타입 필터"><option value="">전체 타입</option><option v-for="value in kinds" :key="value" :value="value">{{ value }}</option></select></label>
       <label class="tag-filter">분석 상태 <select v-model="analysis" aria-label="분석 상태 필터"><option value="">전체 상태</option><option value="unanalyzed">미분석</option><option value="completed">분석 완료</option><option value="failed">마지막 시도 실패</option></select></label>

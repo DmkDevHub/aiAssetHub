@@ -36,6 +36,14 @@ def main():
             assert 'PRIVATE-PROVENANCE' not in json.dumps(exported) and '12345.6789' not in json.dumps(exported)
 
     before_jobs=core.call('analysis.jobs');before_embeddings=core.call('embedding.status')
+    catalog_verified=False
+    if not args.data_dir:
+        found=core.call('catalog.query',{'query':'fixture creator','criteria':{'creator_ids':[creator['id']],'purchase_status':['paid'],'purchase_currency':'KRW'},'after_id':None,'sort':'creator'})
+        assert found['ids']==[fixture_id] and found['inferenceCalled'] is False
+        assert core.call('catalog.order',{'asset_ids':[fixture_id],'sort':'size_desc'})['ids']==[fixture_id]
+        assert core.call('catalog.query',{'query':'PRIVATE-PROVENANCE','criteria':{},'after_id':None,'sort':'name'})['ids']==[]
+        assert core.call('analysis.jobs')==before_jobs and core.call('embedding.status')==before_embeddings
+        catalog_verified=True
     hashes={};cursor=None
     while True:
         page=core.call('asset.list',{'after_id':cursor})
@@ -85,6 +93,7 @@ def main():
             if not args.data_dir:assert 'PRIVATE-PROVENANCE' not in str(legacy_result) and '12345.6789' not in str(legacy_result)
             report['legacyProtocolVersion']=legacy.protocol_version
             report['provenancePrivateDefaultsVerified']=not bool(args.data_dir)
+            report['catalogFiltersAndSortVerified']=catalog_verified
         return report
     try:
         report=asyncio.run(host());report['corePid']=core.child.pid;report['sidecarSha256']=hashlib.sha256(executable.read_bytes()).hexdigest()

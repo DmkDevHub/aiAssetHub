@@ -1,6 +1,6 @@
 # API_CONTRACTS — 내부 유스케이스 계약 초안
 
-> 이 표는 아직 배포된 엔드포인트가 아닌 **구현 대상 인터페이스 계약**이다. UI/Tauri/Sidecar 통신은 설치본의 보안과 호환성에 맞춰 실제 전송 형태를 확정한다.
+> 앞부분 표는 최초 논리 설계이며 작업별 구현 계약은 뒤의 절을 따른다. M08E까지의 실제 UI 경계는 아래 catalog/metadata_request 절에 기록한다.
 
 ## Core 명령 (논리 API)
 | 명령 | 주요 입력 | 출력/부작용 |
@@ -238,3 +238,34 @@ value는 `site,productName,originalUrl,productUrl,downloadUrl,purchase:{amount,c
 - `source.delete.preview` / `license.delete.preview {record_id}`: revision/참조 수·참조 보존·원본 변경 없음 반환. delete는 기존 인자에 `expected_references`를 받으며 기본 0이다. 참조가 있으면 preview에서 확인한 수를 명시해야 하고 변경됐으면 METADATA_CONFLICT다. 승인된 삭제는 비활성 처리하며 licence→source FK와 증빙 파일 ID/이력은 유지한다. 원본 파일은 삭제하지 않는다.
 
 v11은 제작 주체의 참조 있는 삭제/물리 삭제/tombstone 수정, 출처·라이선스 물리 삭제/소유자 변경, 증빙 행의 직접 UPDATE를 DB 트리거로 막는다. 이력 원문·연락처/서명 URL은 로컬 DB와 백업에 일반 데이터로 남으며 자격 증명 저장소/암호화 비밀 저장소를 제공한다는 뜻은 아니다. 기존 API 키는 기존 Credential Manager 정책을 따른다. 신규 UI/Tauri 화면 명령·MCP 쓰기는 추가하지 않았다.
+
+## M08E — 통합 탐색·편집·검색 (R08E-01~06)
+
+Tauri `metadata_request {method,params}`는 main 창과 고정 메타데이터 명령만 허용한다. Core도 별도 고정 목록으로 검증한다. 임의 SQL·모델 호출·스캔을 이 명령으로 전달할 수 없다. 기존 creator/source/license/provenance API를 사용하며, 원문 get/history는 기존 include_private+confirmed 정책을 유지한다. 편집은 명시 저장/취소·기대 revision/실제 영향 plan으로 처리하고 충돌 시 초안을 보존한다.
+
+| Core 명령 | 입력 | 응답/한도 |
+| --- | --- | --- |
+| catalog.options | kind,after_id,version?,include_inactive? | groups/packages/creators/tags/types/facets/formats/license_labels 공개 선택값 20개/페이지. 분류는 지정 불변 버전 또는 최신 버전. 비활성은 기본 제외 |
+| catalog.scope | kind(groups/packages/types),id,after_id | 실제 소속/하위 분류 에셋 UUID 200개/페이지 |
+| catalog.classification | asset_id | 대표/탐색/독립 축·type/facet 버전·revision·source/status |
+| catalog.classification.save | asset_id,value,expected_revision,confirmed | 실제 사전 FK와 사용자 확정/명시 clear, 원자 이력·색인 갱신 |
+| catalog.evidence_candidates | subject,after_id | 대상 에셋/패키지에 이미 연결된 파일 ID/이름 20개. 원본 경로/스캔 없음 |
+| catalog.term.get | kind(type/facet),code | 최신 base_version/value/usedAssets |
+| catalog.term.save | kind,base_version,value,expected_usage,confirmed | 불변 새 사전 버전. value=code/axis/ko/en/aliases/active/replacement. 이름·별칭 한도64, alias 최대8. 사용 중 facet 비활성은 동일 축 활성 대체값 필수 |
+| catalog.tag.get | tag_id | label/enabled/revision과 userAssets(asset_id/revision)/aiReferences/canDelete plan |
+| catalog.tag.save | tag_id(null=신규),value(label/enabled),plan,confirmed | 공유 사용자 태그 결정/revision·이력/색인을 함께 갱신. AI 결과 보존. 사용자 영향 최대100개 |
+| catalog.tag.delete | plan,confirmed | 사용자/AI 참조 없는 실제 태그만 삭제. 참조가 있으면 거부 |
+| catalog.query | query,criteria,after_id,sort? | 아래 조건·정렬 적용 후 ids 최대200개, next_cursor, inferenceCalled=false |
+| catalog.order | asset_ids,sort | 활성 루트의 실제 ID 최대100개를 정렬. 중복/없는 ID 거부. source/relevance는 전달 순위 보존. 모델 호출 없음 |
+
+`catalog.query`는 활성 에셋 최대10,000개를 대상으로 공개 catalog_documents의 NFKC/casefold literal 단어 AND 검색과 복합 조건을 수행한다. 10,000개를 넘으면 CATALOG_LIMIT으로 실패하며 일부 결과를 전체 결과처럼 반환하지 않는다. query 최대256자/16단어, 조건 배열은 각각 최대16개다. 한 축 OR·축 사이 AND이며 **필터와 정렬 후** 페이지를 자른다. 빈 query는 조건/정렬 조회다. sort 기본 source(UUID)이며 name/kind/modified/analysis/size/size_desc/registered/registered_asc/creator/relevance를 허용한다.
+
+criteria는 기존 library_id/folder_parts/kind/tag/analysis/group_id와 group_ids/package_ids/types/creator_ids/creator_roles/roles/styles/genres/views/dimensions/engines/tags/formats/license_labels/license_status/management_states/purchase_status, purchase_currency, include_descendants, favorite, availability를 지원한다. group/package/creator/tag 배열은 실제 UUID이며 `__unknown__`은 소속/값 없음 선택이다. 유형은 대표+탐색 분류와 계층을 조회한다. creator_roles는 creator/producer/distributor, license_status는 unknown/needs_review/user_reviewed, 관리 상태는 unreviewed/reviewing/approved/archived, 구매 상태는 unknown/free/paid다. 구매 상태와 대문자3자리 통화는 **같은 현재 선언 기록**에 적용한다. 에셋/활성 공유 패키지 출처와 현재 package 구매 선언을 조회하며 과거 구매 스냅샷이나 비활성 출처는 조건에 포함하지 않는다. 조건 응답/커서/FTS에 구매 금액·날짜·URL 원문을 노출하지 않는다. 엔진/권리/구매 필터는 사용자 선언에 대한 조회이며 호환성·사용 권한 판정이 아니다.
+
+수치 조건 min_/max_ size/rating/width/height/duration은 정수·안전 범위와 최솟값≤최댓값을 검사한다. rating은1~5다. size_unknown/rating_unknown/technical_unknown은 범위와 함께 미확인을 OR 포함하고, 범위가 없으면 미확인만 선택한다. 기술은 가용한 연결 파일의 관측값 최댓값이며 재추출/파일 접근은 없다. availability=available/partial/missing은 인덱스의 존재 상태다. size는 가용한 **고유 file ID** 합계이며 여러 역할로 연결되어도 중복 합산하지 않는다. 일부 누락이면 가용분 합계, 전부 누락/집계 불가면 null로0과 구분한다.
+
+등록일은 assets.created_at, 수정일은 구성 파일의 실제 인덱스 mtime_ns·에셋/주석/결정/공개 색인·직접/공유 provenance 변경시각의 최댓값이다. 파일시각은 정수 ns로 비교한다. 제작사는 연결된 producer 이름 우선, 없으면 다른 제작 역할 이름의 정규화 최솟값을 사용한다. 미확인은 양방향 모두 마지막, 동일 키는 UUID 오름차순이다. 키워드 relevance는 공개 텍스트의 literal 단어 빈도이고 확률이 아니다. 의미 검색은 기존 **명시 실행**과 조건 선적용을 유지하며, 추가 정렬은 반환된 상위50개 안에서만 한다. 정렬 변경은 임베딩을 생성하지 않는다.
+
+catalog.query 커서는 query/정규화 조건/sort 해시·DB 변경 stamp·마지막 UUID를 담은 최대512자 불투명 값이다. 조회 문맥·DB 변경/프로세스 재시작 후 재사용은 METADATA_CONFLICT이며 처음부터 다시 조회해야 한다. 조회는 DB를 쓰지 않는다. UI는 전 페이지 성공 후 원자 반영하고 잘못된/반복 커서·중복 ID·조회 오류에는 결과 범위를 넓히지 않는다. 선택은 실제 ID로 유지하며 정렬 변경 시 첫 페이지, 결과 갱신 시 유효 페이지로 보정한다. 필터/정렬/탐색 선택은 같은 앱 세션 내 복원한다. 앱 재시작 영속 환경설정은 추가하지 않았다.
+
+공개 FTS는 이름/별칭/설명/사용자 태그/활성 AI 텍스트·유형/선조/독립 축·그룹 선조·패키지명/버전·주체 이름/브랜드/역할을 포함한다. 연락처·URL·구매·라이선스 조건/메모·증빙은 포함하지 않는다. 일반 FTS는 기존 SearchService, 복합 query는 같은 공개 projection을 사용한다. MCP 신규 확장 메타데이터 필터/쓰기 도구는 제공하지 않으며 M08H 범위로 남긴다.

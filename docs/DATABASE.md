@@ -103,8 +103,13 @@ R08A-04: [통합 저장 계약](METADATA_SCHEMA.md)을 확정했다. 기존 UUID
 
 Core가 기존 DB를 백업한 뒤 v7을 적용한다. 사전 쓰기와 원문 없는 audit_events 기록은 한 트랜잭션이다. 활성 변경은 물리 삭제 없이 행을 보존한다. 전체 과거 원문 이력/삭제 영향 정책은 R08D-05에서 추가하며 이번 감사에는 revision과 변경 필드명만 기록한다. v6 fixture의 전체 기존 테이블/활성 분석/FTS/원본 보존과 v7 후반 SQL 실패 시 스키마·데이터 롤백을 내부 자동화로 확인한다. 실제 사용자 DB나 기존 개발 데이터 디렉터리에는 이번 작업으로 접근하지 않는다.
 
-## M08D — 현재 스키마 v11
+## M08D — 스키마 v11 도입
 
 008은 asset_creator_links/package_creator_links와 독립 revision 2개·불변 provenance_history, 009는 asset/package FK를 가진 provenance_sources, 010은 provenance_licenses와 license_evidence를 가산했다. licence의 source_id는 JSON의 generated column/FK와 소유 범위 트리거로 같은 대상의 실제 출처만 참조한다. 증빙은 asset_files FK와 대상 구성/패키지 멤버 범위 트리거를 사용한다. 총 테이블 수는 FTS shadow 포함 50개다. 011은 creators.deleted와 삭제/소유자/증빙 변경 보호 트리거를 추가했다. 기존 001~007 SQL은 변경하지 않는다.
 
 모든 쓰기는 Core가 BEGIN IMMEDIATE 안에서 현재 revision/참조를 확인하고 기록·불변 전후 이력·원문 없는 감사를 함께 커밋한다. 삭제는 행/참조/이력 보존 정책이며 원본 파일에 작용하지 않는다. provenance_history의 before/after JSON은 민감 정보도 포함하는 로컬 원문 기록이다. 일반 API/내보내기/MCP는 공개 투영만 사용하며 원문 조회는 명시 승인한다. 새로운 원문 이력은 실제 변경부터 기록하고 과거 audit에 없던 원문은 추측하지 않는다. v7 fixture의 기존 모든 컬럼·행/활성 분석/FTS/원본과 v7 백업을 보존했고, 011 후반 실패 시 008~011 전체가 롤백되어 v7/기존 행·creators 컬럼이 유지됨을 검증했다.
+
+## M08E — 현재 스키마 v13
+012_catalog_admin.sql은 tags.enabled/revision 기본값과 불변 catalog_admin_history를 가산한다. 사전 수정은 기존 분류 버전을 덮어쓰지 않고 검증한 새 snapshot을 생성한다. 공유 태그 수정은 사용자 연결 결정/revision·이력과 원자 처리하며 불변 AI는 보존한다. 013_catalog_search.sql은 순환에도 종료하는 그룹 선조 view, 공개 catalog_search_projection, catalog_documents·외부 콘텐츠 catalog_fts 및 대상 한정 갱신 트리거를 추가한다. 총57개 테이블(FTS shadow 포함), 기존001~011 SQL은 보존한다. 기존 search_documents/UUID/원본/AI를 변경하지 않고 공개 새 색인만 backfill한다. 검색 텍스트가 바뀌지 않은 private 수정은 새 색인 version을 올리지 않는다. 색인 실패 시 도메인 변경도 롤백한다.
+
+복합 필터·정렬은 인덱스 DB 읽기 전용이며 새로운 테이블/벡터/Job을 만들지 않는다. 최신 계약은 API_CONTRACTS M08E 절이다. Core/동봉 Sidecar/격리 설치 검증은 TEST_PLAN에 실제 결과를 기록한다.

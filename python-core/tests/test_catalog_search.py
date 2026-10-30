@@ -28,6 +28,8 @@ class CatalogSearchTests(unittest.TestCase):
         self.assertEqual(self.find('특수별칭'),[self.id])
         MetadataStore(self.db).classify(self.id,primary='A01.01',facets={'style':['style.pixel']},expected_revision=0,confirmed=True)
         self.assertEqual(self.find('2D 그래픽'),[self.id]);self.assertEqual(self.find('픽셀아트'),[self.id])
+        MetadataStore(self.db).classify(self.id,primary=None,navigation=['A01.01'],expected_revision=1,confirmed=True)
+        self.assertEqual(self.find('2D 그래픽'),[self.id])
         service=Catalog(self.db);parent=service.group_create({'value':dict(name='선조이름',description='')});child=service.group_create({'value':dict(name='후손이름',description='')})
         child=service.group_move(dict(group_id=child['id'],parent_id=parent['id'],expected_revision=1))
         service.group_assign(dict(asset_id=self.id,group_ids=[child['id']],expected_revision=0))
@@ -49,6 +51,8 @@ class CatalogSearchTests(unittest.TestCase):
         self.assertEqual(self.db.connection.execute('SELECT version FROM catalog_documents WHERE asset_id=?',(self.id,)).fetchone()[0],before)
         value['name']='新版制作';Creators(self.db).update(dict(creator_id=creator['id'],value=value,expected_revision=2))
         self.assertEqual(self.find('고유제작사'),[]);self.assertEqual(self.find('新版制作'),[self.id])
+        service.package_delete(dict(package_id=package['id'],expected_revision=package['revision']))
+        self.assertEqual(self.find('新版制作'),[]);self.assertEqual(self.find('특수상표'),[])
         for table in ('analysis_jobs','asset_embeddings'):self.assertEqual(self.db.connection.execute('SELECT count(*) FROM '+table).fetchone()[0],0)
         self.assertEqual((self.source/'나무.png').read_bytes(),b'original')
 

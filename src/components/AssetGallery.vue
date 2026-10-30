@@ -9,17 +9,18 @@ import ManualAnalysis from './ManualAnalysis.vue';
 import BulkGroups from './BulkGroups.vue';
 import BulkTags from './BulkTags.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
+import {catalogFilters} from '../stores/catalogFilters';
 
-const props = withDefaults(defineProps<{ items?: readonly AssetSummary[]; ranked?: boolean; selectedId?: string | null }>(), {
+const props = withDefaults(defineProps<{ items?: readonly AssetSummary[]; ranked?: boolean; orderedByCore?: boolean; selectedId?: string | null }>(), {
   items: () => [], selectedId: null,
 });
 const emit = defineEmits<{ select: [id: string | null] }>();
-const sort = ref('source');
+const sort = toRef(catalogFilters,'sort');
 const page = ref(1);
 const selection = ref(new Set<string>(props.selectedId ? [props.selectedId] : []));
 const anchor = ref<string|null>(null);
-const ordered = computed(() => sortAssets(props.items, sort.value));
+const ordered = computed(() => props.orderedByCore ? props.items : sortAssets(props.items, sort.value));
 const pages=computed(()=>Math.max(1,Math.ceil(ordered.value.length/60)));
 const visible=computed(()=>ordered.value.slice((page.value-1)*60,page.value*60));
 watch(()=>props.items,()=>{
@@ -27,7 +28,6 @@ watch(()=>props.items,()=>{
   selection.value=new Set([...selection.value].filter((id)=>props.items.some((item)=>item.id===id)));
   if(anchor.value && !props.items.some((item)=>item.id===anchor.value))anchor.value=null;
 });
-watch(()=>props.ranked,value=>{if(value)sort.value='source';});
 watch(sort,()=>{page.value=1;});
 function choose(event:MouseEvent,id:string){
   if(event.shiftKey && anchor.value){
@@ -81,7 +81,8 @@ function moveAssetFocus(event: KeyboardEvent) {
       </div>
     </header>
     <div class="gallery-tools">
-      <label>정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">{{ ranked?'관련도순':'기본순' }}</option><option value="name">이름순</option><option value="kind">유형순</option><option value="modified">수정일 최신순</option><option value="analysis">분석일 최신순</option></select></label>
+      <label>정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">{{ ranked?'관련도순':'기본순' }}</option><option value="relevance">관련도순</option><option value="name">이름순</option><option value="kind">유형순</option><option value="size">크기 작은순</option><option value="size_desc">크기 큰순</option><option value="registered">등록일 최신순</option><option value="registered_asc">등록일 오래된순</option><option value="modified">수정일 최신순</option><option value="creator">제작사 이름순</option><option value="analysis">분석일 최신순</option></select></label>
+      <p>크기는 가용한 고유 구성 파일 합계입니다. 누락만 있거나 값이 미확인인 항목은 마지막에 표시합니다. 정렬 변경은 선택을 유지하고 첫 페이지를 표시합니다.</p>
       <span class="selection-count">{{ selection.size }}개 선택</span>
       <button v-if="selection.size" type="button" @click="selection.clear();emit('select',null)">선택 해제</button>
       <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>

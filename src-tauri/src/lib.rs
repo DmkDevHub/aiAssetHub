@@ -7,16 +7,10 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
-#[tauri::command]
-async fn metadata_request(
-    window: tauri::WebviewWindow,
-    state: tauri::State<'_, CoreState>,
-    method: String,
-    params: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    if window.label() != "main"
-        || !matches!(
-            method.as_str(),
+fn metadata_allowed(label: &str, method: &str) -> bool {
+    label == "main"
+        && matches!(
+            method,
             "catalog.classification"
                 | "catalog.classification.save"
                 | "catalog.evidence_candidates"
@@ -25,7 +19,9 @@ async fn metadata_request(
                 | "catalog.tag.get"
                 | "catalog.tag.save"
                 | "catalog.tag.delete"
-                | "catalog.query" | "catalog.options"
+                | "catalog.order"
+                | "catalog.query"
+                | "catalog.options"
                 | "catalog.scope"
                 | "creator.list"
                 | "creator.get"
@@ -52,7 +48,38 @@ async fn metadata_request(
                 | "provenance.history"
                 | "provenance.export"
         )
-    {
+}
+
+#[test]
+fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
+    for method in [
+        "catalog.query",
+        "catalog.order",
+        "catalog.classification.save",
+        "source.get",
+    ] {
+        assert!(metadata_allowed("main", method));
+        assert!(!metadata_allowed("helper", method));
+    }
+    for method in [
+        "analysis.start",
+        "embedding.query",
+        "library.scan",
+        "sql.execute",
+        "catalog.delete_all",
+    ] {
+        assert!(!metadata_allowed("main", method));
+    }
+}
+
+#[tauri::command]
+async fn metadata_request(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, CoreState>,
+    method: String,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    if !metadata_allowed(window.label(), &method) {
         return Err("CORE_COMMAND_NOT_ALLOWED".into());
     }
     let state = state.inner().clone();
