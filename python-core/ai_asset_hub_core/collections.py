@@ -1,4 +1,5 @@
 """Logical collections only. All writes are explicit and transactional; no file or AI actions."""
+from .transactions import WriteScope
 import json
 import unicodedata
 from uuid import uuid4
@@ -29,14 +30,14 @@ class Collections(AnnotationService):
         if expected != actual: raise LibraryError('METADATA_CONFLICT')
 
     def transaction(self, operation):
-        self.db.execute('BEGIN IMMEDIATE')
+        scope=WriteScope(self.db)
         try:
-            result=operation();self.db.execute('COMMIT');return result
+            result=operation();scope.commit();return result
         except MetadataError as error:
-            self.db.execute('ROLLBACK')
+            scope.rollback()
             raise LibraryError('METADATA_CONFLICT' if str(error)=='METADATA_CONFLICT' else 'INVALID_PARAMS') from None
         except Exception:
-            self.db.execute('ROLLBACK');raise
+            scope.rollback();raise
 
     def log(self,kind,identifier,revision,action,before,after):
         self.db.execute("INSERT INTO collection_history(kind,entity_id,revision,action,before_json,after_json,created_at) VALUES (?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",

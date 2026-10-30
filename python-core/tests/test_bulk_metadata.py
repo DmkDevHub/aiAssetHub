@@ -39,3 +39,34 @@ class BulkTests(unittest.TestCase):
     def test_invalid_fields_missing_ids_disabled_creators_and_limits_fail_closed(self):
         for request in ({'asset_ids':[],'changes':{'tags':{'set':[]}}},self.request({'unknown':{}}),self.request({'groups':{'set':['fake']}}),self.request({'classification':{'primary':'A99'}}),self.request({'sources':{'append':[{'site':'s','productName':'p','downloadUrl':'https://no-fetch.invalid'}]}})):
             with self.subTest(request=request),self.assertRaises(LibraryError):self.preview(request)
+
+    def test_approved_apply_is_atomic_records_history_and_stale_replay_cannot_apply(self):
+        service=BulkMetadata(self.db)
+        request=self.request({'tags':{'set':['태그']},'classification':{'primary':'A01'},'sources':{'append':[{'site':'상점','productName':'상품'}]}})
+        preview=self.preview(request);params={'request':request,'plan_token':preview['planToken'],'confirmed':False}
+        with self.assertRaises(LibraryError):service.apply(params)
+        params['confirmed']=True;result=service.apply(params)
+        self.assertEqual(result['updated'],1)
+        self.assertEqual(service.classification({'asset_id':self.id})['value']['primary'],'A01')
+        self.assertEqual(self.service.get({'asset_id':self.id})['tags'],['태그'])
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM provenance_sources').fetchone()[0],1)
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM metadata_decision_history').fetchone()[0],2)
+        with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):service.apply(params)
+        self.assertEqual((self.source/'나무.png').read_bytes(),b'original')
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
+
+    def test_failure_after_a_nested_write_rolls_back_all_targets_history_and_audit(self):
+        service=BulkMetadata(self.db);request=self.request({'classification':{'primary':'A01'},'tags':{'set':['태그']},'sources':{'append':[{'site':'secret-name','productName':'p'}]}})
+        preview=self.preview(request);before='\n'.join(self.db.connection.iterdump())
+        with patch('ai_asset_hub_core.bulk_metadata.Sources.create_record',side_effect=LibraryError('DB_UNAVAILABLE')):
+            with self.assertRaises(LibraryError):service.apply({'request':request,'plan_token':preview['planToken'],'confirmed':True})
+        self.assertEqual('\n'.join(self.db.connection.iterdump()),before);self.assertFalse(self.db.connection.in_transaction)
+
+    def test_shared_reference_and_user_edit_conflicts_preserve_ai_results(self):
+        import test_analysis
+        test_analysis.AnalysisTests.history(self,self.id,'completed',True)
+        service=BulkMetadata(self.db);request=self.request({'tags':{'add':['new'],'remove':[]}});preview=self.preview(request)
+        self.service.tags({'asset_id':self.id,'add':['user'],'remove':[]})
+        with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):service.apply({'request':request,'plan_token':preview['planToken'],'confirmed':True})
+        self.assertEqual(self.service.get({'asset_id':self.id})['tags'],['user'])
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_results').fetchone()[0],1)

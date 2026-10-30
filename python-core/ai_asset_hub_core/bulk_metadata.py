@@ -77,6 +77,8 @@ class BulkMetadata(Catalog):
             for value in after:
                 row=self.db.execute('SELECT enabled FROM tags WHERE normalized_label=?',(value.casefold(),)).fetchone()
                 if row and not row[0] and value.casefold() not in {v.casefold() for v in before}:raise LibraryError('INVALID_PARAMS')
+            after=sorted([self.db.execute('SELECT label FROM tags WHERE normalized_label=?',(v.casefold(),)).fetchone()[0]
+                if self.db.execute('SELECT 1 FROM tags WHERE normalized_label=?',(v.casefold(),)).fetchone() else v for v in after],key=str.casefold)
         elif field=='classification':
             if not isinstance(change,dict) or not change or set(change)-{'primary','navigation','facets','type_version','facet_version'}:raise LibraryError('INVALID_PARAMS')
             after=copy.deepcopy(before);after.update(change)
@@ -156,3 +158,41 @@ class BulkMetadata(Catalog):
                 'policy':'all-or-nothing','inferenceCalled':False})
             self.db.execute('COMMIT');return result
         except Exception:self.db.execute('ROLLBACK');raise
+
+    def apply_target(self,target):
+        asset=target['assetId'];versions=target['versions']
+        for field,after in target['after'].items():
+            before=target['before'][field]
+            if before==after:continue
+            if field=='groups':self.group_assign({'asset_id':asset,'group_ids':after,'expected_revision':versions[field]})
+            elif field=='classification':self.save_classification({'asset_id':asset,'value':after,'expected_revision':versions[field],'confirmed':True})
+            elif field=='tags':
+                old={v.casefold() for v in before};new={v.casefold() for v in after}
+                AnnotationService(self.database).tags({'asset_id':asset,'add':[v for v in after if v.casefold() not in old],
+                    'remove':[v for v in before if v.casefold() not in new],'expected_revision':versions[field]})
+            elif field=='creators':Provenance(self.database).save_links({'subject':{'kind':'asset','id':asset},'links':after,'expected_revision':versions[field]})
+            elif field=='sources':
+                service=Sources(self.database)
+                for item in after:
+                    public={key:item[key] for key in ('site','productName')}
+                    if item.get('new'):
+                        value={**public,'originalUrl':'','productUrl':'','downloadUrl':'','purchase':{'amount':None,'currency':'','purchasedOn':'','downloadedOn':''}}
+                        service.create_record({'subject':{'kind':'asset','id':asset},'value':value})
+                    elif item not in before:
+                        record=service.record(item['id']);value={**record['value'],**public}
+                        service.update_record({'record_id':item['id'],'value':value,'expected_revision':record['revision']})
+
+    def apply(self,params):
+        self.keys(params,'request plan_token confirmed')
+        if params['confirmed'] is not True or not isinstance(params['plan_token'],str) or len(params['plan_token'])!=64:raise LibraryError('INVALID_PARAMS')
+        def operation():
+            targets,token=self.targets(params['request'])
+            if token!=params['plan_token'] or any(t['conflicts'] for t in targets):raise LibraryError('METADATA_CONFLICT')
+            changed=[t for t in targets if t['changed']]
+            for target in changed:self.apply_target(target)
+            if changed:
+                from uuid import uuid4
+                self.db.execute("INSERT INTO audit_events VALUES (?,'user','bulk.apply','metadata',NULL,'succeeded',strftime('%Y-%m-%dT%H:%M:%fZ','now'),?)",
+                    (str(uuid4()),json.dumps({'assetIds':[t['assetId'] for t in changed],'fields':sorted(params['request']['changes']),'policy':'all-or-nothing'})))
+            return {'updated':len(changed),'unchanged':len(targets)-len(changed),'policy':'all-or-nothing','inferenceCalled':False}
+        return self.transaction(operation)

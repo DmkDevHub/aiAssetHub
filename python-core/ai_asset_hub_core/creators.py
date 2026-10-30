@@ -1,4 +1,5 @@
 """Shared creator dictionary. Explicit local writes only; URLs are never fetched."""
+from .transactions import WriteScope
 import ipaddress
 import json
 import re
@@ -87,13 +88,13 @@ class Creators:
         return {'items': items, 'next_cursor': items[-1]['id'] if len(rows) > 2 else None}
 
     def write(self, operation):
-        self.db.execute('BEGIN IMMEDIATE')
+        scope=WriteScope(self.db)
         try:
             result = operation()
-            self.db.execute('COMMIT')
+            scope.commit()
             return result
         except Exception:
-            self.db.execute('ROLLBACK')
+            scope.rollback()
             raise
 
     def audit(self, result, action, fields, before=None):

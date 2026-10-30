@@ -13,6 +13,7 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
             method,
             "asset.technical"
                 | "bulk.preview"
+                | "bulk.apply"
                 | "analysis.review"
                 | "analysis.review.apply"
                 | "asset.technical.collect"

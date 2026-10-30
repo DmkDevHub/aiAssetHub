@@ -1,4 +1,5 @@
 """Explicit user metadata commands; no source writes or analysis scheduling."""
+from .transactions import WriteScope
 from datetime import date
 import json
 import re
@@ -53,18 +54,18 @@ class AssetManagement(AnnotationService):
         self.require_asset(params['asset_id'])
 
     def commit(self, params, field, value, reader, projection=None):
-        self.db.execute('BEGIN IMMEDIATE')
+        scope=WriteScope(self.db)
         try:
             self.metadata._decide(params['asset_id'], field, 'set', params['expected_revision'], True, value, None)
             if projection: projection()
             result = reader({'asset_id': params['asset_id']})
-            self.db.execute('COMMIT')
+            scope.commit()
             return result
         except MetadataError as error:
-            self.db.execute('ROLLBACK')
+            scope.rollback()
             raise LibraryError('METADATA_CONFLICT' if str(error) == 'METADATA_CONFLICT' else 'INVALID_PARAMS') from None
         except Exception:
-            self.db.execute('ROLLBACK')
+            scope.rollback()
             raise
 
     def composition(self, params):

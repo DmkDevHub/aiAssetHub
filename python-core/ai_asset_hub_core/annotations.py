@@ -1,4 +1,5 @@
 """User metadata only: never changes source files or analysis history."""
+from .transactions import WriteScope
 import unicodedata
 from uuid import uuid4
 from .libraries import LibraryError, valid_id
@@ -41,7 +42,7 @@ class AnnotationService:
             if not isinstance(value,str) or len(value) > limit or any(unicodedata.category(c).startswith('C') and c not in '\n\t' for c in value):
                 raise LibraryError('INVALID_PARAMS')
         aliases = self.aliases(params['aliases']) if 'aliases' in params else None
-        self.db.execute('BEGIN IMMEDIATE')
+        scope=WriteScope(self.db)
         try:
             current = self.get({'asset_id': params['asset_id']})
             value = {'title': params['title'].strip(), 'description': params['description'].strip(),
@@ -53,12 +54,12 @@ class AnnotationService:
             title_override=excluded.title_override,description_override=excluded.description_override,updated_at=excluded.updated_at''',
                 (params['asset_id'],value['title'] or None,value['description'] or None))
             result = self.get({'asset_id': params['asset_id']})
-            self.db.execute('COMMIT')
+            scope.commit()
         except MetadataError as error:
-            self.db.execute('ROLLBACK')
+            scope.rollback()
             raise LibraryError('METADATA_CONFLICT' if str(error) == 'METADATA_CONFLICT' else 'INVALID_PARAMS') from None
         except Exception:
-            self.db.execute('ROLLBACK')
+            scope.rollback()
             raise
         return result
 
@@ -106,7 +107,7 @@ class AnnotationService:
         if not isinstance(identifiers, list) or not 1 <= len(identifiers) <= 100 or not all(isinstance(i,str) for i in identifiers) or len(set(identifiers)) != len(identifiers):
             raise LibraryError('INVALID_PARAMS')
         add, remove = self.labels(params['add']), self.labels(params['remove'])
-        self.db.execute('BEGIN IMMEDIATE')
+        scope=WriteScope(self.db)
         try:
             for identifier in identifiers:
                 self.require_asset(identifier)
@@ -122,11 +123,11 @@ class AnnotationService:
                     raise LibraryError('INVALID_PARAMS')
                 revision = self.metadata.effective(identifier, 'user_tags')['revision']
                 self.metadata._decide(identifier, 'user_tags', 'set', revision if expected is None else expected, True, labels, None)
-            self.db.execute('COMMIT')
+            scope.commit()
         except MetadataError as error:
-            self.db.execute('ROLLBACK')
+            scope.rollback()
             raise LibraryError('METADATA_CONFLICT' if str(error) == 'METADATA_CONFLICT' else 'INVALID_PARAMS') from None
         except Exception:
-            self.db.execute('ROLLBACK')
+            scope.rollback()
             raise
         return {'updated':len(identifiers)}

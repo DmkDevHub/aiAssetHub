@@ -1,4 +1,5 @@
 """Core-internal explicit metadata storage. Not a public UI/MCP write API."""
+from .transactions import WriteScope
 import json
 import re
 from uuid import uuid4
@@ -54,30 +55,30 @@ class MetadataStore:
         return {**result,'revision':state.revision}
 
     def decide(self,asset,field,action,*,expected_revision,confirmed,value=None,claim_id=None):
-        self.db.execute('BEGIN IMMEDIATE')
+        scope=WriteScope(self.db)
         try:
-            result=self._decide(asset,field,action,expected_revision,confirmed,value,claim_id);self.db.execute('COMMIT');return result
-        except Exception:self.db.execute('ROLLBACK');raise
+            result=self._decide(asset,field,action,expected_revision,confirmed,value,claim_id);scope.commit();return result
+        except Exception:scope.rollback();raise
 
     def classify(self,asset,*,primary=None,navigation=(),facets=None,expected_revision,confirmed,type_version=None,facet_version=None):
         types=self.dictionary(type_version or default_taxonomy().version,'type');axes=self.dictionary(facet_version or default_facets().version,'facet')
         value={'type':types.assignment(primary,navigation,version=types.version),'facets':axes.assignment(facets or {},version=axes.version)}
-        self.db.execute('BEGIN IMMEDIATE')
+        scope=WriteScope(self.db)
         try:
             self._decide(asset,'classification','set',expected_revision,confirmed,value,None)
             self.db.execute('DELETE FROM asset_classification_links WHERE asset_id=?',(asset,))
             self.db.execute('INSERT INTO asset_classification_selections(asset_id,type_version,primary_code) VALUES (?,?,?) ON CONFLICT(asset_id) DO UPDATE SET type_version=excluded.type_version,primary_code=excluded.primary_code',(asset,types.version,value['type']['primary']))
             self.db.executemany('INSERT INTO asset_classification_links VALUES (?,?,?,?)',[(asset,types.version,'type',code) for code in value['type']['navigation']]+[(asset,axes.version,axis,code) for axis,codes in value['facets']['values'].items() for code in codes])
-            self.db.execute('COMMIT');return value
-        except Exception:self.db.execute('ROLLBACK');raise
+            scope.commit();return value
+        except Exception:scope.rollback();raise
 
     def retire_facet(self,code,*,new_version,replacement=None,confirmed=False,version=None):
-        old=self.dictionary(version or default_facets().version,'facet');self.db.execute('BEGIN IMMEDIATE')
+        old=self.dictionary(version or default_facets().version,'facet');scope=WriteScope(self.db)
         try:
             used=self.db.execute('SELECT count(DISTINCT asset_id) FROM asset_classification_links WHERE version=? AND code=?',(old.version,code)).fetchone()[0]
             new=old.retire(code,new_version=new_version,used=bool(used),replacement=replacement,confirmed=confirmed)
             contract=new.contract()
             self.db.execute('INSERT INTO classification_dictionaries VALUES (?,?,?)',(new.version,'facet',packed(contract)))
             self.db.executemany('INSERT INTO classification_terms VALUES (?,?,?,?,?,?,?,?,?,?)',[(new.version,'facet',t.axis,t.code,None,t.ko,t.en,'[]',int(t.active),t.replacement) for t in new.terms])
-            self.db.execute('COMMIT');return {'version':new.version,'affectedAssetCount':used,'requiresReassignment':bool(used)}
-        except Exception:self.db.execute('ROLLBACK');raise
+            scope.commit();return {'version':new.version,'affectedAssetCount':used,'requiresReassignment':bool(used)}
+        except Exception:scope.rollback();raise

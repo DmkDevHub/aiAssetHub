@@ -1543,24 +1543,17 @@ test('basic text ignores a late save result after changing selection', async () 
   assert.doesNotMatch(document.body.textContent,/저장했습니다/);
 });
 
-test('gallery multi-selection submits only selected asset IDs for batch tags', async () => {
+test('gallery multi-selection previews only selected asset IDs and cannot apply before reviewing all pages', async () => {
   const calls=[];
   await mountGallery([{id:'first',name:'one',kind:'TXT'},{id:'second',name:'two',kind:'TXT'}]);
   globalThis.isTauri=true;
-  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
-    calls.push([command,args]);
-    if(command==='list_assets')return {ok:true,data:{items:[],next_cursor:null}};
-    return {ok:true,data:{updated:args.assetIds.length}};
-  }};
+  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:true,data:{items:[{assetId:'first',before:{tags:[]},after:{tags:['한글']},conflicts:[],changed:true}],planToken:'fixture',next_cursor:'first',targetCount:2,changedCount:2,conflictCount:0}};}};
   const buttons=document.querySelectorAll('.asset-select');
-  dispatch(buttons[0],new MouseEvent('click',{bubbles:true}));
-  dispatch(buttons[1],new MouseEvent('click',{bubbles:true,ctrlKey:true})); await nextTick();
-  const input=document.querySelector('.bulk-tags input'); input.value='한글';
-  dispatch(input,new Event('input',{bubbles:true})); await nextTick();
-  dispatch(document.querySelector('.bulk-tags'),new Event('submit',{bubbles:true,cancelable:true}));
-  await new Promise(resolve=>setImmediate(resolve)); await nextTick();
-  assert.deepEqual(calls[0],['batch_asset_tags',{assetIds:['first','second'],add:['한글'],remove:[]}]);
-  assert.match(document.querySelector('.bulk-tags').textContent,/2개 에셋의 사용자 태그/);
+  dispatch(buttons[0],new MouseEvent('click',{bubbles:true}));dispatch(buttons[1],new MouseEvent('click',{bubbles:true,ctrlKey:true})); await nextTick();
+  const input=document.querySelector('.bulk-metadata input');input.value='한글';dispatch(input,new Event('input',{bubbles:true}));await nextTick();
+  dispatch([...document.querySelectorAll('.bulk-metadata button')].find(b=>b.textContent==='일괄 변경 검토'),new MouseEvent('click',{bubbles:true}));await new Promise(resolve=>setImmediate(resolve));await nextTick();
+  assert.deepEqual(calls[0][1].params.request,{asset_ids:['first','second'],changes:{tags:{add:['한글'],remove:[]}}});
+  assert.equal(document.querySelector('.bulk-metadata input[type=checkbox]').disabled,true);assert.equal(calls.length,1);
 });
 
 test('keyword matching handles Korean, case, whitespace and original filename with overrides', () => {
@@ -1823,6 +1816,17 @@ test('bulk metadata preview is explicit and editing a draft invalidates the page
  dispatch([...document.querySelectorAll('.bulk-metadata button')].find(b=>b.textContent==='일괄 변경 검토'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(calls[0].method,'bulk.preview');assert.equal(document.querySelector('.bulk-metadata b'),null);assert.match(document.querySelector('.bulk-metadata').textContent,/변경 1개/);
  input.value='changed';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(document.querySelector('.bulk-metadata ol'),null);assert.equal(calls.length,1);
+});
+
+test('bulk metadata apply requires a reviewed plan and approval and clears failed plans',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push(args);return args.method==='bulk.preview'?{ok:true,data:{items:[{assetId:'fixture',before:{tags:[]},after:{tags:['tag']},conflicts:[],changed:true}],planToken:'fixture-token',next_cursor:null,targetCount:1,changedCount:1,conflictCount:0}}:{ok:false,error:{code:'METADATA_CONFLICT'}};}};
+ app=createApp(components.BulkMetadata,{assetIds:['fixture']});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();
+ const label=document.querySelector('.bulk-metadata input');label.value='tag';dispatch(label,new Event('input',{bubbles:true}));await nextTick();
+ dispatch([...document.querySelectorAll('.bulk-metadata button')].find(b=>b.textContent==='일괄 변경 검토'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const apply=[...document.querySelectorAll('.bulk-metadata button')].find(b=>b.textContent==='검토한 일괄 변경 적용');assert.equal(apply.disabled,true);assert.equal(calls.length,1);
+ const approval=document.querySelector('.bulk-metadata input[type=checkbox]');approval.checked=true;dispatch(approval,new Event('change',{bubbles:true}));await nextTick();dispatch(apply,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[1].method,'bulk.apply');assert.equal(calls[1].params.confirmed,true);assert.equal(calls[1].params.plan_token,'fixture-token');assert.equal(document.querySelector('.bulk-metadata ol'),null);assert.match(document.querySelector('.bulk-metadata').textContent,/전체 변경을 취소/);
 });
 
 test('AI classification review requires preview and explicit approval and rejects stale apply',async()=>{
