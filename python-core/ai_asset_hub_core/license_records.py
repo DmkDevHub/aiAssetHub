@@ -11,6 +11,9 @@ class Licenses(OwnedRecords):
     field = 'license'
     confirmation = True
 
+    def reference_count(self, identifier):
+        return self.db.execute('SELECT count(*) FROM license_evidence WHERE license_id=?', (identifier,)).fetchone()[0]
+
     @staticmethod
     def prose(value, limit):
         if not isinstance(value, str) or len(value) > limit or any(unicodedata.category(c).startswith('C') and c not in '\n\t' for c in value):

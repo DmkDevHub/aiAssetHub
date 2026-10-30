@@ -24,6 +24,17 @@ def main():
         from PIL import Image
         source=root/'source';source.mkdir();Image.new('RGB',(16,16),'green').save(source/'mcp-fixture.png')
         library=core.call('library.register',{'path':str(source)})['library']['id'];core.call('library.scan',{'library_id':library})
+        fixture_id=core.call('asset.list')['items'][0]['id'];subject={'kind':'asset','id':fixture_id}
+        creator=core.call('creator.create',{'value':{'name':'fixture creator','kind':'person','brand':'','homepageUrl':'','profileUrl':'','contact':'PRIVATE-PROVENANCE-CONTACT','country':'','description':''}})
+        core.call('creator.links.save',{'subject':subject,'links':[{'creator_id':creator['id'],'role':'creator'}],'expected_revision':0})
+        provenance_source=core.call('source.create',{'subject':subject,'value':{'site':'fixture','productName':'fixture product','originalUrl':'','productUrl':'','downloadUrl':'https://example.com/?key=PRIVATE-PROVENANCE-URL','purchase':{'amount':'12345.6789','currency':'KRW','purchasedOn':'2024-02-29','downloadedOn':''}}})
+        license=core.call('license.create',{'subject':subject,'confirmed':True,'value':{'label':'declared fixture license','terms':'PRIVATE-PROVENANCE-TERMS','attribution':'fixture credit','reviewStatus':'unknown','scope':'fixture','note':'PRIVATE-PROVENANCE-NOTE','source_id':provenance_source['id']}})
+        file_id=core.call('asset.composition',{'asset_id':fixture_id})['value']['files'][0]['fileId']
+        core.call('license.evidence.save',{'record_id':license['id'],'files':[{'file_id':file_id,'label':'PRIVATE-PROVENANCE-PROOF'}],'expected_revision':1,'confirmed':True})
+        for kind in ('creators','sources','licenses'):
+            exported=core.call('provenance.export',{'subject':subject,'kind':kind,'after_id':None})
+            assert 'PRIVATE-PROVENANCE' not in json.dumps(exported) and '12345.6789' not in json.dumps(exported)
+
     before_jobs=core.call('analysis.jobs');before_embeddings=core.call('embedding.status')
     hashes={};cursor=None
     while True:
@@ -49,6 +60,7 @@ def main():
             found=await client.call_tool('search_assets',{'query':args.query});assert not found.is_error and found.structured_content['items']
             identifier=found.structured_content['items'][0]['id']
             detail=await client.call_tool('get_asset',{'asset_id':identifier});assert not detail.is_error
+            if not args.data_dir:assert 'PRIVATE-PROVENANCE' not in str(detail) and '12345.6789' not in str(detail)
             active=detail.structured_content['activeResult']
             if args.require_analyzed:assert active and active['actualModelId']=='qwen3-vl:2b'
             files=await client.call_tool('get_asset_files',{'asset_id':identifier});assert not files.is_error and files.structured_content['files'][0]['availability']=='present'
@@ -70,7 +82,9 @@ def main():
             report['sourceUnchanged']=all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==v for p,v in hashes.items());assert report['sourceUnchanged']
         async with Client(parameters,read_timeout_seconds=10,mode='legacy') as legacy:
             legacy_result=await legacy.call_tool('get_asset',{'asset_id':identifier});assert not legacy_result.is_error
+            if not args.data_dir:assert 'PRIVATE-PROVENANCE' not in str(legacy_result) and '12345.6789' not in str(legacy_result)
             report['legacyProtocolVersion']=legacy.protocol_version
+            report['provenancePrivateDefaultsVerified']=not bool(args.data_dir)
         return report
     try:
         report=asyncio.run(host());report['corePid']=core.child.pid;report['sidecarSha256']=hashlib.sha256(executable.read_bytes()).hexdigest()

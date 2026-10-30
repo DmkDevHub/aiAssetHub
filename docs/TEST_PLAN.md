@@ -637,3 +637,31 @@ R08D-03 실측: npm run test:core 종료 0, Python 169개/17.325초 통과. 로�
 ## R08D-04 (2026-10-30)
 v10 라이선스·증빙 테이블/FK/소유 범위 트리거와 license_records.py/명령/테스트를 추가했다. 사용자 명시 조건·출처 표시·검토 상태·적용 범위·메모·출처 참조를 보관하며 허가 판정은 항상 unknown이다. 증빙은 승인한 실제 등록/연결 파일 ID만 수용하고 범위/경로/리파스/현재 존재를 검증한다. 조건/노트·증빙은 기본 조회에서 제외, private get만 승인 후 제공한다. Python은 미확인/사용자 검토와 허가의 분리·AI 가장 거부·다른 소유자 출처 참조/FK 거부, 패키지 멤버/증빙 범위·해제 후 unavailable 보존·원본/FK 보호, 경로 이탈/리파스·중복/버전 거부, SQL 실패 원자성·민감 원문 레드랙션·최대 Unicode 응답 한도를 검증했다. 실모델/GUI/다운로드는 미실행이며 최종 Rust/설치 회귀는 M08D 마지막에 수행한다.
 R08D-04 실측: npm run test:core 종료 0, Python 174개/17.894초 통과. 로그 .artifacts/r08d-04-core.log. Source와 동일 Core 연결/트랜잭션을 재사용하며 임의 네트워크/법적 권리 판정은 수행하지 않는다.
+
+## R08D-05 / M08D 전체 내부 검증 (2026-10-30)
+
+구현 범위는 M08D Core/DB다. v11 개인정보/삭제 보호와 provenance_policy.py를 추가하고, 주체 상세·쓰기 응답을 기본 공개 투영으로 강화했다. 연락처·홈페이지/프로필/설명, 출처의 URL/가격·구매/다운로드일, 라이선스 조건/노트/증빙은 명시 승인한 private 조회에서만 반환한다. provenance.history는 실제 전후 값·버전·행위·actor=user를 1개씩 페이지하고 과대 원문은 잘림을 표시하면서 DB 원문을 보존한다. provenance.export는 파일 쓰기 없는 버전형 JSON 읽기 투영이며 기본 민감 필드 제외·private 선택 승인 정책을 검증했다. CSV/파일 교환·UI는 후속 M08G/E 범위다.
+
+주체 삭제는 영향 검토 plan과 현재 revision/참조 수를 비교해 연결이 없을 때만 tombstone을 생성하며 원문/ID/이력을 보존하고 재활성화하지 않는다. 기존 비활성 패키지·라이브러리의 참조도 자동 해제하지 않고 명시 제거만 허용한다. 출처·라이선스 삭제는 검토한 참조 수를 다시 확인한 뒤 비활성화하며 licence→source/증빙 ID/FK·과거 기록은 유지한다. 원본 파일을 삭제하지 않는다. DB 트리거는 주체의 참조 있는 삭제/물리 삭제/tombstone 수정, 출처·라이선스 물리 삭제/소유자 변경, 증빙 행 UPDATE와 이력 변경/삭제를 거부한다. 원문은 로컬 DB/백업에 일반 데이터로 저장되며 암호화 비밀 저장소를 구현한 것은 아니다.
+
+Python의 신규 개인정보/이력/삭제 테스트 9개는 기본 get/쓰기/export/history/MCP/감사의 민감 원문 부재와 명시 승인 private 접근, 1개씩 이력 페이지·실제 전후 값/재개방·append-only, 참조/버전 변경 후 stale 삭제 검토 거부·tombstone/재활성화 차단, 출처·라이선스/증빙/FK의 보존 삭제와 SQL 실패 롤백, 비활성 소유자 링크의 명시 해제, 대형 Unicode 원문의 잘림/DB 보존과 응답 한도를 검증했다. v7 fixture의 기존 모든 컬럼/행·활성 분석·FTS·원본과 v7 백업을 비교했고 011 후반 SQL 오류로 008~011 전체를 롤백해 v7·기존 creators 컬럼 유지/부분 테이블 없음도 확인했다. 실제로 없던 과거 원문 이력을 만들어내지 않았다.
+
+| 최종 내부 명령 | 실측 결과 |
+| --- | --- |
+| `npm.cmd run check` | 종료 0, Node 137개(4.305초)·Python 183개(19.005초), vue-tsc/tsc·Vite(0.366초) 통과; 전체 29.595초 |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | 종료 0, 0.201초 |
+| `npm.cmd run package:core` | 종료 0, 13개 계약 모듈 PYZ 검사·001~011 SQL 동봉, PyInstaller 빌드 로그 25.057초 |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | 최종 종료 0, 경고 없음, 1.405초 |
+| `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1` | 최종 종료 0, 15개 통과/ignored 0, 테스트 5.82초·전체 8.601초 |
+
+고유 내부 테스트 최종 **335개(Node 137 + Python 183 + Rust 15)** 통과. 패키지 전용 테스트에도 M08D 전체 역할·출처·라이선스·증빙·private 거부/공개 export/history·삭제 영향 검토/보존·재시작 후 조회를 추가해 개발 Python 없는 Core에서 실제 명령을 검사했다. 신규 개발 파이프 테스트의 최초 실행은 등록 fixture 경로에 `..`가 포함되어 기존 경로 보호에 거부됐고 이후 빈 asset 목록을 unwrap해 14개 통과/1개 실패(종료 101)했다. 테스트 경로를 canonicalize하고 등록 성공 단언을 추가한 뒤 15개 모두 통과했다. 제품 경로 보호/타임아웃을 완화하지 않았다. 실패 로그는 `.artifacts/m08d-rust-fixture-path-failure.log`, 최종은 `m08d-final-rust-tests.log`다.
+
+각 작업의 변경/검증은 R08D-02/03/04 절 및 커밋 `add49e0`/`ab1fac6`/`93b3edd`에 기록했다. R08D-05 변경은 011 SQL·Creator/Source/License/Provenance 정책·Core/Rust 허용 목록/파이프 테스트·private/history/export/마이그레이션 테스트·패키징 모듈 가드·설치 MCP 개인정보 fixture/문서다. 기존 SQL 001~007·잠금 파일·프런트엔드는 변경하지 않았고 새 의존성은 없다. 빌드·테스트는 순차 실행했다.
+
+최종 설치 단계: `npm.cmd run build:installer` 종료 0, 전체 70.943초(Release 컴파일 37.62초). `./scripts/verify-installer.ps1 -Mcp` 종료 0, 32.622초. 새 격리 제품/경로에서 Python 없는 PATH·DB v11 ready/WAL/실제 PID·빈 stderr·Core 종료·검증 제품 제거를 확인했다. 공식 SDK Host는 테스트 전용 연락처·서명 URL·구매 금액/날짜·라이선스 조건/메모·증빙을 Core API로 등록한 뒤 공개 JSON 투영 및 최신 2026-07-28/레거시 2025-11-25 get_asset 응답의 민감 값 부재를 검사했다. 보고서 `provenancePrivateDefaultsVerified=true`, `noAnalysisOrEmbeddingCreated=true`, `sourceUnchanged=true`, `guiOpened=false`, `pythonOnPath=false`; 종료 오류·명시 재시작 보존과 검증 설치본/프로세스 제거도 통과했다. 기존 Korean choowHowToInstall 경고 6040(요약 1 warning)은 유지한다. 이번 MCP 실행은 재시도 없이 통과했으며 ENV-02 과거의 일시 실패를 해결했다고 주장하지 않는다.
+
+최종 설치 파일 `src-tauri/target/release/bundle/nsis/AI Asset Hub_0.5.0_x64-setup.exe`: 24,064,631 bytes, SHA256 `288feffad56cdd8806de24e17a9bb7334ecb952f355c90f876b7efabae9409b3`. 소스/설치/Host Sidecar SHA256 `1adbe04f9fb87e6bb73b33e82f2558c0a1f24bc0fd4fbbb302e826e8c92605b0` 일치. 빌드 manifest·13개 계약 모듈·001~011 SQL을 동봉했다.
+
+근거: `.artifacts/m08d-final-{check,fmt,package-core,clippy,rust-tests,installer,verify}.log`, `m08d-final-steps.jsonl`, `m08d-final-installed-result.json`, `m08d-final-installed-host.json`, `m08d-final-hashes.json`; 각 단계 Python 로그는 r08d-02-core-final.log/r08d-03-core.log/r08d-04-core.log/r08d-05-core.log다. 최종 문서·코드 공백 검사는 git diff --check로 수행한다. 실제 버전은 ENV-02에서 복원한 Node 24.22.2/npm 11.19.1/CPython 3.13.17/Rust 1.99.1이며 기술 스택/고정 의존성을 바꾸지 않았다.
+
+M08D Core/DB 범위를 완료했다. 관리/7개 상세 탭·통합 검색(M08E), 파일 교환/CSV(M08G), 확장 메타데이터 MCP 읽기(M08H)는 후속 범위이며 다음 단계로 자동 진행하지 않는다. 실제 GUI/OS 시각 배치·깨끗한 PC·기존 설치 업그레이드/서명·대규모 성능은 미검증이다. 실제 모델/임베딩·외부 유료 호출·URL 자동 접속/다운로드·사용자 DB/원본 이전·수정·이동·삭제·화면/브라우저 조작·원격 push는 수행하지 않았다.

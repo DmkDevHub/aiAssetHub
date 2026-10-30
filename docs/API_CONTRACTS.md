@@ -208,12 +208,12 @@ Tauri 인자는 camelCase, Core 인자는 snake_case이며 기존 안전 응답 
 | Core | 입력 | 응답 data |
 | --- | --- | --- |
 | `creator.list` | `after_id`: null/실제 UUID, `include_disabled`: bool | items(최대 2개), next_cursor |
-| `creator.get` | `creator_id` | 실제 주체의 전체 정보 |
+| `creator.get` | `creator_id,include_private?,confirmed?` | 공개 요약 / 승인한 private 원문 |
 | `creator.create` | `value` | 새 UUID·전체 정보·enabled=true·revision=1 |
 | `creator.update` | `creator_id,value,expected_revision` | 같은 UUID의 갱신된 정보·revision+1 |
 | `creator.set_enabled` | `creator_id,enabled,expected_revision` | 비활성/복원된 정보·revision+1; 동일 상태는 revision/감사 추가 없이 반환 |
 
-입력 객체의 키는 표와 정확히 일치해야 한다. value는 `name,kind,brand,homepageUrl,profileUrl,contact,country,description` 8개 필드를 모두 받으며 선택 정보는 빈 문자열이다. 상세 값 계약은 METADATA_SCHEMA의 R08D-01 절을 따른다. 목록은 `id,name,kind,brand,country,enabled,revision`만 반환하고 연락처·URL·설명을 포함하지 않는다. 전체 정보는 명시적인 get/쓰기 응답으로만 제공한다. 비활성 주체도 get으로 조회·수정·복원 가능하며 삭제 API는 없다.
+입력 객체의 키는 표와 정확히 일치해야 한다. value는 `name,kind,brand,homepageUrl,profileUrl,contact,country,description` 8개 필드를 모두 받으며 선택 정보는 빈 문자열이다. 상세 값 계약은 METADATA_SCHEMA의 R08D-01 절을 따른다. 목록은 `id,name,kind,brand,country,enabled,revision`만 반환하고 연락처·URL·설명을 포함하지 않는다. 민감 정보는 R08D-05의 승인된 private get에서만 제공하고 쓰기 응답도 공개 요약이다. 비활성 주체도 get으로 조회·수정·복원 가능하며 삭제 API는 없다.
 
 커서는 실제 존재하는 UUID여야 하며 UUID 오름차순 keyset이다. 같은 이름의 서로 다른 주체는 별도 UUID로 보존한다. 잘못된 필드/UUID/유형/URL은 INVALID_PARAMS, 오래된 revision은 METADATA_CONFLICT, SQL 오류는 비밀 없는 DB_UNAVAILABLE이다. 쓰기·레드랙션 감사 기록은 같은 BEGIN IMMEDIATE 트랜잭션이며 한쪽 실패 시 전체 롤백한다. 조회·저장·활성 변경으로 URL 접속·스캔·AI/임베딩·외부 과금을 시작하지 않는다.
 
@@ -227,3 +227,14 @@ value는 `site,productName,originalUrl,productUrl,downloadUrl,purchase:{amount,c
 ## R08D-04 라이선스·증빙 (v10)
 `license.list/get/create/update/delete`는 source API와 같은 소유 범위/커서/레코드 버전을 사용한다. 생성/수정에는 `confirmed:true`가 필수다. value는 `label(128),terms(1024),attribution(256),reviewStatus(unknown|needs_review|user_reviewed),scope(128),note(256),source_id(null 또는 같은 소유 범위의 실제 출처 UUID)`다. 조건/표시문/메모는 줄바꿈·탭을 허용하고 다른 제어문자는 거부한다. reviewStatus는 사용자의 선언이며 응답 permission은 항상 unknown, declaredBy는 user다. AI/추론으로 확정하는 API는 없다.
 `license.evidence.save {record_id,files:[{file_id,label}],expected_revision,confirmed:true}`는 최대 8개의 실제 등록 파일(증빙 표시명 64자)을 명시 연결한다. 대상 에셋의 연결 파일 또는 패키지 멤버 에셋의 연결 파일이어야 하고 활성 라이브러리/루트 내부 경로·리파스/링크·현재 파일 존재를 재검증한다. URL/임의 경로로 증빙을 받거나 파일을 읽어 추출·복사·수정하지 않는다. 기본 응답에는 조건/메모/출처·증빙 참조를 제외하고 개수만 표시한다. 명시 승인 private get에서 조건/표시문·증빙 ID/표시명/가용성을 제공하며 절대 경로는 반환하지 않는다. 연결 해제/파일 누락 뒤 기존 증빙은 unavailable로 보존하고 FK가 참조 삭제를 막는다.
+
+## R08D-05 최종 개인정보·이력·삭제 계약 (v11, 앞선 사전 계약의 보안 강화)
+
+`creator.get`은 기본 공개 요약으로 바뀌며 연락처/홈페이지/프로필/설명은 `include_private:true,confirmed:true`인 get만 반환한다. creator 생성/수정/활성 변경 응답도 공개 요약이다. source/license get도 동일한 private 승인 규칙을 따른다. 원문은 일반 감사/오류/MCP에 복제하지 않는다.
+
+- `provenance.history {subject,after_id,include_private?,confirmed?}`: asset/package/creator 실제 ID의 append-only 변경 전후 값, entityId/필드/revision/행위/actor=user/시각을 1개씩 반환한다. 기본은 공개 필드 투영이다. 각 승인된 원문 스냅샷이 4,000 UTF-8 바이트를 넘으면 truncated/byteLength/256자 preview를 명시하며 DB 원문은 보존한다. 과거에 기록하지 않은 원문 이력을 마이그레이션으로 만들어내지 않는다.
+- `provenance.export {subject,kind:creators|sources|licenses,after_id,include_private?,confirmed?}`: schemaVersion=1의 **읽기 전용 JSON 투영**을 1개씩 반환한다. 기본 연락처/URL/금액/구매일·다운로드일/라이선스 메모·조건/증빙 참조 제외. private 선택은 명시 승인 필수다. 파일 내보내기·CSV/가져오기는 M08G 범위이며 이 API가 파일 쓰기·URL 접속·AI를 실행하지 않는다.
+- `creator.delete.preview {creator_id}` → `{creator_id,revision,assetLinks,packageLinks,canDelete}`; `creator.delete {plan,confirmed:true}`는 같은 트랜잭션에서 현재 plan을 재계산한다. 참조가 있으면 거부하고 없으면 행/이력을 보존하는 deleted tombstone이다. 원본/에셋/패키지/분석을 삭제하지 않고 tombstone은 복원/수정하지 않는다. 비활성화/복원과 구분한다. 비활성 패키지·라이브러리의 기존 링크도 보존하며 명시 save로 기존 연결의 제거만 허용한다(새 연결 금지).
+- `source.delete.preview` / `license.delete.preview {record_id}`: revision/참조 수·참조 보존·원본 변경 없음 반환. delete는 기존 인자에 `expected_references`를 받으며 기본 0이다. 참조가 있으면 preview에서 확인한 수를 명시해야 하고 변경됐으면 METADATA_CONFLICT다. 승인된 삭제는 비활성 처리하며 licence→source FK와 증빙 파일 ID/이력은 유지한다. 원본 파일은 삭제하지 않는다.
+
+v11은 제작 주체의 참조 있는 삭제/물리 삭제/tombstone 수정, 출처·라이선스 물리 삭제/소유자 변경, 증빙 행의 직접 UPDATE를 DB 트리거로 막는다. 이력 원문·연락처/서명 URL은 로컬 DB와 백업에 일반 데이터로 남으며 자격 증명 저장소/암호화 비밀 저장소를 제공한다는 뜻은 아니다. 기존 API 키는 기존 Credential Manager 정책을 따른다. 신규 UI/Tauri 화면 명령·MCP 쓰기는 추가하지 않았다.

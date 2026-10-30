@@ -97,8 +97,14 @@ R08A-04: [통합 저장 계약](METADATA_SCHEMA.md)을 확정했다. 기존 UUID
 
 그룹 계층/소속과 패키지 변경은 각 revision을 검사한다. 삭제는 원본/에셋/분석을 건드리지 않으며 소속 해제와 이력을 원자 저장한다. 그룹 자식은 최상위로 승격하고 패키지는 구매 당시 기록을 보존하기 위해 비활성 보관한다. 패키지 공유값은 참조 상속하며, 에셋별 예외는 기존 metadata_decisions/metadata_decision_history에 보존한다. 세부 계약은 [METADATA_SCHEMA](METADATA_SCHEMA.md)의 M08C 절을 따른다.
 
-## R08D-01 — 현재 스키마 v7
+## R08D-01 — 스키마 v7 도입
 
 `007_creators.sql`은 공유 제작 주체 사전 creators 1개 테이블과 활성 상태/UUID 인덱스를 가산한다. 총 42개 테이블(FTS shadow 포함)이다. 기존 001~006 SQL/체크섬은 유지한다. 주체 유형·텍스트 길이·활성 상태·양수 revision 제약을 DB에도 둔다. 개인/팀/회사와 브랜드/홈페이지/프로필/연락처/국가/설명을 저장하며 에셋·패키지 연결 FK는 R08D-02 범위다.
 
 Core가 기존 DB를 백업한 뒤 v7을 적용한다. 사전 쓰기와 원문 없는 audit_events 기록은 한 트랜잭션이다. 활성 변경은 물리 삭제 없이 행을 보존한다. 전체 과거 원문 이력/삭제 영향 정책은 R08D-05에서 추가하며 이번 감사에는 revision과 변경 필드명만 기록한다. v6 fixture의 전체 기존 테이블/활성 분석/FTS/원본 보존과 v7 후반 SQL 실패 시 스키마·데이터 롤백을 내부 자동화로 확인한다. 실제 사용자 DB나 기존 개발 데이터 디렉터리에는 이번 작업으로 접근하지 않는다.
+
+## M08D — 현재 스키마 v11
+
+008은 asset_creator_links/package_creator_links와 독립 revision 2개·불변 provenance_history, 009는 asset/package FK를 가진 provenance_sources, 010은 provenance_licenses와 license_evidence를 가산했다. licence의 source_id는 JSON의 generated column/FK와 소유 범위 트리거로 같은 대상의 실제 출처만 참조한다. 증빙은 asset_files FK와 대상 구성/패키지 멤버 범위 트리거를 사용한다. 총 테이블 수는 FTS shadow 포함 50개다. 011은 creators.deleted와 삭제/소유자/증빙 변경 보호 트리거를 추가했다. 기존 001~007 SQL은 변경하지 않는다.
+
+모든 쓰기는 Core가 BEGIN IMMEDIATE 안에서 현재 revision/참조를 확인하고 기록·불변 전후 이력·원문 없는 감사를 함께 커밋한다. 삭제는 행/참조/이력 보존 정책이며 원본 파일에 작용하지 않는다. provenance_history의 before/after JSON은 민감 정보도 포함하는 로컬 원문 기록이다. 일반 API/내보내기/MCP는 공개 투영만 사용하며 원문 조회는 명시 승인한다. 새로운 원문 이력은 실제 변경부터 기록하고 과거 audit에 없던 원문은 추측하지 않는다. v7 fixture의 기존 모든 컬럼·행/활성 분석/FTS/원본과 v7 백업을 보존했고, 011 후반 실패 시 008~011 전체가 롤백되어 v7/기존 행·creators 컬럼이 유지됨을 검증했다.

@@ -262,6 +262,12 @@ impl CoreProcess {
                 | "license.update"
                 | "license.delete"
                 | "license.evidence.save"
+                | "creator.delete.preview"
+                | "creator.delete"
+                | "source.delete.preview"
+                | "license.delete.preview"
+                | "provenance.history"
+                | "provenance.export"
                 | "source.list"
                 | "source.get"
                 | "source.create"
@@ -421,6 +427,134 @@ mod tests {
         assert_eq!(restored["data"], disabled["data"]);
         let jobs = core.library_request("analysis.jobs", json!({})).unwrap();
         assert_eq!(jobs["data"]["items"], json!([]));
+    }
+
+    fn verify_provenance_contract(core: &mut CoreProcess, asset_id: &str) {
+        let subject = json!({"kind":"asset","id":asset_id});
+        let creator = core.library_request("creator.create", json!({"value":{"name":"fixture rights creator","kind":"person","brand":"","homepageUrl":"","profileUrl":"","contact":"private-fixture-contact","country":"","description":""}})).unwrap();
+        assert_eq!(creator["ok"], true);
+        assert!(!creator.to_string().contains("private-fixture-contact"));
+        let creator_id = creator["data"]["id"].as_str().unwrap().to_owned();
+        let links = core.library_request("creator.links.save", json!({"subject":subject,"links":[{"creator_id":creator_id,"role":"creator"}],"expected_revision":0})).unwrap();
+        assert_eq!(links["data"]["revision"], 1);
+        let source = core.library_request("source.create", json!({"subject":subject,"value":{"site":"fixture","productName":"declared","originalUrl":"","productUrl":"","downloadUrl":"https://example.com/?key=private-fixture-url","purchase":{"amount":"0","currency":"KRW","purchasedOn":"2024-02-29","downloadedOn":""}}})).unwrap();
+        assert_eq!(source["ok"], true);
+        let source_id = source["data"]["id"].as_str().unwrap().to_owned();
+        let license = core.library_request("license.create", json!({"subject":subject,"confirmed":true,"value":{"label":"fixture declared license","terms":"private-fixture-terms","attribution":"credit","reviewStatus":"user_reviewed","scope":"fixture asset","note":"private-fixture-note","source_id":source_id}})).unwrap();
+        assert_eq!(license["data"]["permission"], "unknown");
+        let license_id = license["data"]["id"].as_str().unwrap().to_owned();
+        let files = core
+            .library_request("asset.composition", json!({"asset_id":asset_id}))
+            .unwrap();
+        let file_id = files["data"]["value"]["files"][0]["fileId"]
+            .as_str()
+            .unwrap();
+        let evidence = core.library_request("license.evidence.save", json!({"record_id":license_id,"files":[{"file_id":file_id,"label":"private-fixture-proof"}],"expected_revision":1,"confirmed":true})).unwrap();
+        assert_eq!(evidence["data"]["evidenceCount"], 1);
+        for kind in ["creators", "sources", "licenses"] {
+            let export = core
+                .library_request(
+                    "provenance.export",
+                    json!({"subject":subject,"kind":kind,"after_id":null}),
+                )
+                .unwrap();
+            assert_eq!(export["ok"], true);
+            assert!(!export.to_string().contains("private-fixture"));
+        }
+        let history = core
+            .library_request(
+                "provenance.history",
+                json!({"subject":subject,"after_id":null}),
+            )
+            .unwrap();
+        assert_eq!(history["ok"], true);
+        assert!(!history.to_string().contains("private-fixture"));
+        let private = core
+            .library_request(
+                "source.get",
+                json!({"record_id":source_id,"include_private":true}),
+            )
+            .unwrap();
+        assert_eq!(private["error"]["code"], "INVALID_PARAMS");
+        core.stop();
+        core.start().unwrap();
+        let restored = core
+            .library_request("license.get", json!({"record_id":license_id}))
+            .unwrap();
+        assert_eq!(restored["data"], evidence["data"]);
+        let blocked = core
+            .library_request(
+                "source.delete",
+                json!({"record_id":source_id,"expected_revision":1,"confirmed":true}),
+            )
+            .unwrap();
+        assert_eq!(blocked["error"]["code"], "METADATA_CONFLICT");
+        let preview = core
+            .library_request("source.delete.preview", json!({"record_id":source_id}))
+            .unwrap();
+        assert_eq!(preview["data"]["references"], 1);
+        let deleted = core.library_request("source.delete", json!({"record_id":source_id,"expected_revision":1,"expected_references":1,"confirmed":true})).unwrap();
+        assert_eq!(deleted["data"]["enabled"], false);
+        let deleted = core.library_request("license.delete", json!({"record_id":license_id,"expected_revision":2,"expected_references":1,"confirmed":true})).unwrap();
+        assert_eq!(deleted["data"]["enabled"], false);
+        let plan = core
+            .library_request("creator.delete.preview", json!({"creator_id":creator_id}))
+            .unwrap();
+        assert_eq!(plan["data"]["canDelete"], false);
+        core.library_request(
+            "creator.links.save",
+            json!({"subject":subject,"links":[],"expected_revision":1}),
+        )
+        .unwrap();
+        let plan = core
+            .library_request("creator.delete.preview", json!({"creator_id":creator_id}))
+            .unwrap();
+        let deleted = core
+            .library_request(
+                "creator.delete",
+                json!({"plan":plan["data"],"confirmed":true}),
+            )
+            .unwrap();
+        assert_eq!(deleted["data"]["deleted"], true);
+        assert_eq!(
+            core.library_request("analysis.jobs", json!({})).unwrap()["data"]["items"],
+            json!([])
+        );
+    }
+
+    #[test]
+    fn provenance_privacy_references_and_history_survive_real_core_restart() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../.artifacts/provenance-wire-tests")
+            .join(uuid::Uuid::new_v4().to_string());
+        let source = root.join("source");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::write(source.join("evidence.txt"), b"fixture evidence").unwrap();
+        let path = source
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_owned();
+        let mut core =
+            CoreProcess::new(LaunchSpec::development().with_data(root.join("data"), "development"));
+        core.start().unwrap();
+        let library = core
+            .library_request("library.register", json!({"path":path}))
+            .unwrap();
+        assert_eq!(library["ok"], true);
+        core.library_request(
+            "library.scan",
+            json!({"library_id":library["data"]["library"]["id"]}),
+        )
+        .unwrap();
+        let listed = core.library_request("asset.list", json!({})).unwrap();
+        let id = listed["data"]["items"][0]["id"].as_str().unwrap();
+        verify_provenance_contract(&mut core, id);
+        assert_eq!(
+            std::fs::read(source.join("evidence.txt")).unwrap(),
+            b"fixture evidence"
+        );
     }
 
     #[test]
@@ -723,6 +857,7 @@ mod tests {
                 .unwrap()["data"]["value"],
             composition["data"]["value"]
         );
+        verify_provenance_contract(&mut core, id);
     }
 
     #[test]

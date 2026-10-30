@@ -44,6 +44,15 @@ class OwnedRecords(Provenance):
     def validate_owner(self, value, subject, before=None):
         pass
 
+    def reference_count(self, identifier):
+        return 0
+
+    def delete_preview(self, params):
+        Collections.keys(params, 'record_id')
+        record = self.record(params['record_id'])
+        return dict(record_id=record['id'], expected_revision=record['revision'], references=self.reference_count(record['id']),
+                    referencesRetained=True, originalFilesChanged=False, enabled=record['enabled'])
+
     def record(self, identifier):
         if not valid_id(identifier): raise LibraryError('INVALID_PARAMS')
         row = self.db.execute(f'SELECT id,asset_id,package_id,value_json,revision,enabled FROM {self.table} WHERE id=?', (identifier,)).fetchone()
@@ -99,11 +108,15 @@ class OwnedRecords(Provenance):
         return self.write(operation)
 
     def delete_record(self, params):
-        Collections.keys(params, 'record_id expected_revision confirmed')
+        if not isinstance(params, dict) or set(params) - {'record_id', 'expected_revision', 'confirmed', 'expected_references'} or {'record_id', 'expected_revision', 'confirmed'} - set(params):
+            raise LibraryError('INVALID_PARAMS')
         if params['confirmed'] is not True: raise LibraryError('INVALID_PARAMS')
+        expected = params.get('expected_references', 0)
+        if type(expected) is not int or expected < 0: raise LibraryError('INVALID_PARAMS')
         def operation():
             before = self.record(params['record_id'])
             Collections.revision(params['expected_revision'], before['revision'])
+            if expected != self.reference_count(before['id']): raise LibraryError('METADATA_CONFLICT')
             if not before['enabled']: raise LibraryError('INVALID_PARAMS')
             self.db.execute(f'UPDATE {self.table} SET enabled=0,revision=revision+1 WHERE id=?', (before['id'],))
             result = self.record(before['id'])
@@ -113,6 +126,9 @@ class OwnedRecords(Provenance):
 
 
 class Sources(OwnedRecords):
+    def reference_count(self, identifier):
+        return self.db.execute('SELECT count(*) FROM provenance_licenses WHERE source_id=?', (identifier,)).fetchone()[0]
+
     @staticmethod
     def public_value(value):
         return {key: value[key] for key in ('site', 'productName')}

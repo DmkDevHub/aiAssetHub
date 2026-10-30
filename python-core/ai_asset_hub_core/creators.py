@@ -9,12 +9,13 @@ from .libraries import LibraryError, valid_id
 
 
 FIELDS = ('name', 'kind', 'brand', 'homepageUrl', 'profileUrl', 'contact', 'country', 'description')
-COLUMNS = 'id,name,kind,brand,homepage_url,profile_url,contact,country,description,enabled,revision'
+COLUMNS = 'id,name,kind,brand,homepage_url,profile_url,contact,country,description,enabled,revision,deleted'
 
 
 class Creators:
     def __init__(self, database):
         self.db = database.connection
+        self.database = database
 
     @staticmethod
     def url(value):
@@ -54,13 +55,21 @@ class Creators:
         row = self.db.execute(f'SELECT {COLUMNS} FROM creators WHERE id=?', (identifier,)).fetchone()
         if row is None:
             raise LibraryError('INVALID_PARAMS')
-        result = dict(zip(('id', *FIELDS, 'enabled', 'revision'), row))
+        result = dict(zip(('id', *FIELDS, 'enabled', 'revision', 'deleted'), row))
         result['enabled'] = bool(result['enabled'])
+        result['deleted'] = bool(result['deleted'])
         return result
 
+    @staticmethod
+    def public(result):
+        return {**{key: result[key] for key in ('id', 'name', 'kind', 'brand', 'country', 'enabled', 'revision')},
+                'deleted': result.get('deleted', False), 'privateFieldsExcluded': True}
+
     def get(self, params):
-        Collections.keys(params, 'creator_id')
-        return self.creator(params['creator_id'])
+        from .source_records import private_access
+        include = private_access(params, {'creator_id'})
+        result = self.creator(params['creator_id'])
+        return result if include else self.public(result)
 
     def list(self, params):
         Collections.keys(params, 'after_id include_disabled')
@@ -70,7 +79,7 @@ class Creators:
         if cursor is not None:
             self.creator(cursor)
         rows = self.db.execute('SELECT id,name,kind,brand,country,enabled,revision FROM creators '
-                               'WHERE id>? AND (enabled=1 OR ?) ORDER BY id LIMIT 3',
+                               'WHERE deleted=0 AND id>? AND (enabled=1 OR ?) ORDER BY id LIMIT 3',
                                (cursor or '', params['include_disabled'])).fetchall()
         items = [dict(zip(('id', 'name', 'kind', 'brand', 'country', 'enabled', 'revision'), row)) for row in rows[:2]]
         for item in items:
@@ -87,18 +96,20 @@ class Creators:
             self.db.execute('ROLLBACK')
             raise
 
-    def audit(self, result, action, fields):
+    def audit(self, result, action, fields, before=None):
         # Never copy contact, URLs, names, descriptions or other submitted values to logs.
         detail = json.dumps({'revision': result['revision'], 'fields': fields})
         self.db.execute("INSERT INTO audit_events VALUES (?, 'user', ?, 'creator', ?, 'succeeded', strftime('%Y-%m-%dT%H:%M:%fZ','now'), ?)",
                         (str(uuid4()), 'creator.' + action, result['id'], detail))
+        from .provenance import Provenance
+        Provenance(self.database).event({'kind': 'creator', 'id': result['id']}, result['id'], 'creator', result['revision'], action, before, result, audit=False)
 
     def create(self, params):
         Collections.keys(params, 'value')
         value = self.value(params['value'])
         def operation():
             identifier = str(uuid4())
-            self.db.execute(f'INSERT INTO creators ({COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,1,1)',
+            self.db.execute(f'INSERT INTO creators ({COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,1,1,0)',
                             (identifier, *(value[field] for field in FIELDS)))
             result = self.creator(identifier)
             self.audit(result, 'create', list(FIELDS))
@@ -110,11 +121,12 @@ class Creators:
         value = self.value(params['value'])
         def operation():
             before = self.creator(params['creator_id'])
+            if before['deleted']: raise LibraryError('INVALID_PARAMS')
             Collections.revision(params['expected_revision'], before['revision'])
             self.db.execute('UPDATE creators SET name=?,kind=?,brand=?,homepage_url=?,profile_url=?,contact=?,country=?,description=?,revision=revision+1 WHERE id=?',
                             (*(value[field] for field in FIELDS), before['id']))
             result = self.creator(before['id'])
-            self.audit(result, 'update', [field for field in FIELDS if before[field] != result[field]])
+            self.audit(result, 'update', [field for field in FIELDS if before[field] != result[field]], before)
             return result
         return self.write(operation)
 
@@ -124,11 +136,12 @@ class Creators:
             raise LibraryError('INVALID_PARAMS')
         def operation():
             before = self.creator(params['creator_id'])
+            if before['deleted']: raise LibraryError('INVALID_PARAMS')
             Collections.revision(params['expected_revision'], before['revision'])
             if before['enabled'] == params['enabled']:
                 return before
             self.db.execute('UPDATE creators SET enabled=?,revision=revision+1 WHERE id=?', (params['enabled'], before['id']))
             result = self.creator(before['id'])
-            self.audit(result, 'set_enabled', ['enabled'])
+            self.audit(result, 'set_enabled', ['enabled'], before)
             return result
         return self.write(operation)

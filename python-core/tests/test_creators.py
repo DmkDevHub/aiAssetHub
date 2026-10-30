@@ -81,7 +81,7 @@ class CreatorTests(unittest.TestCase):
         for revision in (True, '2', -1):
             with self.assertRaisesRegex(LibraryError, 'INVALID_PARAMS'):
                 service.update(dict(creator_id=current['id'], value=self.value(), expected_revision=revision))
-        self.assertEqual(service.get({'creator_id': current['id']}), current)
+        self.assertEqual(service.get({'creator_id': current['id'], 'include_private': True, 'confirmed': True}), current)
         self.assertEqual(current['revision'], 2)
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM audit_events').fetchone()[0], 2)
         other.close()
@@ -94,7 +94,7 @@ class CreatorTests(unittest.TestCase):
         self.assertFalse(summary['enabled']); self.assertEqual(summary['id'], record['id'])
         for key in ('contact', 'homepageUrl', 'profileUrl', 'description'):
             self.assertNotIn(key, summary)
-        self.assertEqual(service.get({'creator_id': record['id']}), disabled)
+        self.assertEqual(service.get({'creator_id': record['id'], 'include_private': True, 'confirmed': True}), disabled)
         self.assertEqual(service.set_enabled(dict(creator_id=record['id'], enabled=False, expected_revision=2)), disabled)
         enabled = service.set_enabled(dict(creator_id=record['id'], enabled=True, expected_revision=2))
         self.assertEqual(enabled['revision'], 3)
@@ -104,7 +104,7 @@ class CreatorTests(unittest.TestCase):
         for private in ('private-contact@example.com', 'https://example.com', '제작 주체 설명'):
             self.assertNotIn(private, text)
         self.assertEqual(self.call('mcp.audit')['data']['items'], [])
-        self.assertEqual(self.call('creator.delete', creator_id=record['id'])['error']['code'], 'METHOD_NOT_FOUND')
+        self.assertEqual(self.call('creator.delete', creator_id=record['id'])['error']['code'], 'INVALID_PARAMS')
         self.assertEqual(self.call('creator.set_enabled', creator_id=record['id'], enabled=1, expected_revision=3)['error']['code'], 'INVALID_PARAMS')
 
     def test_bounded_keyset_pages_and_maximum_unicode_envelope(self):

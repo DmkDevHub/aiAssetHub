@@ -148,3 +148,7 @@ R08A-01~05의 코드/DB/회귀 검증을 완료했다. [METADATA_SCHEMA](METADAT
 ## R08D-01 구현 범위
 
 개인/팀/회사 공유 사전과 브랜드/홈페이지/판매자 프로필/연락처/국가/설명의 Core 관리 API를 추가했다. [API_CONTRACTS](API_CONTRACTS.md)와 [METADATA_SCHEMA](METADATA_SCHEMA.md)에 실제 계약을 기록한다. 제작자/제작사/배포사 역할 연결은 R08D-02, 출처/구매·라이선스는 R08D-03~04, 민감 정보/전체 변경 이력·삭제 영향 확장은 R08D-05, 관리 UI는 M08E 범위다. 이번에는 UI·MCP 쓰기·URL 접속·AI 추론을 추가하지 않는다.
+
+## M08D 구현 범위
+
+R08D-01~05 Core/DB API를 구현했다. 공유 주체·역할 연결, 출처/상품/구매, 사용자 선언 라이선스/등록 증빙, 민감 정보 기본 제외·승인된 private 조회/JSON 투영·불변 변경 이력·참조 검토/보존 삭제를 제공한다. 최신 계약과 한도는 API_CONTRACTS/DATABASE/METADATA_SCHEMA를 따른다. 기존 구매 스냅샷·사용자 값·불변 AI 결과·원본을 보존하며 새 AI 호출·외부 URL 접속은 없다. 다음 M08E에서 탐색/7개 상세 탭·관리 UI/검색을 연결한다. 현재 M08D는 내부 Core API이며 실제 화면을 구현/검증했다고 표시하지 않는다.

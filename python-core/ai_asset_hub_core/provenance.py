@@ -20,16 +20,17 @@ class Provenance(Creators):
             raise LibraryError('INVALID_PARAMS')
         return kind, identifier
 
-    def event(self, subject, entity, field, revision, action, before, after):
+    def event(self, subject, entity, field, revision, action, before, after, audit=True):
         self.db.execute("INSERT INTO provenance_history VALUES (?,?,?,?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
                         (str(uuid4()), subject['kind'], subject['id'], entity, field, revision, action,
                          json.dumps(before, ensure_ascii=False), json.dumps(after, ensure_ascii=False)))
         # General diagnostics contain identifiers/actions only, never submitted values.
+        if not audit: return
         self.db.execute("INSERT INTO audit_events VALUES (?,'user',?,?,?,'succeeded',strftime('%Y-%m-%dT%H:%M:%fZ','now'),?)",
                         (str(uuid4()), field + '.' + action, subject['kind'], subject['id'], json.dumps({'entityId': entity, 'revision': revision})))
 
     def links_value(self, subject):
-        kind, identifier = self.subject(subject)
+        kind, identifier = self.subject(subject, active=False)
         table, column, versions = ('asset_creator_links', 'asset_id', 'asset_creator_revisions') if kind == 'asset' else ('package_creator_links', 'package_id', 'package_creator_revisions')
         rows = self.db.execute(f'SELECT creator_id,role FROM {table} WHERE {column}=? ORDER BY creator_id,role', (identifier,)).fetchall()
         revision = self.db.execute(f'SELECT revision FROM {versions} WHERE {column}=?', (identifier,)).fetchone()
@@ -59,11 +60,16 @@ class Provenance(Creators):
         if len(set(pairs)) != len(pairs):
             raise LibraryError('INVALID_PARAMS')
         def operation():
-            kind, identifier = self.subject(params['subject'])
+            kind, identifier = self.subject(params['subject'], active=False)
+            active = True
+            try: self.subject(params['subject'])
+            except LibraryError: active = False
             before = self.links_value(params['subject'])
             Collections.revision(params['expected_revision'], before['revision'])
             existing = {(i['creator_id'], i['role']) for i in before['links']}
             for creator_id, role in pairs:
+                if not active and (creator_id, role) not in existing:
+                    raise LibraryError('INVALID_PARAMS')
                 if not self.creator(creator_id)['enabled'] and (creator_id, role) not in existing:
                     raise LibraryError('INVALID_PARAMS')
             table, column, versions = ('asset_creator_links', 'asset_id', 'asset_creator_revisions') if kind == 'asset' else ('package_creator_links', 'package_id', 'package_creator_revisions')

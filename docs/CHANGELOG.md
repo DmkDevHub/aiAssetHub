@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### 2026-10-30 — [R08D-05 / M08D] 개인정보·불변 이력·삭제 영향 정책 완료
+- v11 기본 공개/승인 private 조회·JSON 투영과 불변 전후 이력, 주체 참조 검토/tombstone·출처/라이선스 참조 보존 삭제·비활성 소유자 명시 해제·DB 보호를 구현했다. 관리 UI는 M08E에 남긴다.
+- Node 137·Python 183·Rust 15개(동봉 Core 포함), 타입/Vite·fmt/Clippy·Windows 설치 v11/공식 MCP 최신·레거시 개인정보 제외/제거 검증 통과. 테스트 경로 fixture 실패·수정도 TEST_PLAN에 보존했다. 사용자 데이터/원본·실모델/유료 호출·GUI·원격 push 없음.
+
 ### 2026-10-30 — [R08D-01] 공유 제작 주체 사전·Core 관리 API
 - 개인/팀/회사와 브랜드·홈페이지/프로필·연락처·국가·설명을 위한 v7 사전/관리 명령을 추가했다. revision 충돌·비활성/복원·안전한 URL/입력 검증·민감 원문 없는 감사와 원자 저장을 제공한다.
 - Node 137·Python 161·Rust 14개, 타입/Vite·fmt·Clippy·Sidecar/Windows 설치본 및 격리 v7 Core/MCP/제거 검증 통과. UI·역할 연결은 후속 범위이며 원본/사용자 DB 변경·AI 호출·원격 push 없음.
