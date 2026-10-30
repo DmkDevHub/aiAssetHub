@@ -725,3 +725,6 @@ R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 �
 
 ## R08F-02 내부 검증
 `python -B -m unittest discover -s python-core/tests -p test_analysis*.py -v`: 전용 venv+PYTHONPATH로 21개 통과(2.632초). 잘못된 comprehension 괄호와 기존 v2 기대값을 수정 후 재실행했다. `node --test`: 148개, `npm.cmd run build`: 타입/Vite 통과. 실제 모델·설치본은 R08F-08에서 별도 검증한다.
+
+## R08F-03 내부 검증
+`unittest discover -s python-core/tests -p test_technical.py -v`: 3개 통과(0.421초). `test_audio_analysis.py`: 고유 오디오 2개 통과(실제 오디오 공급자 응답은 mock, PCM WAV 파일 바이트는 실제 파서). 분석 21개 회귀 통과. Node149개 및 타입/Vite 통과. UI 명시 수집/문자 이스케이프·전송 승인 전 작업 차단, 잘못된 요청/손상 WAV/취소 검증. GUI 조작·실제 외부 호출 없음.

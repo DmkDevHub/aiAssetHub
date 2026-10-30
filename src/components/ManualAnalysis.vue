@@ -5,13 +5,14 @@ import { refreshAssets } from '../stores/assets';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 const props=defineProps<{selectedIds:string[];folderId:string|null}>();
 const open=ref(false),busy=ref(false),error=ref(''),mode=ref('selected'),scope=ref('folder'),model=ref('');
+const inputKind=ref('image');
 const preview=ref<{targetCount:number;missingCount:number;planToken:string;eligibleCount?:number;unsupportedCount?:number;unknownFormatCount?:number;overLimitCount?:number;estimatedUpperBoundUsd?:string;externalTransfer?:boolean;paid?:boolean;snapshot?:{analysisContract?:{version:string;inputSchema:string;outputSchema:string;reviewInputFingerprint:string}}}|null>(null);
 const retrySelection=ref<string[]|null>(null),retryContext=ref<{library_id:string|null;folder_parts:string[]}|null>(null),cancelMessage=ref('');
 watch([mode,()=>props.selectedIds.join(',')],()=>{retrySelection.value=null;});
 watch([scope,()=>props.folderId],()=>{retryContext.value=null;});
 const jobs=ref<{id:string;status:string;total:number;createdAt:string}[]>([]);
 const external=ref(false),paid=ref(false),startId=ref(''),jobId=ref('');
-watch([mode,scope,model,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;startId.value='';external.value=false;paid.value=false;});
+watch([mode,scope,model,inputKind,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;startId.value='';external.value=false;paid.value=false;});
 const models=ref<{id:string;modelId:string;enabled:boolean;selected?:boolean;inspection?:{modalities?:string[]}}[]>([]);
 const trigger=ref<HTMLButtonElement>(),panel=ref<HTMLElement>();let alive=true;
 const progress=ref<{status:string;total:number;processed:number;succeeded:number;failed:number;canceled:number;needsRecovery:boolean;errors?:{assetId:string;code:string}[]}|null>(null);
@@ -62,7 +63,7 @@ function requestPlan(){
    if(scope.value==='folder')parts=path.slice(1);
   }else library=props.folderId;
  }
- return {mode:mode.value,scope:scope.value,library_id:library,folder_parts:parts,selected_ids:mode.value==='selected'?(retrySelection.value??props.selectedIds):[],model_id:model.value};
+ return {mode:mode.value,scope:scope.value,library_id:library,folder_parts:parts,selected_ids:mode.value==='selected'?(retrySelection.value??props.selectedIds):[],model_id:model.value,...(inputKind.value!=='image'?{input_kind:inputKind.value}:{})};
 }
 async function review(){
  if(busy.value || !model.value)return;busy.value=true;error.value='';preview.value=null;startId.value='';external.value=false;paid.value=false;
@@ -86,7 +87,7 @@ async function retry(){
  try{
   const result=await invoke<{ok:boolean;data:{plan:ReturnType<typeof requestPlan>}}>('retry_analysis_plan',{jobId:jobId.value});
   if(!result.ok)throw new Error();const plan=result.data.plan;
-  await show();mode.value=plan.mode;scope.value=plan.scope;model.value=plan.model_id;await nextTick();
+  await show();mode.value=plan.mode;scope.value=plan.scope;model.value=plan.model_id;inputKind.value=plan.input_kind??'image';await nextTick();
   retrySelection.value=plan.selected_ids;retryContext.value={library_id:plan.library_id,folder_parts:plan.folder_parts};await review();
  }catch{error.value='이전 작업을 재검토하지 못했습니다.';}
 }
@@ -123,19 +124,20 @@ function keys(event:KeyboardEvent){
   <section ref="panel" role="dialog" aria-modal="true" aria-labelledby="analysis-title" class="analysis-dialog" @keydown="keys">
    <h2 id="analysis-title">수동 AI 분석</h2>
    <p>대상·모델·전송 범위·비용을 확인한 뒤 분석 시작을 눌러야 실행됩니다. 이 창을 여는 것만으로 AI를 호출하지 않습니다.</p>
-   <p>현재 AI 분석은 PNG/JPEG 이미지 경로를 지원합니다. 오디오·3D·기타 파일은 기술 정보만 조회하며 이 분석에서는 미지원 오류로 기록합니다. 검색·태그 필터는 분석 범위를 제한하지 않습니다.</p>
+   <p>이미지는 PNG/JPEG, 오디오는 최대 60초 PCM WAV와 검증된 OpenRouter 오디오 모델을 지원합니다. 로컬 오디오 추론과 3D 렌더 분석은 미지원입니다. 검색·태그 필터는 분석 범위를 제한하지 않습니다.</p>
    <label>대상 모드 <select v-model="mode" :disabled="busy"><option value="all">전체</option><option value="unanalyzed">미분석</option><option value="completed">완료 재분석</option><option value="failed">실패 재시도</option><option value="selected">선택 {{ (retrySelection??props.selectedIds).length }}개</option></select></label>
    <label>분석 범위 <select v-model="scope" :disabled="busy"><option value="folder">현재 폴더 (하위 포함)</option><option value="library">현재 라이브러리</option><option value="all">전체 라이브러리</option></select></label>
-   <label>모델 <select v-model="model" :disabled="busy"><option value="">모델을 선택하세요</option><option v-for="item in models" :key="item.id" :value="item.id" :disabled="!item.enabled || !item.inspection?.modalities?.includes('image')">{{ item.modelId }}{{ item.enabled?'':' (비활성)' }}</option></select></label>
+   <label>모델 <select v-model="model" :disabled="busy"><option value="">모델을 선택하세요</option><option v-for="item in models" :key="item.id" :value="item.id" :disabled="!item.enabled || !item.inspection?.modalities?.includes(inputKind)">{{ item.modelId }}{{ item.enabled?'':' (비활성)' }}</option></select></label>
+   <label>분석 입력 <select v-model="inputKind" :disabled="busy"><option value="image">이미지</option><option value="audio">오디오 (외부 전송 필요)</option></select></label>
    <p v-if="retryContext">이전 작업 범위 기준: {{ retryContext.library_id??'전체' }} / {{ retryContext.folder_parts.join('/') }}</p>
    <p v-if="error" role="alert">{{ error }}</p>
    <button type="button" :disabled="busy || !model || (mode==='selected' && (retrySelection??props.selectedIds).length>200)" @click="review">대상 확인</button>
    <p v-if="mode==='selected' && (retrySelection??props.selectedIds).length>200">선택 분석은 한 번에 최대 200개입니다. 범위 분석은 최대 1000개입니다.</p>
    <p v-if="preview" role="status">대상 {{ preview.targetCount }}개 · 원본 확인 실패 {{ preview.missingCount }}개</p>
-   <p v-if="preview">PNG/JPEG 후보 {{ preview.eligibleCount??preview.targetCount }}개 · 미지원 {{ preview.unsupportedCount??0 }}개 · 크기 초과 {{ preview.overLimitCount??0 }}개. 실제 디코드·권한 검증은 실행 시 다시 수행합니다.</p>
+   <p v-if="preview">{{ inputKind==='audio'?'PCM WAV':'PNG/JPEG' }} 후보 {{ preview.eligibleCount??preview.targetCount }}개 · 미지원 {{ preview.unsupportedCount??0 }}개 · 크기 초과 {{ preview.overLimitCount??0 }}개. 실제 디코드·권한 검증은 실행 시 다시 수행합니다.</p>
    <p v-if="preview">미지원 중 형식 미확인 {{ preview.unknownFormatCount??0 }}개. 다중 파일 AI 분석은 아직 지원하지 않습니다. 이미지의 분류·역할·스타일은 미확정 제안입니다.</p>
    <p v-if="preview?.snapshot?.analysisContract">분석 계약 {{ preview.snapshot.analysisContract.version }} · 입력 {{ preview.snapshot.analysisContract.inputSchema }} · 출력 {{ preview.snapshot.analysisContract.outputSchema }} · 검토 입력 지문 {{ preview.snapshot.analysisContract.reviewInputFingerprint }}</p>
-   <p v-if="preview">비용 상한 추정: {{ preview.estimatedUpperBoundUsd??'미확인' }} USD. 실제 청구와 다를 수 있습니다. 전송: {{ preview.externalTransfer?'선택 이미지의 최대 512px 파생 JPEG·분석 프롬프트를 외부 공급자로 전송':'이 PC의 로컬 Ollama만 사용' }}</p>
+   <p v-if="preview">비용 상한 추정: {{ preview.estimatedUpperBoundUsd??'미확인' }} USD. 실제 청구와 다를 수 있습니다. 전송: {{ preview.externalTransfer?(inputKind==='audio'?'선택 PCM WAV 원본 전체(최대 60초)·분석 프롬프트를 외부 공급자로 전송':'선택 이미지의 최대 512px 파생 JPEG·분석 프롬프트를 외부 공급자로 전송'):'이 PC의 로컬 Ollama만 사용' }}</p>
    <label v-if="preview?.externalTransfer"><input v-model="external" type="checkbox" />이 분석의 외부 전송을 승인합니다.</label>
    <label v-if="preview?.paid"><input v-model="paid" type="checkbox" />표시된 상한 내 유료 사용을 승인합니다.</label>
    <button type="button" class="analysis-start" :disabled="busy || !(preview?.eligibleCount??preview?.targetCount) || (preview?.externalTransfer && !external) || (preview?.paid && !paid)" @click="start">분석 시작</button>

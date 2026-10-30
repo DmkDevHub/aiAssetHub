@@ -231,6 +231,8 @@ impl CoreProcess {
                 | "asset.get"
                 | "asset.management"
                 | "asset.management.save"
+                | "asset.technical"
+                | "asset.technical.collect"
                 | "asset.composition"
                 | "asset.composition.save"
                 | "asset.link.candidates"

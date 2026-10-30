@@ -4,16 +4,11 @@ import stat
 from .libraries import LibraryError
 
 
-def prepare_image(database, identifier, expected):
+def read_source(database, identifier, expected=None):
     import os
-    import hashlib
-    import io
-    import base64
-    from PIL import Image
     path,info=source_info(database,identifier)
-    if path.suffix.lower() not in ('.png','.jpg','.jpeg'):raise LibraryError('UNSUPPORTED_FORMAT')
     if info.st_size>20_000_000:raise LibraryError('INPUT_TOO_LARGE')
-    if expected.get('size')!=info.st_size or expected.get('mtimeNs')!=info.st_mtime_ns:raise LibraryError('FILE_CHANGED')
+    if expected is not None and (expected.get('size')!=info.st_size or expected.get('mtimeNs')!=info.st_mtime_ns):raise LibraryError('FILE_CHANGED')
     with open(path,'rb') as source:
         opened=os.fstat(source.fileno())
         if os.name=='nt':
@@ -34,6 +29,16 @@ def prepare_image(database, identifier, expected):
         after=os.fstat(source.fileno())
         if len(raw)>20_000_000:raise LibraryError('INPUT_TOO_LARGE')
         if (after.st_size,after.st_mtime_ns)!=(info.st_size,info.st_mtime_ns):raise LibraryError('FILE_CHANGED')
+    return path,info,raw
+
+
+def prepare_image(database, identifier, expected):
+    import hashlib
+    import io
+    import base64
+    from PIL import Image
+    path,info,raw=read_source(database,identifier,expected)
+    if path.suffix.lower() not in ('.png','.jpg','.jpeg'):raise LibraryError('UNSUPPORTED_FORMAT')
     try:
         with Image.open(io.BytesIO(raw)) as image:
             if image.format not in ('PNG','JPEG'):raise LibraryError('UNSUPPORTED_FORMAT')
@@ -50,6 +55,17 @@ def prepare_image(database, identifier, expected):
     except Exception:raise LibraryError('INVALID_IMAGE') from None
     return {'image':base64.b64encode(output.getvalue()).decode('ascii'),'fingerprint':hashlib.sha256(raw).hexdigest(),
             'size':info.st_size,'mtimeNs':info.st_mtime_ns,'technical':technical}
+
+
+def prepare_audio(database,identifier,expected):
+    import hashlib,base64
+    from .technical import parse_audio
+    path,info,raw=read_source(database,identifier,expected)
+    if path.suffix.lower()!='.wav':raise LibraryError('UNSUPPORTED_FORMAT')
+    technical=parse_audio(raw)
+    if technical['durationSeconds']>60:raise LibraryError('INPUT_TOO_LARGE')
+    return {'audio':base64.b64encode(raw).decode('ascii'),'fingerprint':hashlib.sha256(raw).hexdigest(),
+        'size':info.st_size,'mtimeNs':info.st_mtime_ns,'technical':technical}
 
 
 def source_info(database, identifier):

@@ -6,6 +6,7 @@ import ClassificationEditor from './ClassificationEditor.vue';
 import ProvenancePanel from './ProvenancePanel.vue';
 import ProvenanceHistory from './ProvenanceHistory.vue';
 import AssetAnalysis from './AssetAnalysis.vue';
+import TechnicalMetadata from './TechnicalMetadata.vue';
 import AssetAnnotations from './AssetAnnotations.vue';
 import AssetPackageMetadata from './AssetPackageMetadata.vue';
 import PackageManager from './PackageManager.vue';
@@ -68,7 +69,7 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
         <div id="detail-panel-classification" role="tabpanel" aria-labelledby="detail-tab-classification" :hidden="activeTab!=='classification'"><ClassificationEditor v-if="visited.has('classification')" :asset-id="asset.id" /><GroupManager v-if="visited.has('classification')" :asset-id="asset.id" /><PackageManager v-if="visited.has('classification')" :asset-id="asset.id" /></div>
         <div id="detail-panel-source" role="tabpanel" aria-labelledby="detail-tab-source" :hidden="activeTab!=='source'"><ProvenancePanel v-if="visited.has('source')" :asset-id="asset.id" area="source" /></div>
         <div id="detail-panel-rights" role="tabpanel" aria-labelledby="detail-tab-rights" :hidden="activeTab!=='rights'"><ProvenancePanel v-if="visited.has('rights')" :asset-id="asset.id" area="license" /><AssetPackageMetadata v-if="visited.has('rights')" :asset-id="asset.id" /></div>
-        <div id="detail-panel-technical" role="tabpanel" aria-labelledby="detail-tab-technical" :hidden="activeTab!=='technical'"><AssetComposition v-if="visited.has('technical')" :asset-id="asset.id" /></div>
+        <div id="detail-panel-technical" role="tabpanel" aria-labelledby="detail-tab-technical" :hidden="activeTab!=='technical'"><TechnicalMetadata v-if="visited.has('technical')" :asset-id="asset.id" /><AssetComposition v-if="visited.has('technical')" :asset-id="asset.id" /></div>
         <div id="detail-panel-relations" role="tabpanel" aria-labelledby="detail-tab-relations" :hidden="activeTab!=='relations'"><AssetRelations v-if="visited.has('relations')" :asset-id="asset.id" /><AssetMetadataHistory v-if="visited.has('relations')" :asset-id="asset.id" /><ProvenanceHistory v-if="visited.has('relations')" :asset-id="asset.id" /></div>
         <div id="detail-panel-analysis" role="tabpanel" aria-labelledby="detail-tab-analysis"
           :hidden="activeTab !== 'analysis'" tabindex="0">

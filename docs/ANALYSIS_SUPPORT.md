@@ -12,3 +12,7 @@ PNG/JPG/JPEG는 지원 후보이며 실제 디코드·권한·픽셀 검사는 �
 
 ## R08F-02 구현 갱신
 출력은 asset-description.v3이다. 이미지 분류·역할·스타일·색상·소재는 선택적 미확정 제안이며 임의 필드/사전 밖 코드는 거부한다. 기본 공개 사전의 코드/영문 이름만 고정 프롬프트에 포함하고 사용자 메타데이터는 전송하지 않는다. 이미지 원본의 파서 관측은 features.technical, 모델 제안은 features.suggestions에 저장한다. 이전 R08F-01의 구조화 제안 미지원 기록은 당시 경계이며 이 절이 이미지 경로를 갱신한다.
+
+## R08F-03 구현 갱신
+기술 탭의 명시 수집은 PCM WAV를 20MB 이내로 읽고 길이/채널/샘플레이트/샘플 프레임을 관측한다. 잘린 PCM은 성공하지 않는다. 오디오 AI는 OpenRouter audio 검증 모델에 한정하고 로컬 Ollama 오디오 전송은 차단한다. 수동 입력 선택 audio→사전 검토→외부/유료 승인 후에만 원본 PCM WAV 전체(최대60초)와 고정 프롬프트를 전송한다. 비용은 contextLength 전체에 max(prompt,audio) 단가를 적용하고 completion 상한을 더해 보수적으로 예약한다. 처리할 수 없는 비영점 추가 과금 항목은 검토를 거부한다. 음원 분류/분위기/전사는 AI 제안이며 기술 측정으로 표시하지 않는다. 실제 외부 오디오 추론 검증은 없으며 테스트는 합성 WAV+모의 HTTPS 응답이다.
+규격: [Python wave](https://docs.python.org/3/library/wave.html), [OpenRouter 공식 오디오 안내](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/).

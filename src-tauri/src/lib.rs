@@ -11,7 +11,9 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
     label == "main"
         && matches!(
             method,
-            "catalog.classification"
+            "asset.technical"
+                | "asset.technical.collect"
+                | "catalog.classification"
                 | "catalog.classification.save"
                 | "catalog.evidence_candidates"
                 | "catalog.term.get"

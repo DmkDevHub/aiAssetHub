@@ -1795,6 +1795,15 @@ test('analysis start is explicit after review and uses a stable idempotency ID',
  assert.match(document.querySelector('[role=dialog]').textContent,/fixture-real-response-id/);
 });
 
+test('technical observations are read only until explicit collection and escape parser strings',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:true,data:{observation:args.method==='asset.technical.collect'?{source:'parser',value:{format:'<img src=x>',channels:2}}:null}};}};
+ app=createApp(components.TechnicalMetadata,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls.length,1);assert.equal(calls[0][1].method,'asset.technical');
+ dispatch(document.querySelector('.technical-metadata button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[1][1].method,'asset.technical.collect');assert.equal(calls[1][1].params.confirmed,true);assert.equal(document.querySelector('.technical-metadata img'),null);assert.match(document.querySelector('.technical-metadata pre').textContent,/channels/);
+});
+
 test('stored AI result renders description and provenance as text without executing content',async()=>{
  app.unmount();globalThis.isTauri=true;
  dom.window.__TAURI_INTERNALS__={invoke:async command=>{assert.equal(command,'asset_analysis');return {ok:true,data:{active:{description:'<img src=x onerror=alert(1)> red square',tags:['red'],provider:'Ollama',modelId:'fixture-model',createdAt:'fixture-time',features:{technical:{width:64,height:32,hasTransparentPixels:true},suggestions:{primary:'A04',roles:['role.item'],styles:['style.pixel'],colors:['red'],material:['<b>metal</b>']}}}}};}};

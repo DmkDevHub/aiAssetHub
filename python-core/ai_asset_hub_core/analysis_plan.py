@@ -10,7 +10,7 @@ class AnalysisPlan:
         self.database=database;self.db=database.connection
 
     def targets(self, params):
-        if not isinstance(params,dict) or set(params)!={'mode','scope','library_id','folder_parts','selected_ids','model_id'}:
+        if not isinstance(params,dict) or set(params)-{'mode','scope','library_id','folder_parts','selected_ids','model_id','input_kind'} or not {'mode','scope','library_id','folder_parts','selected_ids','model_id'}<=set(params) or params.get('input_kind','image') not in ('image','audio','text'):
             raise LibraryError('INVALID_PARAMS')
         if params['mode'] not in ('all','unanalyzed','completed','failed','selected') or params['scope'] not in ('all','library','folder') or not valid_id(params['model_id']):
             raise LibraryError('INVALID_PARAMS')
@@ -48,28 +48,31 @@ class AnalysisPlan:
         from .analysis_contract import contract, digest, input_support
         from decimal import Decimal
         targets=self.targets(params)
-        checked=ModelService(self.database).validate({'id':params['model_id'],'modality':'image'})
+        modality=params.get('input_kind','image')
+        checked=ModelService(self.database).validate({'id':params['model_id'],'modality':modality})
         if not checked['compatible']:raise LibraryError(checked['reason'])
+        if modality=='audio' and (checked['snapshot']['kind']!='external' or checked['snapshot']['provider'].casefold()!='openrouter'):raise LibraryError('MODEL_CAPABILITY_MISMATCH')
         snapshot=checked['snapshot'];live=[];eligible=0;unsupported=0;unknown=0;over_limit=0;formats={'image':0,'audio':0,'threeD':0,'other':0}
         from pathlib import Path
         for row in targets:
             extension=Path(row[2]).suffix.lower()
             support=input_support(row[2]);image=support=='supported'
+            candidate=image if modality=='image' else extension=='.wav' if modality=='audio' else False
             if support=='unknown':unknown+=1
             kind='image' if image else 'audio' if extension in ('.wav','.mp3','.flac','.ogg','.m4a') else 'threeD' if extension in ('.fbx','.obj','.gltf','.glb','.blend') else 'other'
             formats[kind]+=1
-            if not image:unsupported+=1
+            if not candidate:unsupported+=1
             try:
                 path,info=source_info(self.database,row[0]);live.append((row[0],info.st_size,info.st_mtime_ns,'present'))
-                if image:
+                if candidate:
                     if info.st_size>20_000_000:over_limit+=1
                     else:eligible+=1
             except LibraryError as error:live.append((row[0],None,None,str(error)))
         cost=Decimal('0')
         if snapshot['kind']=='external' and snapshot['inspection'].get('costClass')=='paid':
             caps=snapshot['inspection'];pricing=caps.get('pricing',{});context=caps.get('contextLength')
-            if type(context) is not int or not 1<=context<=2_000_000 or any(Decimal(value)!=0 for key,value in pricing.items() if key not in ('prompt','completion','image','request')):raise LibraryError('COST_ESTIMATE_UNAVAILABLE')
-            cost=(Decimal(pricing['prompt'])*context+Decimal(pricing['completion'])*512+Decimal(pricing.get('image','0'))+Decimal(pricing.get('request','0')))*eligible
+            if type(context) is not int or not 1<=context<=2_000_000 or any(Decimal(value)!=0 for key,value in pricing.items() if key not in ('prompt','completion','image','request','audio')):raise LibraryError('COST_ESTIMATE_UNAVAILABLE')
+            cost=(max(Decimal(pricing['prompt']),Decimal(pricing.get('audio','0')))*context+Decimal(pricing['completion'])*512+Decimal(pricing.get('image','0'))+Decimal(pricing.get('request','0')))*eligible
         if eligible:BudgetPolicy(self.db).check(params['model_id'],str(cost),eligible)
         from .analysis_contract import OUTPUT_VERSION
         snapshot['analysisLimits']={'outputTokens':1024 if snapshot['kind']=='local' else 512,'inputBytes':20_000_000,'imageEdge':512,'promptSchema':OUTPUT_VERSION}

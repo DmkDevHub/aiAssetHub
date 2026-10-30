@@ -38,7 +38,7 @@ class AnalysisEngine:
 
     def run(self,identifier,control):
         from .database import Database
-        from .analysis_input import prepare_image,source_info
+        from .analysis_input import prepare_image,prepare_audio,source_info
         from .models import ModelService
         from .inference import infer
         from .annotations import AnnotationService
@@ -65,11 +65,11 @@ class AnalysisEngine:
                     approved=snapshot.get('analysisContract')
                     if approved is not None and {k:v for k,v in approved.items() if k!='reviewInputFingerprint'}!=contract(database):
                         raise LibraryError('ANALYSIS_PLAN_CHANGED')
-                    try:checked=ModelService(database).validate({'id':snapshot['registryId'],'modality':'image'},reserved=True)
+                    try:checked=ModelService(database).validate({'id':snapshot['registryId'],'modality':snapshot.get('inputModality','image')},reserved=True)
                     except OSError:raise LibraryError('MODEL_POLICY_DENIED') from None
                     if not checked['compatible']:raise LibraryError(checked['reason'])
                     if checked['snapshot']['profileVersion']!=snapshot['profileVersion']:raise LibraryError('MODEL_CHANGED')
-                    prepared=prepare_image(database,asset_id,versions[asset_id])
+                    prepared=(prepare_audio if snapshot.get('inputModality')=='audio' else prepare_image)(database,asset_id,versions[asset_id])
                     from .providers import inspect_local,inspect_external
                     if snapshot['kind']=='local':
                         try:current=inspect_local(snapshot['modelId'])
@@ -89,10 +89,14 @@ class AnalysisEngine:
                         if connection.sock:control['socket']=connection.sock
                     output,usage=infer(snapshot,prepared,control['cancel'],register,key)
                     if control['cancel'].is_set():raise LibraryError('USER_CANCELED')
-                    if not isinstance(output,dict) or set(output)-{'description','tags','suggestions'} or not {'description','tags'}<=set(output) or not isinstance(output['description'],str) or not 1<=len(output['description'].strip())<=1024:raise LibraryError('INVALID_MODEL_OUTPUT')
+                    if not isinstance(output,dict) or set(output)-{'description','tags','suggestions','audioSuggestions'} or not {'description','tags'}<=set(output) or not isinstance(output['description'],str) or not 1<=len(output['description'].strip())<=1024:raise LibraryError('INVALID_MODEL_OUTPUT')
                     from .analysis_features import suggestions,VERSION
                     features={'schema':VERSION,'technical':prepared.get('technical',{}),
                         'suggestions':suggestions(output.get('suggestions',{})),'suggestionStatus':'proposed'}
+                    if snapshot.get('inputModality')=='audio':
+                        from .analysis_features import audio_suggestions
+                        features['audioSuggestions']=audio_suggestions(output.get('audioSuggestions',{}))
+                    elif 'audioSuggestions' in output:raise LibraryError('INVALID_MODEL_OUTPUT')
                     try:labels=AnnotationService.labels(output['tags'])
                     except LibraryError:raise LibraryError('INVALID_MODEL_OUTPUT') from None
                     if sum(map(len,labels.values()))>512:raise LibraryError('INVALID_MODEL_OUTPUT')
