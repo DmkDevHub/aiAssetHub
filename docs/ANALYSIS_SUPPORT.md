@@ -16,3 +16,8 @@ PNG/JPG/JPEG는 지원 후보이며 실제 디코드·권한·픽셀 검사는 �
 ## R08F-03 구현 갱신
 기술 탭의 명시 수집은 PCM WAV를 20MB 이내로 읽고 길이/채널/샘플레이트/샘플 프레임을 관측한다. 잘린 PCM은 성공하지 않는다. 오디오 AI는 OpenRouter audio 검증 모델에 한정하고 로컬 Ollama 오디오 전송은 차단한다. 수동 입력 선택 audio→사전 검토→외부/유료 승인 후에만 원본 PCM WAV 전체(최대60초)와 고정 프롬프트를 전송한다. 비용은 contextLength 전체에 max(prompt,audio) 단가를 적용하고 completion 상한을 더해 보수적으로 예약한다. 처리할 수 없는 비영점 추가 과금 항목은 검토를 거부한다. 음원 분류/분위기/전사는 AI 제안이며 기술 측정으로 표시하지 않는다. 실제 외부 오디오 추론 검증은 없으며 테스트는 합성 WAV+모의 HTTPS 응답이다.
 규격: [Python wave](https://docs.python.org/3/library/wave.html), [OpenRouter 공식 오디오 안내](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/).
+
+## R08F-04 구현 갱신
+OBJ는 정점/면 인덱스·삼각화 수·UV 수·사용 재질명·mtllib 참조를 파싱한다. glTF2/GLB2는 메시/재질/skin-joint 구조를 검증하고 내장 base64/GLB 버퍼의 float32 POSITION·삼각형 인덱스만 디코드한다. 외부 URI는 읽지 않고 참조로만 보고한다. sparse accessor·다른 primitive 모드의 프리뷰·FBX/BLEND는 미지원이다. glTF 단위는 규격의 meter이며 OBJ 단위/본 정보는 미확인이다. 버퍼에서 읽은 수치와 declared 수치를 구분하고 경계는 노드 변환을 적용하지 않은 mesh-local 좌표다.
+입력20MB·정점10만·면10만 한도, 미리보기는 XY 직교 투영의 앞 1만 면 와이어프레임(512px)이다. 표면 렌더·텍스처·노드 변환/포즈를 표현하지 않는다. 3D 수동 입력 선택은 image 모델에 파생 JPEG와 고정 주의 프롬프트만 전송한다. 와이어프레임에서 소재/색상을 추정한 AI 응답은 거부하고 이전 성공을 보존한다. 명시 기술 수집은 실제 파일/지문에 근거한 안정 구성 요소 ID를 저장한다. 전체 glTF 유효성/엔진 임포트 성공을 보증하는 파서는 아니다.
+규격: [Khronos glTF2](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html).

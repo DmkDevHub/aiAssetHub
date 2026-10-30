@@ -29,6 +29,9 @@ def parse_audio(raw):
 def parse(extension, raw, canceled=None):
     if canceled is not None and canceled.is_set():raise LibraryError('USER_CANCELED')
     if extension=='.wav':result=parse_audio(raw)
+    elif extension in ('.obj','.gltf','.glb'):
+        from .geometry import geometry
+        result=geometry(extension,raw)[0]
     else:raise LibraryError('UNSUPPORTED_FORMAT')
     if canceled is not None and canceled.is_set():raise LibraryError('USER_CANCELED')
     return {'schema':VERSION,'source':'parser','value':result,'inputFingerprint':hashlib.sha256(raw).hexdigest(),
@@ -52,6 +55,14 @@ class Technical(AnnotationService):
         self.db.execute('BEGIN IMMEDIATE')
         try:
             self.metadata.propose(asset,'technical','parser',observed,file,VERSION)
+            from .asset_composition import component
+            import json
+            value=observed['value']
+            for kind,key in (('mesh','meshCount'),('material','materialCount'),('skeleton','skinCount')):
+                for index in range(min(value.get(key,0),128)):
+                    item=component(file,observed['inputFingerprint'],kind,[kind,str(index)])
+                    self.db.execute('INSERT OR IGNORE INTO asset_components(id,file_id,input_fingerprint,kind,locator_json,identity_version) VALUES (?,?,?,?,?,1)',
+                        (item['id'],file,observed['inputFingerprint'],kind,json.dumps(item['locator'])))
             self.db.execute('COMMIT')
         except Exception:self.db.execute('ROLLBACK');raise
         return self.get({'asset_id':asset})

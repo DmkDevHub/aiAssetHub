@@ -30,7 +30,7 @@ def input_support(path):
 
 
 def contract(database):
-    from .inference import SCHEMA, PROMPT, AUDIO_PROMPT
+    from .inference import SCHEMA, PROMPT, AUDIO_PROMPT, WIREFRAME_PROMPT
     # Bind the actual persisted immutable dictionaries, including custom versions.
     dictionaries = [{'version': row[0], 'kind': row[1], 'sha256': digest(json.loads(row[2]))}
         for row in database.connection.execute(
@@ -42,6 +42,10 @@ def contract(database):
         'outputSchemaSha256': digest(SCHEMA),
         'promptSha256': digest(PROMPT),
         'audioPromptSha256':digest(AUDIO_PROMPT),
+        'wireframePromptSha256':digest(WIREFRAME_PROMPT),
+        'geometry':{'technical':['OBJ','glTF2','GLB2'],'preview':'mesh-local-XY-wireframe',
+            'maxVertices':100000,'maxFaces':100000,'previewFaces':10000,'surfaceRender':'unsupported',
+            'externalDependencies':'not-opened','FBX':'unsupported','BLEND':'unsupported'},
         'audio':{'technical':'PCM-WAV','semantic':'openrouter-audio-input','maxSeconds':60,
             'localInference':'unsupported','transmission':'original-pcm-wav-and-fixed-prompt',
             'output':'description,tags,audioSuggestions;v1'},

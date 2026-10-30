@@ -57,6 +57,16 @@ def prepare_image(database, identifier, expected):
             'size':info.st_size,'mtimeNs':info.st_mtime_ns,'technical':technical}
 
 
+def prepare_geometry(database,identifier,expected):
+    import hashlib
+    from .geometry import geometry,wireframe
+    path,info,raw=read_source(database,identifier,expected)
+    if path.suffix.lower() not in ('.obj','.gltf','.glb'):raise LibraryError('UNSUPPORTED_FORMAT')
+    technical,points,faces=geometry(path.suffix.lower(),raw)
+    return {'image':wireframe(points,faces),'previewKind':'wireframe','technical':technical,
+        'fingerprint':hashlib.sha256(raw).hexdigest(),'size':info.st_size,'mtimeNs':info.st_mtime_ns}
+
+
 def prepare_audio(database,identifier,expected):
     import hashlib,base64
     from .technical import parse_audio

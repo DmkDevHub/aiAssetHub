@@ -728,3 +728,6 @@ R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 �
 
 ## R08F-03 내부 검증
 `unittest discover -s python-core/tests -p test_technical.py -v`: 3개 통과(0.421초). `test_audio_analysis.py`: 고유 오디오 2개 통과(실제 오디오 공급자 응답은 mock, PCM WAV 파일 바이트는 실제 파서). 분석 21개 회귀 통과. Node149개 및 타입/Vite 통과. UI 명시 수집/문자 이스케이프·전송 승인 전 작업 차단, 잘못된 요청/손상 WAV/취소 검증. GUI 조작·실제 외부 호출 없음.
+
+## R08F-04 내부 검증
+`unittest discover -s python-core/tests -p test_geometry.py -v`: 3개 통과(0.408초), OBJ와 내장 glTF/GLB 실제 파싱·미해결 외부 참조·NaN/인덱스/경계/한도 실패·구성 요소 중복 방지·원본 불변 검증. `test_multiformat_analysis.py`: 1개 통과(0.290초), 실제 파생 JPEG+mock AI 제안 저장·소재 추측 실패 후 이전 결과 보존 검증. `npm.cmd run build`: 타입/Vite 통과(591ms). 실모델/설치본은 R08F-08이며 GUI 미검증.

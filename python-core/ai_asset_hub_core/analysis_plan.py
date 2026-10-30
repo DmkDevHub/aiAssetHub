@@ -10,7 +10,7 @@ class AnalysisPlan:
         self.database=database;self.db=database.connection
 
     def targets(self, params):
-        if not isinstance(params,dict) or set(params)-{'mode','scope','library_id','folder_parts','selected_ids','model_id','input_kind'} or not {'mode','scope','library_id','folder_parts','selected_ids','model_id'}<=set(params) or params.get('input_kind','image') not in ('image','audio','text'):
+        if not isinstance(params,dict) or set(params)-{'mode','scope','library_id','folder_parts','selected_ids','model_id','input_kind'} or not {'mode','scope','library_id','folder_parts','selected_ids','model_id'}<=set(params) or params.get('input_kind','image') not in ('image','audio','text','threeD'):
             raise LibraryError('INVALID_PARAMS')
         if params['mode'] not in ('all','unanalyzed','completed','failed','selected') or params['scope'] not in ('all','library','folder') or not valid_id(params['model_id']):
             raise LibraryError('INVALID_PARAMS')
@@ -48,16 +48,17 @@ class AnalysisPlan:
         from .analysis_contract import contract, digest, input_support
         from decimal import Decimal
         targets=self.targets(params)
-        modality=params.get('input_kind','image')
+        input_kind=params.get('input_kind','image');modality='image' if input_kind=='threeD' else input_kind
         checked=ModelService(self.database).validate({'id':params['model_id'],'modality':modality})
         if not checked['compatible']:raise LibraryError(checked['reason'])
         if modality=='audio' and (checked['snapshot']['kind']!='external' or checked['snapshot']['provider'].casefold()!='openrouter'):raise LibraryError('MODEL_CAPABILITY_MISMATCH')
         snapshot=checked['snapshot'];live=[];eligible=0;unsupported=0;unknown=0;over_limit=0;formats={'image':0,'audio':0,'threeD':0,'other':0}
+        snapshot['analysisInputKind']=input_kind
         from pathlib import Path
         for row in targets:
             extension=Path(row[2]).suffix.lower()
             support=input_support(row[2]);image=support=='supported'
-            candidate=image if modality=='image' else extension=='.wav' if modality=='audio' else False
+            candidate=extension in ('.obj','.gltf','.glb') if input_kind=='threeD' else image if modality=='image' else extension=='.wav' if modality=='audio' else False
             if support=='unknown':unknown+=1
             kind='image' if image else 'audio' if extension in ('.wav','.mp3','.flac','.ogg','.m4a') else 'threeD' if extension in ('.fbx','.obj','.gltf','.glb','.blend') else 'other'
             formats[kind]+=1
