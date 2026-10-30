@@ -9,7 +9,7 @@ from pathlib import Path
 
 VERSION = 'asset-analysis.v1'
 INPUT_VERSION = 'bounded-image.v1'
-OUTPUT_VERSION = 'asset-description.v2'
+OUTPUT_VERSION = 'asset-description.v3'
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg')
 _KNOWN_UNSUPPORTED = frozenset(('.wav', '.mp3', '.flac', '.ogg', '.m4a', '.fbx',
     '.obj', '.gltf', '.glb', '.blend', '.gif', '.webp', '.svg', '.mp4', '.mov',
@@ -45,7 +45,7 @@ def contract(database):
         'supportMatrix': [
             {'typeCode': f'A{i:02}',
              'imageDescription': 'supported' if i in (1, 4, 7, 8, 9) else 'unsupported',
-             'structuredClassification': 'unsupported',
+             'structuredClassification': 'image-proposals' if i in (1,4,7,8,9) else 'unsupported',
              'nativeFormatAnalysis': 'unsupported'} for i in range(1, 15)],
         'supportedExtensions': list(IMAGE_EXTENSIONS),
         'requiredModelModality': 'image',

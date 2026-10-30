@@ -722,3 +722,6 @@ R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 �
 - `npm.cmd run build`: 타입 검사 및 Vite 통과 (Vite 573ms). `git diff --check` 통과.
 - 초기 샌드박스 Core 실행은 로컬 MCP 소켓 실패 후 러너 30초 제한에 도달했다. 제한 밖 첫 재실행은 206개 중 잘못된 신규 사전 fixture로 INVALID_DICTIONARY, venv 실행기로 PID 불일치가 발생했다. DB 계약에 맞게 fixture를 수정하고 NEW_PC_SETUP 지침의 기반 CPython으로 재실행해 위 207개 전체 통과를 확인했다. 잘못된 상대 경로의 별도 분석 테스트 시도는 실행되지 않았으며 전체 재실행에 해당 테스트가 포함된다.
 - 로그: `.artifacts/r08f01-node.log`, `r08f01-python.log`, `r08f01-build.log` (Git 제외). AI 응답은 기존 격리 fixture/mock이며 실제 모델/유료 API·설치본·시각 배치·OS 화면은 이번 작업에서 미검증. 원본/사용자 DB 변경 및 화면 직접 조작 없음.
+
+## R08F-02 내부 검증
+`python -B -m unittest discover -s python-core/tests -p test_analysis*.py -v`: 전용 venv+PYTHONPATH로 21개 통과(2.632초). 잘못된 comprehension 괄호와 기존 v2 기대값을 수정 후 재실행했다. `node --test`: 148개, `npm.cmd run build`: 타입/Vite 통과. 실제 모델·설치본은 R08F-08에서 별도 검증한다.

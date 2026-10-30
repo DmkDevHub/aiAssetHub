@@ -36,7 +36,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(input_support('file'),'unknown')
         contract=preview['snapshot']['analysisContract']
         self.assertEqual(len(contract['supportMatrix']),14)
-        self.assertTrue(all(r['structuredClassification']=='unsupported' for r in contract['supportMatrix']))
+        self.assertEqual(contract['supportMatrix'][0]['structuredClassification'],'image-proposals')
         self.assertEqual(contract['multiFileAnalysis'],'unsupported')
         self.assertFalse(contract['transfer']['originalFile'])
         self.assertEqual(len(contract['reviewInputFingerprint']),64)
@@ -174,7 +174,7 @@ class AnalysisTests(unittest.TestCase):
         plan=self.params();preview=AnalysisPlan(self.db).preview(plan)
         job=AnalysisJobs(self.db).start({'plan':plan,'plan_token':preview['planToken'],'request_id':str(uuid4()),'confirmed':True,'confirm_external':False,'confirm_paid':False})['jobId']
         engine=AnalysisEngine(self.db)
-        with patch('ai_asset_hub_core.providers.inspect_local',return_value={'status':'available','metadataVersion':'a'*64}),patch('ai_asset_hub_core.inference.infer',return_value=({'description':'Fixture red image','tags':['red']},{'providerRequestAttempted':True})):
+        with patch('ai_asset_hub_core.providers.inspect_local',return_value={'status':'available','metadataVersion':'a'*64}),patch('ai_asset_hub_core.inference.infer',return_value=({'description':'Fixture red image','tags':['red'],'suggestions':{'primary':'A01','roles':['role.environment'],'styles':['style.pixel'],'colors':['red']}},{'providerRequestAttempted':True})):
             engine.launch(job)
             deadline=time.monotonic()+5
             while engine.active(job) and time.monotonic()<deadline:time.sleep(.01)
@@ -183,6 +183,10 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(AssetAnalysis(self.db).get({'asset_id':self.id})['active']['description'],'Fixture red image')
         self.assertEqual(AnnotationService(self.db).get({'asset_id':self.id})['tags'],['mine'])
         self.assertFalse(asset_state(self.db.connection,self.id)['analysisStale'])
+        features=AssetAnalysis(self.db).get({'asset_id':self.id})['active']['features']
+        self.assertEqual(features['technical']['width'],64)
+        self.assertFalse(features['technical']['hasTransparentPixels'])
+        self.assertEqual(features['suggestions']['primary'],'A01')
         self.assertEqual((self.source/'나무.png').read_bytes(),before)
 
     def test_batch_queue_reports_measured_counts_and_continues_after_item_failure(self):
@@ -422,7 +426,7 @@ class AnalysisTests(unittest.TestCase):
         response.read.return_value=json.dumps({'model':'fixture','done_reason':'length','message':{'content':'','thinking':'private fixture reasoning'}}).encode()
         snapshot={'kind':'local','provider':'Ollama','modelId':'fixture','inspection':{'supportsThinking':True}}
         limits=AnalysisPlan(self.db).preview(self.params(),internal=True)['snapshot']['analysisLimits']
-        self.assertEqual(limits['outputTokens'],1024);self.assertEqual(limits['promptSchema'],'asset-description.v2')
+        self.assertEqual(limits['outputTokens'],1024);self.assertEqual(limits['promptSchema'],'asset-description.v3')
         with patch('ai_asset_hub_core.inference.http.client.HTTPConnection',return_value=connection):
             with self.assertRaisesRegex(LibraryError,'MODEL_OUTPUT_LIMIT'):infer(snapshot,{'image':'fixture'},threading.Event(),lambda _:None)
         payload=json.loads(connection.request.call_args.args[2]);self.assertFalse(payload['think'])

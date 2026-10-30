@@ -89,7 +89,10 @@ class AnalysisEngine:
                         if connection.sock:control['socket']=connection.sock
                     output,usage=infer(snapshot,prepared,control['cancel'],register,key)
                     if control['cancel'].is_set():raise LibraryError('USER_CANCELED')
-                    if not isinstance(output,dict) or set(output)!={'description','tags'} or not isinstance(output['description'],str) or not 1<=len(output['description'].strip())<=2048:raise LibraryError('INVALID_MODEL_OUTPUT')
+                    if not isinstance(output,dict) or set(output)-{'description','tags','suggestions'} or not {'description','tags'}<=set(output) or not isinstance(output['description'],str) or not 1<=len(output['description'].strip())<=1024:raise LibraryError('INVALID_MODEL_OUTPUT')
+                    from .analysis_features import suggestions,VERSION
+                    features={'schema':VERSION,'technical':prepared.get('technical',{}),
+                        'suggestions':suggestions(output.get('suggestions',{})),'suggestionStatus':'proposed'}
                     try:labels=AnnotationService.labels(output['tags'])
                     except LibraryError:raise LibraryError('INVALID_MODEL_OUTPUT') from None
                     if sum(map(len,labels.values()))>512:raise LibraryError('INVALID_MODEL_OUTPUT')
@@ -98,7 +101,7 @@ class AnalysisEngine:
                     result=str(uuid4());db.execute('BEGIN IMMEDIATE')
                     try:
                         db.execute("UPDATE analysis_runs SET status='completed',usage_json=? WHERE id=?",(json.dumps(usage),run))
-                        db.execute("INSERT INTO analysis_results(id,run_id,asset_id,description,tags_json,features_json,created_at) VALUES (?,?,?,?,?,'{}',strftime('%Y-%m-%dT%H:%M:%fZ','now'))",(result,run,asset_id,output['description'].strip(),json.dumps(list(labels.values()))))
+                        db.execute("INSERT INTO analysis_results(id,run_id,asset_id,description,tags_json,features_json,created_at) VALUES (?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",(result,run,asset_id,output['description'].strip(),json.dumps(list(labels.values())),json.dumps(features)))
                         db.execute("INSERT INTO asset_active_results VALUES (?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(asset_id) DO UPDATE SET analysis_result_id=excluded.analysis_result_id,selected_at=excluded.selected_at",(asset_id,result))
                         db.execute("DELETE FROM asset_tags WHERE asset_id=? AND source='ai'",(asset_id,))
                         for normalized,label in labels.items():

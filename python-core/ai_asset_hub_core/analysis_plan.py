@@ -71,7 +71,8 @@ class AnalysisPlan:
             if type(context) is not int or not 1<=context<=2_000_000 or any(Decimal(value)!=0 for key,value in pricing.items() if key not in ('prompt','completion','image','request')):raise LibraryError('COST_ESTIMATE_UNAVAILABLE')
             cost=(Decimal(pricing['prompt'])*context+Decimal(pricing['completion'])*512+Decimal(pricing.get('image','0'))+Decimal(pricing.get('request','0')))*eligible
         if eligible:BudgetPolicy(self.db).check(params['model_id'],str(cost),eligible)
-        snapshot['analysisLimits']={'outputTokens':1024 if snapshot['kind']=='local' else 512,'inputBytes':20_000_000,'imageEdge':512,'promptSchema':'asset-description.v2'}
+        from .analysis_contract import OUTPUT_VERSION
+        snapshot['analysisLimits']={'outputTokens':1024 if snapshot['kind']=='local' else 512,'inputBytes':20_000_000,'imageEdge':512,'promptSchema':OUTPUT_VERSION}
         snapshot['analysisContract']=contract(self.database)
         snapshot['analysisContract']['reviewInputFingerprint']=digest(live)
         token=hashlib.sha256(json.dumps({'request':params,'targets':live,'model':snapshot['profileVersion'],'cost':str(cost),'eligible':eligible,'limits':snapshot['analysisLimits'],'contract':snapshot['analysisContract']},sort_keys=True).encode('utf-8')).hexdigest()

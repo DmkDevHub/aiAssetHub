@@ -15,9 +15,10 @@ class AssetAnalysis:
             WHERE ar.asset_id=?''',(params['asset_id'],)).fetchone()
         if not row:return {'active':None}
         snapshot=json.loads(row[4]);usage=json.loads(row[6]) if row[6] else {}
+        features=json.loads(self.db.execute('SELECT features_json FROM analysis_results WHERE id=?',(row[0],)).fetchone()[0])
         return {'active':{'id':row[0],'description':row[1],'tags':json.loads(row[2]),'createdAt':row[3],
                           'provider':snapshot.get('provider'),'modelId':snapshot.get('modelId'),'actualModelId':usage.get('responseModel'),'providerReportedCostUsd':usage.get('providerReportedCostUsd'),'profileVersion':snapshot.get('profileVersion'),
-                          'inputFingerprint':row[5]}}
+                          'inputFingerprint':row[5],'features':features,'contractVersion':snapshot.get('analysisContract',{}).get('version')}}
 
     def history(self, params):
         from .libraries import valid_id,ERROR_MESSAGES

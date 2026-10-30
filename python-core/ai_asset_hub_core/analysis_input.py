@@ -38,12 +38,18 @@ def prepare_image(database, identifier, expected):
         with Image.open(io.BytesIO(raw)) as image:
             if image.format not in ('PNG','JPEG'):raise LibraryError('UNSUPPORTED_FORMAT')
             if image.width*image.height>16_000_000:raise LibraryError('INPUT_TOO_LARGE')
-            image.load();image.thumbnail((512,512));rgba=image.convert('RGBA');converted=Image.new('RGB',rgba.size,'white');converted.paste(rgba,mask=rgba.getchannel('A'))
+            image.load()
+            technical={'schema':'image-observation.v1','source':'parser','format':image.format,
+                'width':image.width,'height':image.height,'channels':len(image.getbands()),
+                'hasAlphaChannel':'A' in image.getbands() or 'transparency' in image.info,
+                'hasTransparentPixels':image.convert('RGBA').getchannel('A').getextrema()[0]<255,
+                'frameCount':getattr(image,'n_frames',1)}
+            image.thumbnail((512,512));rgba=image.convert('RGBA');converted=Image.new('RGB',rgba.size,'white');converted.paste(rgba,mask=rgba.getchannel('A'))
             output=io.BytesIO();converted.save(output,format='JPEG',quality=80)
     except LibraryError:raise
     except Exception:raise LibraryError('INVALID_IMAGE') from None
     return {'image':base64.b64encode(output.getvalue()).decode('ascii'),'fingerprint':hashlib.sha256(raw).hexdigest(),
-            'size':info.st_size,'mtimeNs':info.st_mtime_ns}
+            'size':info.st_size,'mtimeNs':info.st_mtime_ns,'technical':technical}
 
 
 def source_info(database, identifier):

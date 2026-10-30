@@ -1797,9 +1797,9 @@ test('analysis start is explicit after review and uses a stable idempotency ID',
 
 test('stored AI result renders description and provenance as text without executing content',async()=>{
  app.unmount();globalThis.isTauri=true;
- dom.window.__TAURI_INTERNALS__={invoke:async command=>{assert.equal(command,'asset_analysis');return {ok:true,data:{active:{description:'<img src=x onerror=alert(1)> red square',tags:['red'],provider:'Ollama',modelId:'fixture-model',createdAt:'fixture-time'}}};}};
+ dom.window.__TAURI_INTERNALS__={invoke:async command=>{assert.equal(command,'asset_analysis');return {ok:true,data:{active:{description:'<img src=x onerror=alert(1)> red square',tags:['red'],provider:'Ollama',modelId:'fixture-model',createdAt:'fixture-time',features:{technical:{width:64,height:32,hasTransparentPixels:true},suggestions:{primary:'A04',roles:['role.item'],styles:['style.pixel'],colors:['red'],material:['<b>metal</b>']}}}}};}};
  app=createApp(components.AssetAnalysis,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
- assert.match(document.querySelector('.asset-analysis').textContent,/red square/);assert.match(document.querySelector('.asset-analysis').textContent,/fixture-model/);assert.equal(document.querySelector('.asset-analysis img'),null);
+ assert.match(document.querySelector('.asset-analysis').textContent,/red square/);assert.match(document.querySelector('.asset-analysis').textContent,/fixture-model/);assert.equal(document.querySelector('.asset-analysis img'),null);assert.match(document.querySelector('.analysis-features').textContent,/64 × 32/);assert.match(document.querySelector('.analysis-features').textContent,/AI 제안 \(미확정\)/);assert.equal(document.querySelector('.analysis-features b'),null);
 });
 
 test('job list restores measured batch progress without opening the analysis dialog',async()=>{

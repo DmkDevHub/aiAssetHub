@@ -133,7 +133,7 @@ function keys(event:KeyboardEvent){
    <p v-if="mode==='selected' && (retrySelection??props.selectedIds).length>200">선택 분석은 한 번에 최대 200개입니다. 범위 분석은 최대 1000개입니다.</p>
    <p v-if="preview" role="status">대상 {{ preview.targetCount }}개 · 원본 확인 실패 {{ preview.missingCount }}개</p>
    <p v-if="preview">PNG/JPEG 후보 {{ preview.eligibleCount??preview.targetCount }}개 · 미지원 {{ preview.unsupportedCount??0 }}개 · 크기 초과 {{ preview.overLimitCount??0 }}개. 실제 디코드·권한 검증은 실행 시 다시 수행합니다.</p>
-   <p v-if="preview">미지원 중 형식 미확인 {{ preview.unknownFormatCount??0 }}개. 다중 파일·구조화 분류 제안은 아직 지원하지 않습니다.</p>
+   <p v-if="preview">미지원 중 형식 미확인 {{ preview.unknownFormatCount??0 }}개. 다중 파일 AI 분석은 아직 지원하지 않습니다. 이미지의 분류·역할·스타일은 미확정 제안입니다.</p>
    <p v-if="preview?.snapshot?.analysisContract">분석 계약 {{ preview.snapshot.analysisContract.version }} · 입력 {{ preview.snapshot.analysisContract.inputSchema }} · 출력 {{ preview.snapshot.analysisContract.outputSchema }} · 검토 입력 지문 {{ preview.snapshot.analysisContract.reviewInputFingerprint }}</p>
    <p v-if="preview">비용 상한 추정: {{ preview.estimatedUpperBoundUsd??'미확인' }} USD. 실제 청구와 다를 수 있습니다. 전송: {{ preview.externalTransfer?'선택 이미지의 최대 512px 파생 JPEG·분석 프롬프트를 외부 공급자로 전송':'이 PC의 로컬 Ollama만 사용' }}</p>
    <label v-if="preview?.externalTransfer"><input v-model="external" type="checkbox" />이 분석의 외부 전송을 승인합니다.</label>
