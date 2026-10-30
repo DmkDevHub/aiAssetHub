@@ -268,6 +268,8 @@ impl CoreProcess {
                 | "license.delete.preview"
                 | "provenance.history"
                 | "provenance.export"
+                | "catalog.options"
+                | "catalog.scope"
                 | "source.list"
                 | "source.get"
                 | "source.create"

@@ -665,3 +665,6 @@ Python의 신규 개인정보/이력/삭제 테스트 9개는 기본 get/쓰기/
 근거: `.artifacts/m08d-final-{check,fmt,package-core,clippy,rust-tests,installer,verify}.log`, `m08d-final-steps.jsonl`, `m08d-final-installed-result.json`, `m08d-final-installed-host.json`, `m08d-final-hashes.json`; 각 단계 Python 로그는 r08d-02-core-final.log/r08d-03-core.log/r08d-04-core.log/r08d-05-core.log다. 최종 문서·코드 공백 검사는 git diff --check로 수행한다. 실제 버전은 ENV-02에서 복원한 Node 24.22.2/npm 11.19.1/CPython 3.13.17/Rust 1.99.1이며 기술 스택/고정 의존성을 바꾸지 않았다.
 
 M08D Core/DB 범위를 완료했다. 관리/7개 상세 탭·통합 검색(M08E), 파일 교환/CSV(M08G), 확장 메타데이터 MCP 읽기(M08H)는 후속 범위이며 다음 단계로 자동 진행하지 않는다. 실제 GUI/OS 시각 배치·깨끗한 PC·기존 설치 업그레이드/서명·대규모 성능은 미검증이다. 실제 모델/임베딩·외부 유료 호출·URL 자동 접속/다운로드·사용자 DB/원본 이전·수정·이동·삭제·화면/브라우저 조작·원격 push는 수행하지 않았다.
+
+## R08E-01 (2026-10-30)
+폴더/그룹/패키지/분류 탐색과 선택 상태를 분리하고 모드 복원·읽기 전용 catalog.options/scope를 구현했다. 실제 소속/분류 ID로 조회하며 탐색으로 스캔/AI/파일 이동은 없다. metadata_request는 main 창·고정 메타데이터 명령만 허용하며 분석/임베딩/임의 SQL은 전달하지 않는다. 변경: Catalog Core·Rust 허용 목록/명령·Vue 탐색/저장소·LibraryView·DOM/DB 테스트·문서. npm run check 종료 0: Node 139개·Python 185개, 타입/Vite 통과 (.artifacts/r08e-01-check.log). Unicode/HTML 이스케이프·선택 복원·조회만 실행/원본·Job/벡터 보존을 검증했다. 실제 화면은 미검증이고 Rust/설치 최종 회귀는 M08E 마무리에 실행한다.

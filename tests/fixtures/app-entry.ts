@@ -53,3 +53,6 @@ export {default as PackageManager} from '../../src/components/PackageManager.vue
 export {default as PackageDefaults} from '../../src/components/PackageDefaults.vue';
 export {default as AssetPackageMetadata} from '../../src/components/AssetPackageMetadata.vue';
 export {collectionsChanged} from '../../src/stores/collections';
+
+export {default as CatalogNavigation} from '../../src/components/CatalogNavigation.vue';
+export {navigation,navigateMode,selectCatalog,resetNavigation} from '../../src/stores/navigation';

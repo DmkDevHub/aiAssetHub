@@ -8,6 +8,58 @@ use tauri_plugin_dialog::DialogExt;
 
 type CoreState = Arc<Mutex<CoreProcess>>;
 #[tauri::command]
+async fn metadata_request(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, CoreState>,
+    method: String,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    if window.label() != "main"
+        || !matches!(
+            method.as_str(),
+            "catalog.options"
+                | "catalog.scope"
+                | "creator.list"
+                | "creator.get"
+                | "creator.create"
+                | "creator.update"
+                | "creator.set_enabled"
+                | "creator.links"
+                | "creator.links.save"
+                | "creator.delete.preview"
+                | "creator.delete"
+                | "source.list"
+                | "source.get"
+                | "source.create"
+                | "source.update"
+                | "source.delete.preview"
+                | "source.delete"
+                | "license.list"
+                | "license.get"
+                | "license.create"
+                | "license.update"
+                | "license.evidence.save"
+                | "license.delete.preview"
+                | "license.delete"
+                | "provenance.history"
+                | "provenance.export"
+        )
+    {
+        return Err("CORE_COMMAND_NOT_ALLOWED".into());
+    }
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state
+            .lock()
+            .map_err(|_| "CORE_UNAVAILABLE")?
+            .library_request(&method, params)
+    })
+    .await
+    .map_err(|_| "CORE_UNAVAILABLE".to_string())?
+    .map_err(str::to_owned)
+}
+
+#[tauri::command]
 async fn mcp_connection(state: tauri::State<'_, CoreState>) -> Result<serde_json::Value, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -1250,6 +1302,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            metadata_request,
             core_health,
             core_reconnect,
             select_library_folder,

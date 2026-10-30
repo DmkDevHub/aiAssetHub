@@ -92,6 +92,7 @@ beforeEach(async (t) => {
   delete dom.window.__TAURI_INTERNALS__;
   globalThis.isTauri = false;
   components.resetCollections();
+  components.resetNavigation();
   components.setSearchQuery("");
   components.setTheme("dark");
   components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
@@ -2102,4 +2103,25 @@ test('package readers discard a late response after switching the selected asset
   dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{if(command!==read)return {ok:true,data:{ids:[],revision:0,items:[]}};if(first){first=false;return await new Promise(resolve=>{resolveOld=resolve;});}return {ok:true,data:make('new-package-value')};}};
   app=createApp({render:()=>h(components[name],{assetId:id.value})});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();id.value='new';await nextTick();await new Promise(r=>setImmediate(r));await nextTick();resolveOld({ok:true,data:make('old-package-value')});await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.querySelector(selector).textContent,/new-package-value/);assert.doesNotMatch(document.querySelector(selector).textContent,/old-package-value/);
  }
+});
+
+test('catalog navigation restores independent folder group package and type selections', async()=>{
+ components.selectLibraryFolder('한글 폴더');await nextTick();
+ components.navigateMode('groups');components.selectCatalog('그룹');await nextTick();
+ assert.equal(components.libraryUi.selectedFolderId,null);assert.equal(components.collectionUi.groupId,'그룹');
+ components.navigateMode('packages');components.selectCatalog('패키지');await nextTick();
+ assert.equal(components.collectionUi.groupId,null);
+ components.navigateMode('folders');await nextTick();assert.equal(components.libraryUi.selectedFolderId,'한글 폴더');
+ components.navigateMode('groups');await nextTick();assert.equal(components.collectionUi.groupId,'그룹');
+ assert.equal(components.navigation.selected.packages,'패키지');
+});
+test('catalog navigation uses read-only paginated options and renders literal Unicode labels', async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:true,data:{items:[{id:'fixture-group',name:'한글 <script>text</script>',parentId:null}],next_cursor:null}};}};
+ app=createApp({render:()=>h(components.CatalogNavigation)});app.config.errorHandler=e=>errors.push(e);app.mount('#app');
+ components.navigateMode('groups');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.match(document.body.textContent,/한글 <script>text<\/script>/);assert.equal(document.querySelector('script'),null);
+ assert.equal(calls.length,1);assert.equal(calls[0][1].method,'catalog.options');
+ components.selectCatalog('fixture-group');components.navigateMode('folders');await nextTick();components.navigateMode('groups');await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(components.navigation.selected.groups,'fixture-group');assert.ok(calls.every(c=>c[1].method==='catalog.options'));
 });

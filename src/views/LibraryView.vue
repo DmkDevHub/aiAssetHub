@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import CatalogNavigation from '../components/CatalogNavigation.vue';
+import {navigation} from '../stores/navigation';
+import {metadata} from '../services/metadata';
 import {collectionUi} from '../stores/collections';
 import PackageManager from '../components/PackageManager.vue';
 import GroupManager from '../components/GroupManager.vue';
@@ -33,9 +36,9 @@ const tags = computed(() => [...new Set(sourceItems.value.flatMap(item => [...it
 const searchIds = ref<Set<string>|null>(null), searchError=ref(''), searching=ref(false);
 let searchGeneration=0;
 onBeforeUnmount(()=>{searchGeneration++;if(semanticTimer)clearInterval(semanticTimer);});
-watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis, ()=>libraryUi.selectedFolderId,()=>collectionUi.groupId,()=>collectionUi.revision], async ([query])=>{
+watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis, ()=>libraryUi.selectedFolderId,()=>collectionUi.groupId,()=>collectionUi.revision,()=>navigation.revision,()=>navigation.mode], async ([query])=>{
   const token=++searchGeneration; semanticResults.value=null;if(semanticTimer)clearInterval(semanticTimer);searchIds.value=null; searchError.value=''; searching.value=false;
-  if(searchMode.value!=='keyword' || (!query.trim()&&!collectionUi.groupId) || !isTauri())return;
+  if(searchMode.value!=='keyword' || (!query.trim()&&!collectionUi.groupId&&!(navigation.mode!=='folders'&&navigation.selected[navigation.mode])) || !isTauri())return;
   if(query.length>256 || query.trim().split(/\s+/).length>16){searchError.value='검색어는 256자, 16개 단어까지 입력하세요.';return;}
   searching.value=true;
   try {
@@ -48,6 +51,9 @@ watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis
         for(const id of r.data.ids){if(ids.has(id))throw new Error();ids.add(id);}
         cursor=r.data.next_cursor;if(cursor!==null&&(cursor!==r.data.ids.at(-1)||ids.size>100000))throw new Error();
       }while(cursor);
+    }else if((navigation.mode==='packages'||navigation.mode==='types')&&navigation.selected[navigation.mode]){
+      let cursor:string|null=null;do{const r:{ids:string[];next_cursor:string|null}=await metadata('catalog.scope',{kind:navigation.mode,id:navigation.selected[navigation.mode],after_id:cursor});if(token!==searchGeneration)return;for(const id of r.ids){if(ids.has(id))throw new Error();ids.add(id);}cursor=r.next_cursor;if(cursor!==null&&(cursor!==r.ids.at(-1)||ids.size>100000))throw new Error();}while(cursor);
+      if(query.trim()){const found=await coreSearch(query,()=>token===searchGeneration);for(const id of ids)if(!found.has(id))ids.delete(id);}
     }else{for(const id of await coreSearch(query,()=>token===searchGeneration))ids.add(id);}
     if(token===searchGeneration)searchIds.value=ids;
   }
@@ -82,7 +88,7 @@ const items = computed(() => {
     const ranked=(semanticResults.value??[]).flatMap(row=>{const item=folderItems.find(i=>i.id===row.id);return item?[{...item,searchScore:row.score,matchReason:row.reason}]:[];});
     return stateFilter(keywordFilter(ranked,'',tag.value),kind.value,analysis.value);
   }
-  if(collectionUi.groupId&&!searchIds.value)return [];
+  if((collectionUi.groupId||(navigation.mode!=='folders'&&navigation.selected[navigation.mode]))&&!searchIds.value)return [];
   const matches=searchIds.value ? keywordFilter(folderItems.filter(item=>searchIds.value!.has(item.id)), '', tag.value)
     : keywordFilter(folderItems, searchState.searchQuery, tag.value);
   return stateFilter(matches,kind.value,analysis.value);
@@ -126,9 +132,9 @@ function moveRegion(event: KeyboardEvent) {
     '--library-panel-width': `${libraryUi.panelWidth}px`,
     '--details-panel-width': libraryUi.detailsCollapsed ? 'auto' : '280px',
   }">
-    <LibraryTreePanel :nodes="nodes" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
+    <LibraryTreePanel :show-folders="navigation.mode==='folders'" :nodes="nodes" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
       :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
-      <template #management><LibraryManagement /><GroupManager /><PackageManager /></template>
+      <template #management><CatalogNavigation /><LibraryManagement v-show="navigation.mode==='folders'" /><GroupManager v-show="navigation.mode==='groups'" /><PackageManager v-show="navigation.mode==='packages'" /></template>
     </LibraryTreePanel>
     <AssetGallery :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" @select="selectedId = $event">
       <template #filters><p v-if="collectionUi.groupId">그룹 필터: {{ collectionUi.groupId }}</p><label>검색 방식 <select v-model="searchMode" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
