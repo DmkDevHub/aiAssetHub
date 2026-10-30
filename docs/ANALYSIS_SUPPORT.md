@@ -26,3 +26,8 @@ OBJ는 정점/면 인덱스·삼각화 수·UV 수·사용 재질명·mtllib 참
 출력 스키마는 asset-description.v4로 증가했다. GIF/APNG는 최대64프레임·전체32M 디코드 픽셀을 읽고 실제 프레임 수/시간/loop 설정을 관측한다. APNG 기본 이미지는 애니메이션 프레임에서 제외한다. 동일한 양수 duration일 때만 FPS를 산정하며 시간 부재는 null이다. 2D 수동 분석은 앞8프레임을 시간순 좌→우/위→아래로 배치한 콘택트 시트를 사용한다. AI action/loopRecommended는 미확정 제안이다.
 glTF 클립은 실제 내장 float32 시간 accessor로 지속 시간을 산정하고 루트 노드의 LINEAR/STEP translation 트랙을 디코드한 경우에만 첫/끝 로컬 변위(월드/엔진 루트모션 아님)를 보고한다. 미해결 외부 버퍼·sparse·CUBICSPLINE 루트 이동과 3D 포즈 렌더는 미지원이며 glTF에 정의되지 않는 FPS/루프/엔진 호환은 추측하지 않는다. 기술 수집 시 관측된 프레임/클립 구성 요소만 저장한다.
 규격: [Pillow 이미지 시퀀스](https://pillow.readthedocs.io/en/stable/reference/Image.html), [Khronos glTF2 애니메이션](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html).
+
+## R08F-06 구현 갱신
+현재 계약은 asset-analysis.v2 / bounded-multiformat.v1 / asset-description.v4이다. 텍스트 기술 수집은 UTF-8 32KB 이내 JSON(중복 키 거부)/CSV/코드/Unity·VFX 선언을 읽는다. Python은 AST 선언만 파싱하며 실행/import하지 않는다. 기타 코드는 선언 이름 탐색이며 완전한 언어 의미 파서가 아니다. Unity/VFX YAML은 선언 태그·GUID 참조만 읽고 종속 파일을 열지 않는다.
+ZIP은 EOCD 개수128 이하와 디렉터리만 읽고 파일명/선언 크기/위험 경로/암호화를 보고한다. 파일 내용 검증·압축 해제·설치·임포트는 하지 않는다. TTF/OTF는 SFNT 테이블 범위/head 단위/maxp 선언 glyph 수만 읽고 폰트를 렌더하거나 라이선스를 추정하지 않는다. MP4/MOV는 ftyp/mvhd 시간과 트랙 개수 헤더만 읽고 영상 프레임/코덱/동작 의미는 미지원이다. 일반 Unity 압축 패키지/WOFF/WOFF2/지원 밖 코덱은 성공하지 않는다.
+수동 text 분석은 최대4KB UTF-8 전체 내용을 검증된 text 모델에 전송한다. 외부라면 원문 전체 전송을 명시하고 작업별 승인을 요구한다. 영상/폰트/ZIP 바이너리는 이 경로로 보내지 않는다. 원문은 비신뢰 데이터로 고정 프롬프트에 감싸고 반환값은 기존 엄격한 출력 검증을 거친다. 실제 외부 키가 텍스트에 포함되면 요청을 차단한다. 모든 기술 헤더 관측은 파일 내용의 완전한 유효성/실행·엔진 호환 증거가 아니다.

@@ -734,3 +734,6 @@ R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 �
 
 ## R08F-05 내부 검증
 `test_animation.py`: 3개 통과(0.104초), 실제 GIF 프레임/시간/loop/미리보기 픽셀·정적 입력/손상/취소·glTF 실제 시간/루트 트랙 검증. `test_multiformat_analysis.py`: 2개 통과(0.477초), loop=0 파일 관측과 AI loopRecommended=false 분리 검증. 타입/Vite 통과(580ms). 2D AI는 mock, 실제 모델/설치본은 R08F-08이며 GUI 미검증.
+
+## R08F-06 내부 검증
+`test_document_formats.py`: 4개 통과(0.007초), 코드 미실행·JSON/CSV·Unity/VFX GUID·ZIP 미압축 해제/위험 경로·실제 SFNT/MP4 헤더 및 손상/한도 거부. `test_multiformat_analysis.py`: 3개 통과(0.616초), 명시 text 모델 경로·원문/파서/AI 제안 분리. Node149개·타입/Vite 통과. 합성 파일과 mock AI 기준이며 실제 영상/폰트 렌더·외부 API·GUI는 미검증/미지원.

@@ -50,3 +50,13 @@ class MultiFormatTests(unittest.TestCase):
         self.assertEqual(result['features']['technical']['loopCount'],0)
         self.assertFalse(result['features']['suggestions']['loopRecommended'])
         self.assertEqual(infer.call_args.args[1]['previewKind'],'contact-sheet')
+
+    def test_text_model_receives_only_explicit_bounded_text_without_code_execution(self):
+        asset=self.register('code.py',b'import os\ndef example():\n    return 42\n')
+        caps=json.loads(self.db.connection.execute('SELECT capabilities_json FROM model_registry WHERE id=?',(self.model,)).fetchone()[0])
+        caps['modalities']=['text'];self.db.connection.execute('UPDATE model_registry SET capabilities_json=? WHERE id=?',(json.dumps(caps),self.model))
+        status,result,infer=self.execute(asset,'text',{'description':'fixture function','tags':['code']})
+        self.assertEqual(status['succeeded'],1)
+        self.assertEqual(result['features']['technical']['declarations'],['example'])
+        self.assertIn('return 42',infer.call_args.args[1]['text'])
+        self.assertNotIn('image',infer.call_args.args[1])

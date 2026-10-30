@@ -35,7 +35,9 @@ def parse(extension, raw, canceled=None):
     elif extension in ('.gif','.png'):
         from .animation import image_animation
         result=image_animation(raw,canceled=canceled)[0]
-    else:raise LibraryError('UNSUPPORTED_FORMAT')
+    else:
+        from .document_formats import inspect_format
+        result=inspect_format(extension,raw)
     if canceled is not None and canceled.is_set():raise LibraryError('USER_CANCELED')
     return {'schema':VERSION,'source':'parser','value':result,'inputFingerprint':hashlib.sha256(raw).hexdigest(),
         'semanticAnalysis':'unsupported','inferenceCalled':False}
@@ -54,6 +56,8 @@ class Technical(AnnotationService):
         asset=params['asset_id'];self.require_asset(asset)
         path,info,raw=read_source(self._database,asset)
         observed=parse(path.suffix.lower(),raw)
+        import json
+        if len(json.dumps(observed,ensure_ascii=False).encode('utf-8'))>16000:raise LibraryError('INPUT_TOO_LARGE')
         file=self.db.execute('SELECT id FROM asset_files WHERE asset_id=?',(asset,)).fetchone()[0]
         self.db.execute('BEGIN IMMEDIATE')
         try:

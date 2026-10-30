@@ -46,6 +46,7 @@ class AnalysisPlan:
         from .model_policy import BudgetPolicy,money
         from .analysis_input import source_info
         from .analysis_contract import contract, digest, input_support
+        from .document_formats import TEXT_EXTENSIONS
         from decimal import Decimal
         targets=self.targets(params)
         input_kind=params.get('input_kind','image');modality='image' if input_kind in ('threeD','animation') else input_kind
@@ -58,15 +59,15 @@ class AnalysisPlan:
         for row in targets:
             extension=Path(row[2]).suffix.lower()
             support=input_support(row[2]);image=support=='supported'
-            candidate=extension in ('.gif','.png') if input_kind=='animation' else extension in ('.obj','.gltf','.glb') if input_kind=='threeD' else image if modality=='image' else extension=='.wav' if modality=='audio' else False
-            if support=='unknown':unknown+=1
+            candidate=extension in TEXT_EXTENSIONS if input_kind=='text' else extension in ('.gif','.png') if input_kind=='animation' else extension in ('.obj','.gltf','.glb') if input_kind=='threeD' else image if modality=='image' else extension=='.wav' if modality=='audio' else False
+            if support=='unknown' and not candidate:unknown+=1
             kind='image' if image else 'audio' if extension in ('.wav','.mp3','.flac','.ogg','.m4a') else 'threeD' if extension in ('.fbx','.obj','.gltf','.glb','.blend') else 'other'
             formats[kind]+=1
             if not candidate:unsupported+=1
             try:
                 path,info=source_info(self.database,row[0]);live.append((row[0],info.st_size,info.st_mtime_ns,'present'))
                 if candidate:
-                    if info.st_size>20_000_000:over_limit+=1
+                    if info.st_size>(4096 if input_kind=='text' else 20_000_000):over_limit+=1
                     else:eligible+=1
             except LibraryError as error:live.append((row[0],None,None,str(error)))
         cost=Decimal('0')

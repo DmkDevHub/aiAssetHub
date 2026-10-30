@@ -57,6 +57,19 @@ def prepare_image(database, identifier, expected):
             'size':info.st_size,'mtimeNs':info.st_mtime_ns,'technical':technical}
 
 
+def prepare_text(database,identifier,expected):
+    import hashlib
+    from .document_formats import TEXT_EXTENSIONS,text_observation
+    path,info,raw=read_source(database,identifier,expected)
+    if path.suffix.lower() not in TEXT_EXTENSIONS:raise LibraryError('UNSUPPORTED_FORMAT')
+    if len(raw)>4096:raise LibraryError('INPUT_TOO_LARGE')
+    try:technical,text=text_observation(path.suffix.lower(),raw)
+    except LibraryError:raise
+    except Exception:raise LibraryError('UNSUPPORTED_FORMAT') from None
+    return {'text':text,'technical':technical,'fingerprint':hashlib.sha256(raw).hexdigest(),
+        'size':info.st_size,'mtimeNs':info.st_mtime_ns}
+
+
 def prepare_animation(database,identifier,expected):
     import hashlib
     from .animation import image_animation
