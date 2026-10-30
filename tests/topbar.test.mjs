@@ -1826,7 +1826,7 @@ test('bulk metadata apply requires a reviewed plan and approval and clears faile
  dispatch([...document.querySelectorAll('.bulk-metadata button')].find(b=>b.textContent==='일괄 변경 검토'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  const apply=[...document.querySelectorAll('.bulk-metadata button')].find(b=>b.textContent==='검토한 일괄 변경 적용');assert.equal(apply.disabled,true);assert.equal(calls.length,1);
  const approval=document.querySelector('.bulk-metadata input[type=checkbox]');approval.checked=true;dispatch(approval,new Event('change',{bubbles:true}));await nextTick();dispatch(apply,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
- assert.equal(calls[1].method,'bulk.apply');assert.equal(calls[1].params.confirmed,true);assert.equal(calls[1].params.plan_token,'fixture-token');assert.equal(document.querySelector('.bulk-metadata ol'),null);assert.match(document.querySelector('.bulk-metadata').textContent,/전체 변경을 취소/);
+ assert.equal(calls[1].method,'bulk.apply');assert.equal(calls[1].params.confirmed,true);assert.equal(calls[1].params.plan_token,'fixture-token');assert.equal(document.querySelector('.bulk-metadata ol'),null);assert.match(document.querySelector('.bulk-metadata').textContent,/다시 검토/);
 });
 
 test('metadata export is explicit, contains selected public fields, and invalidates changed selections',async()=>{
@@ -1846,7 +1846,24 @@ test('metadata import needs explicit review and approval and clears changed or f
  dispatch([...document.querySelectorAll('.metadata-import button')].find(b=>b.textContent==='가져오기 검토'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  const apply=[...document.querySelectorAll('.metadata-import button')].find(b=>b.textContent==='검토한 가져오기 적용');assert.equal(apply.disabled,true);
  const approved=[...document.querySelectorAll('.metadata-import input[type=checkbox]')].at(-1);approved.checked=true;dispatch(approved,new Event('change',{bubbles:true}));await nextTick();dispatch(apply,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
- assert.equal(calls[1].method,'exchange.apply');assert.equal(calls[1].params.confirmed,true);assert.equal(calls[1].params.use_current_versions,false);assert.equal(document.querySelector('.metadata-import ol'),null);assert.match(document.querySelector('.metadata-import').textContent,/전체 변경을 취소/);
+ assert.equal(calls[1].method,'exchange.apply');assert.equal(calls[1].params.confirmed,true);assert.equal(calls[1].params.use_current_versions,false);assert.equal(document.querySelector('.metadata-import ol'),null);assert.match(document.querySelector('.metadata-import').textContent,/다시 검토/);
+});
+
+test('duplicate hashing starts only on explicit action and comparison only reads saved candidates',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push(args);if(args.method==='duplicates.start')return {ok:true,data:{jobId:'actual-fixture-job'}};if(args.method==='duplicates.status')return {ok:true,data:{status:'completed',total:2,processed:2,hashed:2,failed:0,canceled:0,needsRecovery:false,items:[],next_cursor:null}};return {ok:true,data:{items:[{sha256:'fixture-sha',size:8,fileCount:2,files:[{fileId:'actual-file',name:'<img src=x>',logicalAssetIds:['actual-asset'],logicalAssetCount:1}]}],next_cursor:null,next_file_cursor:null,staleCount:1}};}};
+ app=createApp(components.DuplicateCandidates,{assetIds:['actual-asset']});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();assert.equal(calls.length,0);
+ dispatch([...document.querySelectorAll('.duplicate-candidates button')].find(b=>b.textContent==='선택 파일 해시 계산 시작'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls[0].method,'duplicates.start');assert.equal(calls[0].params.confirmed,true);assert.deepEqual(calls[0].params.asset_ids,['actual-asset']);
+ dispatch([...document.querySelectorAll('.duplicate-candidates button')].find(b=>b.textContent==='저장된 해시 후보 비교'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1).method,'duplicates.candidates');assert.equal(calls.filter(c=>c.method==='duplicates.start').length,1);assert.equal(document.querySelector('.duplicate-candidates img'),null);assert.match(document.querySelector('.duplicate-candidates').textContent,/구매 권리의 동일성을 뜻하지/);assert.match(document.querySelector('.duplicate-candidates').textContent,/재확인 필요 1개/);
+});
+
+test('hash job recovery lists stored jobs without starting computation and cancels orphans explicitly',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push(args);if(args.method==='duplicates.list')return {ok:true,data:{items:[{id:'orphan',status:'running',total:1}]}};if(args.method==='duplicates.cancel')return {ok:true,data:{cancelRequested:true}};return {ok:true,data:{status:calls.some(c=>c.method==='duplicates.cancel')?'canceled':'running',total:1,processed:0,hashed:0,failed:0,canceled:0,needsRecovery:true,items:[],next_cursor:null}};}};
+ app=createApp(components.DuplicateCandidates,{assetIds:[]});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();
+ dispatch([...document.querySelectorAll('.duplicate-candidates button')].find(b=>b.textContent==='저장된 해시 작업 조회'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ dispatch([...document.querySelectorAll('.duplicate-candidates button')].find(b=>b.textContent.includes('orphan')),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ dispatch([...document.querySelectorAll('.duplicate-candidates button')].find(b=>b.textContent==='중단 해시 작업 정리'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.ok(calls.some(c=>c.method==='duplicates.cancel'));assert.ok(!calls.some(c=>c.method==='duplicates.start'));
 });
 
 test('AI classification review requires preview and explicit approval and rejects stale apply',async()=>{

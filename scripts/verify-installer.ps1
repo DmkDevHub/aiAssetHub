@@ -1,4 +1,4 @@
-param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat)
+param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat, [switch]$BulkMetadata)
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskNsis = Join-Path $taskRoot 'src-tauri/target/release/nsis/x64'
@@ -70,6 +70,11 @@ if ($Multiformat) {
     $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
     & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-multiformat.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m08f-installed-multiformat.json')
     if ($LASTEXITCODE -ne 0) { throw 'Installed multiformat verification failed.' }
+}
+if ($BulkMetadata) {
+    $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-bulk-metadata.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m08g-installed-metadata.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed bulk metadata verification failed.' }
 }
 # Retain test reports/data; uninstall only the isolated verification payload.
 $taskUninstaller = Join-Path $taskInstallDir 'uninstall.exe'

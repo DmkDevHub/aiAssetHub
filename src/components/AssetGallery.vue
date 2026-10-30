@@ -9,6 +9,7 @@ import ManualAnalysis from './ManualAnalysis.vue';
 import BulkMetadata from './BulkMetadata.vue';
 import MetadataExchange from './MetadataExchange.vue';
 import MetadataImport from './MetadataImport.vue';
+import DuplicateCandidates from './DuplicateCandidates.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, toRef, watch } from 'vue';
 import {catalogFilters} from '../stores/catalogFilters';
@@ -66,7 +67,7 @@ function moveAssetFocus(event: KeyboardEvent) {
 
 <template>
   <section class="page asset-gallery" aria-labelledby="library-title">
-    <MetadataImport /><ManualAnalysis :selected-ids="[...selection]" :folder-id="libraryUi.selectedFolderId" />
+    <DuplicateCandidates :asset-ids="[...selection]" /><MetadataImport /><ManualAnalysis :selected-ids="[...selection]" :folder-id="libraryUi.selectedFolderId" />
     <EmbeddingTools :selected="items.filter(i=>selection.has(i.id) && i.activeResultId).map(i=>({asset_id:i.id,result_id:i.activeResultId!}))" />
     <slot name="filters" />
     <header class="gallery-header">

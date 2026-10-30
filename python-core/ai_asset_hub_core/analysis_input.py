@@ -4,26 +4,32 @@ import stat
 from .libraries import LibraryError
 
 
+def validate_source_handle(database,identifier,source):
+    import os
+    opened=os.fstat(source.fileno())
+    if os.name=='nt':
+        import ctypes
+        import msvcrt
+        from ctypes import wintypes
+        function=ctypes.WinDLL('kernel32',use_last_error=True).GetFinalPathNameByHandleW
+        function.argtypes=[wintypes.HANDLE,wintypes.LPWSTR,wintypes.DWORD,wintypes.DWORD];function.restype=wintypes.DWORD
+        buffer=ctypes.create_unicode_buffer(32768)
+        length=function(msvcrt.get_osfhandle(source.fileno()),buffer,len(buffer),0)
+        if not 0<length<len(buffer):raise LibraryError('FILE_UNAVAILABLE')
+        actual=buffer.value
+        if actual.startswith('\\\\?\\'):actual=actual[4:]
+        root=database.connection.execute('SELECT l.absolute_path FROM assets a JOIN library_roots l ON l.id=a.library_root_id WHERE a.id=? AND l.enabled=1',(identifier,)).fetchone()
+        if not root or not Path(actual).is_relative_to(Path(root[0])):raise LibraryError('FILE_UNAVAILABLE')
+    return opened
+
+
 def read_source(database, identifier, expected=None):
     import os
     path,info=source_info(database,identifier)
     if info.st_size>20_000_000:raise LibraryError('INPUT_TOO_LARGE')
     if expected is not None and (expected.get('size')!=info.st_size or expected.get('mtimeNs')!=info.st_mtime_ns):raise LibraryError('FILE_CHANGED')
     with open(path,'rb') as source:
-        opened=os.fstat(source.fileno())
-        if os.name=='nt':
-            import ctypes
-            import msvcrt
-            from ctypes import wintypes
-            function=ctypes.WinDLL('kernel32',use_last_error=True).GetFinalPathNameByHandleW
-            function.argtypes=[wintypes.HANDLE,wintypes.LPWSTR,wintypes.DWORD,wintypes.DWORD];function.restype=wintypes.DWORD
-            buffer=ctypes.create_unicode_buffer(32768)
-            length=function(msvcrt.get_osfhandle(source.fileno()),buffer,len(buffer),0)
-            if not 0<length<len(buffer):raise LibraryError('FILE_UNAVAILABLE')
-            actual=buffer.value
-            if actual.startswith('\\\\?\\'):actual=actual[4:]
-            root=database.connection.execute('SELECT l.absolute_path FROM assets a JOIN library_roots l ON l.id=a.library_root_id WHERE a.id=? AND l.enabled=1',(identifier,)).fetchone()
-            if not root or not Path(actual).is_relative_to(Path(root[0])):raise LibraryError('FILE_UNAVAILABLE')
+        opened=validate_source_handle(database,identifier,source)
         if (opened.st_size,opened.st_mtime_ns)!=(info.st_size,info.st_mtime_ns):raise LibraryError('FILE_CHANGED')
         raw=source.read(20_000_001)
         after=os.fstat(source.fileno())
@@ -101,9 +107,9 @@ def prepare_audio(database,identifier,expected):
         'size':info.st_size,'mtimeNs':info.st_mtime_ns,'technical':technical}
 
 
-def source_info(database, identifier):
+def source_info(database, identifier, file_id=None):
     row=database.connection.execute('''SELECT f.absolute_path,l.absolute_path FROM asset_files f JOIN assets a ON a.id=f.asset_id
-        JOIN library_roots l ON l.id=a.library_root_id WHERE a.id=? AND l.enabled=1''',(identifier,)).fetchone()
+        JOIN library_roots l ON l.id=a.library_root_id WHERE a.id=? AND l.enabled=1'''+(' AND f.id=?' if file_id is not None else ''),(identifier,file_id) if file_id is not None else (identifier,)).fetchone()
     if not row:raise LibraryError('FILE_UNAVAILABLE')
     path,root=map(Path,row)
     try:

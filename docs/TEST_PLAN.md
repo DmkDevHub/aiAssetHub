@@ -789,3 +789,26 @@ unittest test_bulk_metadata.py 3개(0.269초)·node --test 152개(6.309초)·npm
 버전형 공개 문서의8개 필드·실제 에셋/관계/출처 소유자·버전·크기·중복키·관계 순환을 검증한다. 전후 값 검토/페이지 확인/명시 승인 후 전체 원자 적용하며 현재 값 기준 재검토는 별도 선택이다. 출처 공개 값 수정 시 기존 비공개 구매/URL을 보존하고 폴더 등록/AI/URL 접속을 하지 않는다.
 
 전체 Core244개(27.773초)·가져오기6개·Node155개(5.801초)·타입/Vite(415ms) 통과. JSON/CSV8종 필드 무변경 왕복·허위ID/스키마/한도·중간 실패 롤백·출처 개인정보 보존·가상 DOM 승인/충돌 검증. 새 빈 status가 기존 분석 상태 조회 테스트를 가린 문제를 조건부 렌더로 수정했다. OS 파일 선택/시각 배치는 미검증.
+
+## R08G-05 — 명시 스트리밍 해시·동일 내용 후보 및 M08G 검증
+선택한 실제 구성 파일의 명시 SHA-256 작업·실측 상태/취소·변경/권한/크기/핸들 경계·파일 정체성·중단 복구를 구현했다. 저장 해시 후보는 실제 파일/논리 ID와 권리 동일성 미확인을 표시하며 자동 병합/삭제를 제공하지 않는다. 최종 설치/Core/MCP/교환/해시/재시작 보존 검증과 계약 문서를 추가했다.
+
+전체 Core251개(27.491초)·Node157개(7.184초)·Rust16개(동봉 포함6.10초), 타입/Vite·fmt/Clippy·NSIS·격리 무화면 설치/MCP 최신·레거시/일괄·JSON/CSV·해시·재시작·제거 통과. 모델/임베딩/외부 호출0·원본 SHA256 불변. 교환20개/6000바이트, 일괄/해시100개·파일당1GiB. 실제 OS 파일 UI/시각 배치·대량 성능은 미검증.
+
+## M08G 최종 재현 명령·실측 (2026-10-30)
+
+- `node --test`: **157/157**, 7.184초. 가상 DOM에서 일괄 선택·검토/페이지·승인/충돌·선택 변경 무효, public export 문자 이스케이프·import 승인/실패, 명시 해시/읽기 후보·중단 작업 명시 정리를 검증했다.
+- `$env:AI_ASSET_HUB_PYTHON='C:\Program Files\Python313\python.exe'; node scripts/run-python-checks.mjs`: **251/251**, 27.491초. 새 일괄6·교환3·가져오기6·중복7개와 기존229개 회귀. SQLite 전후 dump/변경량0 검토, 중첩 쓰기 뒤 전체 rollback/이력, 실제 참조/owner/사전/버전/순환, JSON/CSV8종 roundtrip/수식 셀, 실제 해시·권한/한도/취소·읽는 중 수정/같은 크기/mtime 파일 교체·완료/취소 경합·재시작 정리를 포함한다.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings`: 통과(Clippy2.58초). `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1`: **16/16**, 6.10초. 기반 CPython/PYTHONPATH·AI_ASSET_HUB_SIDECAR_DIR를 고정해 동봉 Core 검사도 포함했다. 합계 **424개**다.
+- `npm.cmd run build:installer`: 타입/Vite·4개 신규 계약/트랜잭션/해시 모듈 TOC 동봉 검사·Rust release(37.60초)·NSIS 통과. PIP_NO_INDEX=1로 고정된 기존 의존성을 사용했다. 최종 설치본 25022794바이트(23.86MiB). 새 런타임/모델/의존성·마이그레이션 없음.
+- `scripts/verify-installer.ps1 -Mcp -BulkMetadata`: 새 .artifacts 디렉터리/별도 제품 ID로 **무인 설치 → 실제 Tauri 무화면 Core/DB/PID → 공식 SDK5개 MCP 도구/최신2026-07-28·레거시2025-11-25/개인정보 기본 제외 → 새 business 경로 → 무인 제거 통과**. 사용자 설치 등록은 보존했다.
+- 설치 business 경로: 실제 에셋2개·5종 일괄 검토/승인·8종 JSON/CSV·명시 import/기존 비공개 출처 보존·stale import 거부·실제 스트리밍 해시2파일/후보1그룹·재시작 동일 값/후보 보존. 모의 AI 공급자를 사용하지 않았고 모델/임베딩/외부 호출은0이다. 실제 raw fixture 파일의 해시와 sourceUnchanged=true를 확인했다. 분석 Job/임베딩 상태 불변이며 원본/사용자 DB는 사용하지 않았다.
+
+초기 교환 CSV fixture의 expected_revision 누락은 기존 편집 계약에 맞게 수정했다. 새 빈 import status 문구가 기존 분석 상태 테스트를 가린 실패는 message가 있을 때만 렌더하도록 수정 후 전체 Node 통과했다. Source 계정/구매를 공개 값과 섞지 않으며 일반 감사에는 ID/필드/개수만 기록한다. 통신 실패 후 이미 commit됐을 가능성은 무조건 rollback됐다고 표시하지 않고 최신 값 재검토를 안내한다. 해시 완료와 취소가 겹치는 경합은 최신 저장 상태를 쓰기 잠금 안에서 재확인하도록 보강하고 실제 성공 기록을 덮어쓰지 않는 회귀를 추가했다. 초기 실패/중간 결과는 이 본문에 기록했고 아래 로그는 최종 재실행 결과다.
+
+미검증/제한: OS 파일 선택·저장/다운로드·시각 배치·대규모 성능/1GiB 실제 파일 장시간 처리·다른 파일시스템·기존 설치 업그레이드·정식 서명. 모든 시각 검증은 미실행이며 Computer Use/실제 화면 조작 없음. 교환은 앱의 public metadata-exchange.v1/문서6000 UTF-8바이트·20에셋, 일괄/해시는100개/해시파일1GiB 한도다. 임의 flat CSV/개인정보 교환/자동 폴더 등록·병합/삭제는 제공하지 않는다. 같은 inode의 내용 변경 후 크기/mtime을 원복하는 경우 캐시 조회만으로 내용 변경을 확정하지 않으며 사용자가 명시 재해시한다. NSIS 격리 검증 컴파일의 기존 Korean choowHowToInstall LangString6040 경고1개는 남지만 무인 검사는 통과했고 해당 화면은 미검증이다.
+
+Git 제외 재현 로그/보고: `.artifacts/m08g-node.log`, `m08g-python.log`, `m08g-rust.log`, `m08g-clippy.log`, `m08g-installer-build.log`, `m08g-installed-verification.log`, `m08g-installed-metadata.json`, `m08-installed-host.json`. 최종 원격 push 없음.
+
+- 최종 NSIS SHA-256: `9f00ee8e4a980c794c13ffbc5bb5bdb5191ba6141250a4959aef4b85680a9ed6`
+- 최종 동봉/설치 Sidecar SHA-256: `a0604e5b0e46e28ea8db90272a464c84966c61f79bd71be1e6f38503f8ee44ed`

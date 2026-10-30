@@ -21,14 +21,14 @@ function request(){let change:unknown;
  else change={append:[{site:site.value,productName:product.value}]};
  return {asset_ids:[...props.assetIds],changes:{[field.value]:change}};
 }
-async function review(more=false){if(busy.value||!props.assetIds.length||props.assetIds.length>100)return;const token=generation;busy.value=true;message.value='';try{
+async function review(more=false){if(busy.value||!props.assetIds.length||props.assetIds.length>100)return;const token=generation;busy.value=true;approved.value=false;message.value='';try{
  const result=await metadata<Preview>('bulk.preview',{request:request(),after_id:more?preview.value?.next_cursor:null,plan_token:more?preview.value?.planToken:null});if(token!==generation)return;
  preview.value=result;rows.value=more?[...rows.value,...result.items]:result.items;
  }catch{if(token===generation){preview.value=undefined;rows.value=[];message.value='검토 실패: 대상·참조·필드 제한 또는 버전 변경을 확인하세요.';}}finally{busy.value=false;}}
 async function apply(){if(busy.value||!approved.value||!preview.value||preview.value.next_cursor||preview.value.conflictCount)return;const token=generation;busy.value=true;try{
  const result=await metadata<{updated:number;unchanged:number}>('bulk.apply',{request:request(),plan_token:preview.value.planToken,confirmed:true});if(token!==generation)return;
  preview.value=undefined;approved.value=false;rows.value=[];message.value=`${result.updated}개 저장 · ${result.unchanged}개 변경 없음`;collectionsChanged();await refreshAssets();
- }catch{if(token===generation){preview.value=undefined;approved.value=false;message.value='적용 실패: 전체 변경을 취소했습니다. 최신 값으로 다시 검토하세요.';}}finally{busy.value=false;}}
+ }catch{if(token===generation){preview.value=undefined;approved.value=false;message.value='적용 결과를 확인하지 못했습니다. 서버는 전체 원자 처리합니다. 최신 값으로 다시 검토하세요.';}}finally{busy.value=false;}}
 </script>
 <template><details class="bulk-metadata"><summary>선택 에셋 일괄 메타데이터</summary><p>최대100개를 검토합니다. 원본 파일과 AI 결과는 변경하지 않습니다.</p>
  <label>변경 항목<select v-model="field" :disabled="busy"><option value="tags">사용자 태그</option><option value="groups">그룹 소속</option><option value="classification">대표 분류</option><option value="creators">제작 주체</option><option value="sources">공개 출처 추가</option></select></label>

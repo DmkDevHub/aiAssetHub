@@ -73,3 +73,5 @@ export {default as BulkMetadata} from '../../src/components/BulkMetadata.vue';
 export {default as MetadataExchange} from '../../src/components/MetadataExchange.vue';
 
 export {default as MetadataImport} from '../../src/components/MetadataImport.vue';
+
+export {default as DuplicateCandidates} from '../../src/components/DuplicateCandidates.vue';

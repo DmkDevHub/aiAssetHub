@@ -130,6 +130,8 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'HASH_BUSY': '대기/실행 중인 해시 작업을 먼저 끝내거나 취소하세요.',
+    'HASH_NOT_FOUND': '저장된 해시 작업을 찾을 수 없습니다.',
     'BULK_LIMIT': '일괄 작업 크기 또는 응답 한도를 초과했습니다. 대상·필드를 줄이세요.',
     'CATALOG_LIMIT': '조회 한도를 초과했습니다. 폴더나 필터 범위를 줄이세요.',
     'METADATA_CONFLICT': '다른 변경이 저장되었습니다. 정보를 다시 불러온 후 저장하세요.',

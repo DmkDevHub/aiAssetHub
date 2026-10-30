@@ -37,7 +37,7 @@ class BulkTests(unittest.TestCase):
         with self.assertRaisesRegex(LibraryError,'METADATA_CONFLICT'):service.preview({'request':request,'after_id':None,'plan_token':first['planToken']})
 
     def test_invalid_fields_missing_ids_disabled_creators_and_limits_fail_closed(self):
-        for request in ({'asset_ids':[],'changes':{'tags':{'set':[]}}},self.request({'unknown':{}}),self.request({'groups':{'set':['fake']}}),self.request({'classification':{'primary':'A99'}}),self.request({'sources':{'append':[{'site':'s','productName':'p','downloadUrl':'https://no-fetch.invalid'}]}})):
+        for request in ({'asset_ids':[],'changes':{'tags':{'set':[]}}},self.request({'unknown':{}}),self.request({'groups':{'set':['fake']}}),self.request({'classification':{'primary':'A99'}}),self.request({'classification':{'type_version':[]}}),self.request({'sources':{'append':[{'site':'s','productName':'p','downloadUrl':'https://no-fetch.invalid'}]}})):
             with self.subTest(request=request),self.assertRaises(LibraryError):self.preview(request)
 
     def test_approved_apply_is_atomic_records_history_and_stale_replay_cannot_apply(self):

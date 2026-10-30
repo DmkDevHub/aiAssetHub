@@ -130,6 +130,7 @@ class BulkMetadata(Catalog):
         elif field=='classification':
             if not isinstance(change,dict) or not change or set(change)-{'primary','navigation','facets','type_version','facet_version'}:raise LibraryError('INVALID_PARAMS')
             after=copy.deepcopy(before);after.update(change)
+            if any(not isinstance(after[k],str) or not 1<=len(after[k])<=128 for k in ('type_version','facet_version')):raise LibraryError('INVALID_PARAMS')
             try:
                 types=self.metadata.dictionary(after['type_version'],'type');facets=self.metadata.dictionary(after['facet_version'],'facet')
                 assigned=types.assignment(after['primary'],after['navigation'],version=types.version)

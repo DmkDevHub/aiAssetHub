@@ -15,6 +15,11 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
                 | "exchange.export"
                 | "exchange.preview"
                 | "exchange.apply"
+                | "duplicates.list"
+                | "duplicates.start"
+                | "duplicates.status"
+                | "duplicates.cancel"
+                | "duplicates.candidates"
                 | "bulk.preview"
                 | "bulk.apply"
                 | "analysis.review"
@@ -67,6 +72,9 @@ fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
         "catalog.classification.save",
         "asset.technical.collect",
         "analysis.review.apply",
+        "bulk.apply",
+        "exchange.apply",
+        "duplicates.start",
         "source.get",
     ] {
         assert!(metadata_allowed("main", method));

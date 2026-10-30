@@ -281,3 +281,6 @@ catalog.query 커서는 query/정규화 조건/sort 해시·DB 변경 stamp·마
 - `embedding.status.staleCount`: 현재 프로필의 저장 벡터 중 현재 공개 문서 지문/유효성에 맞지 않는 개수. 자동 생성/재구축/삭제를 하지 않는다.
 
 새 기술/확정 명령은 데스크톱 main 창의 고정 IPC 허용 목록에만 추가하며 MCP 도구/쓰기 권한을 확장하지 않는다. 지원 행렬과 payload 경계는 [ANALYSIS_SUPPORT](ANALYSIS_SUPPORT.md)를 따른다.
+
+## M08G — 일괄·교환·해시
+`bulk.preview/apply`, `exchange.export/preview/apply`, `duplicates.start/list/status/cancel/candidates`는 main 창 metadata_request와 Core 고정 허용 목록에만 추가했다. 요청 키·버전/토큰·페이지/상한·원자성·개인정보·중단 복구는 [BATCH_METADATA](BATCH_METADATA.md)를 따른다. 모델/임베딩/원본 쓰기·경로 등록·외부 URL 접속을 호출하지 않고 MCP 권한은 확장하지 않는다.

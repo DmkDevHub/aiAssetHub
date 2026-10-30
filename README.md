@@ -43,6 +43,7 @@
 | [DATABASE.md](docs/DATABASE.md) | SQLite 스키마 초안과 데이터 이력 |
 | [AI_ANALYSIS.md](docs/AI_ANALYSIS.md) | 수동 분석 범위·상태·잡 처리 |
 | [ANALYSIS_SUPPORT.md](docs/ANALYSIS_SUPPORT.md) | M08F 형식별 파서/AI 지원·전송·확정·미검증 경계 |
+| [BATCH_METADATA.md](docs/BATCH_METADATA.md) | M08G 일괄 검토/원자 적용·공개 JSON/CSV·명시 중복 해시 |
 | [MODEL_MANAGEMENT.md](docs/MODEL_MANAGEMENT.md) | 로컬·외부 모델 및 비용 정책 |
 | [SEARCH.md](docs/SEARCH.md) | 검색·임베딩·결과 랭킹 |
 | [API_CONTRACTS.md](docs/API_CONTRACTS.md) | 앱·엔진 내부 계약 초안 |
@@ -99,3 +100,5 @@ AI-Asset-Hub/
 M08A의 버전형 분류·메타데이터 저장 기반과 SQLite v4 마이그레이션은 구현·검증 완료했다. M08B 기본 메타데이터·관계 관리와 M08C 그룹·패키지/상속 UI도 구현했다. M08D 제작/출처/권리 Core와 M08E 독립 탐색·7개 상세/사전 편집·공개 FTS·복합 필터/정렬도 완료했다. 현재 DB v13이며 내부368개 및 격리 무화면 설치/Core/MCP 검증을 통과했다. 실제 GUI·대규모 성능은 미검증이다. [저장 계약](docs/METADATA_SCHEMA.md)을 참고한다.
 
 M08F: [형식별 지원 계약](docs/ANALYSIS_SUPPORT.md) 기준으로 명시 기술 추출·이미지/와이어프레임/프레임 시트/텍스트/외부 WAV 입력·구조화 제안/확정을 구현했다. 내부396개 검사와 무화면 설치/재시작 검증을 통과했다. 새 형식의 설치 AI 통신 검증은 모의 공급자이며 실제 모델 품질·외부 오디오·유료 호출·시각 배치는 미검증이다.
+
+M08G: [일괄·교환·중복 계약](docs/BATCH_METADATA.md) 기준 전후 검토/원자 적용·공개 JSON/CSV·명시 해시 후보를 구현했다. 내부424개 검사와 무화면 설치/Core/MCP/교환/해시/재시작/제거 검증을 통과했다. 실제 OS 파일 UI·시각·대규모 성능은 미검증이며 원본과 사용자 DB는 보존했다.
