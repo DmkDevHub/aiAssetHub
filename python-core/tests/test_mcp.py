@@ -32,6 +32,7 @@ class McpTests(unittest.TestCase):
         from mcp import Client
         from mcp.client.stdio import StdioServerParameters
         library,identifier=self.add_asset()
+        group,package,creator=self.add_metadata(identifier)
         async def host():
             packages=ROOT/'.artifacts/core-build-venv/Lib/site-packages'
             bootstrap='import site,runpy;site.addsitedir('+repr(str(packages))+');runpy.run_module("ai_asset_hub_core",run_name="__main__")'
@@ -50,6 +51,15 @@ class McpTests(unittest.TestCase):
                 self.assertIsNone(detail.structured_content['activeResult'])
                 files=await client.call_tool('get_asset_files',{'asset_id':identifier});self.assertEqual(files.structured_content['files'][0]['availability'],'present')
                 status=await client.call_tool('get_analysis_status',{'asset_ids':[identifier]});self.assertFalse(status.structured_content['items'][0]['hasActiveResult'])
+                for tool,args in (('list_libraries',{}),('search_assets',{'query':'나무'}),('get_asset',{'asset_id':identifier}),('get_asset_files',{'asset_id':identifier}),('get_analysis_status',{'asset_ids':[identifier]})):
+                    legacy=await client.call_tool(tool,args)
+                    explicit=await client.call_tool(tool,{**args,'schema_version':1})
+                    self.assertEqual(legacy.structured_content,explicit.structured_content)
+                    modern=await client.call_tool(tool,{**args,'schema_version':2})
+                    self.assertFalse(modern.is_error,modern.content);self.assertEqual(modern.structured_content['schemaVersion'],2)
+                    invalid=await client.call_tool(tool,{**args,'schema_version':True});self.assertTrue(invalid.is_error)
+                modern=await client.call_tool('search_assets',{'query':'공개제작사','schema_version':2,'filters':{'types':['A01'],'group_ids':[group],'package_ids':[package],'creator_ids':[creator],'creator_roles':['producer']}})
+                self.assertFalse(modern.is_error,modern.content);self.assertEqual(modern.structured_content['items'][0]['id'],identifier)
                 self.broker.close()
                 unavailable=await client.call_tool('list_libraries',{})
                 self.assertTrue(unavailable.is_error);self.assertIn('APP_NOT_RUNNING',str(unavailable.content))
@@ -63,6 +73,88 @@ class McpTests(unittest.TestCase):
         AssetService(self.runtime.database).scan({'library_id':library})
         identifier=self.runtime.database.connection.execute('SELECT asset_id FROM asset_files WHERE relative_path=?',(name,)).fetchone()[0]
         return library,identifier
+
+    def add_metadata(self,identifier):
+        from ai_asset_hub_core.catalog import Catalog
+        from ai_asset_hub_core.packages import Packages
+        from ai_asset_hub_core.creators import Creators
+        from ai_asset_hub_core.provenance import Provenance
+        from ai_asset_hub_core.metadata_store import MetadataStore
+        service=Catalog(self.db)
+        group=service.group_create({'value':{'name':'공개그룹','description':'PRIVATE-GROUP'}})['id']
+        service.group_assign(dict(asset_id=identifier,group_ids=[group],expected_revision=0))
+        package=Packages(self.db).package_create({'value':dict(name='공개패키지',description='PRIVATE-PACKAGE',unit='purchase',version='',purchase=dict(amount='123.45',currency='USD',date='2026-10-30'))})['id']
+        Packages(self.db).package_assign(dict(asset_id=identifier,package_ids=[package],expected_revision=0))
+        creator=Creators(self.db).create({'value':dict(name='공개제작사',kind='company',brand='',homepageUrl='https://example.com/PRIVATE-URL',profileUrl='',contact='PRIVATE-CONTACT',country='',description='PRIVATE-CREATOR')})['id']
+        Provenance(self.db).save_links(dict(subject={'kind':'package','id':package},links=[dict(creator_id=creator,role='producer')],expected_revision=0))
+        MetadataStore(self.db).classify(identifier,primary='A01.01',facets={'style':['style.pixel']},expected_revision=0,confirmed=True)
+        return group,package,creator
+
+    def test_v2_public_projection_combined_filters_and_legacy_contract(self):
+        from uuid import uuid4
+        _,identifier=self.add_asset();self.add_asset('other.txt');group,package,creator=self.add_metadata(identifier)
+        filters={'types':['A01'],'group_ids':[group],'package_ids':[package],'creator_ids':[creator],'creator_roles':['producer']}
+        with patch('ai_asset_hub_core.inference.infer',side_effect=AssertionError('no inference')),patch('ai_asset_hub_core.embeddings.embed',side_effect=AssertionError('no embedding')):
+            result=self.client.call('search_assets',{'query':'공개제작사','schema_version':2,'filters':filters})
+            self.assertEqual([r['id'] for r in result['items']],[identifier])
+            metadata=result['items'][0]['metadata']
+            self.assertEqual(metadata['groups'][0]['id'],group);self.assertEqual(metadata['packages'][0]['id'],package)
+            self.assertEqual(metadata['creators'][0]['id'],creator);self.assertEqual(metadata['creators'][0]['subjectId'],package)
+            self.assertEqual(metadata['classification']['value']['primary'],'A01.01')
+            detail=self.client.call('get_asset',{'asset_id':identifier,'schema_version':2});self.assertEqual(detail['metadata'],metadata)
+            legacy=self.client.call('get_asset',{'asset_id':identifier});self.assertNotIn('metadata',legacy);self.assertNotIn('schemaVersion',legacy)
+            for changed in ({'types':['A02']},{'creator_roles':['creator']},{'group_ids':[str(uuid4())]},{'package_ids':[str(uuid4())]},{'creator_ids':[str(uuid4())]},{'include_descendants':False}):
+                self.assertEqual(self.client.call('search_assets',{'query':'','schema_version':2,'filters':{**filters,**changed}})['items'],[])
+        import json
+        raw=json.dumps(detail,ensure_ascii=False)
+        for private in ('PRIVATE-','123.45','purchase','contact','homepageUrl'):self.assertNotIn(private,raw)
+        for table in ('analysis_jobs','asset_embeddings'):self.assertEqual(self.db.connection.execute('SELECT count(*) FROM '+table).fetchone()[0],0)
+        self.assertEqual((self.root/'source/숲 나무.png').read_bytes(),b'test-owned')
+
+    def test_versions_and_new_filter_validation_fail_closed_for_all_tools(self):
+        _,identifier=self.add_asset()
+        for tool,args in (('list_libraries',{}),('search_assets',{'query':''}),('get_asset',{'asset_id':identifier}),('get_asset_files',{'asset_id':identifier}),('get_analysis_status',{'asset_ids':[identifier]})):
+            legacy=self.client.call(tool,args)
+            self.assertEqual(legacy,self.client.call(tool,{**args,'schema_version':1}))
+            modern=self.client.call(tool,{**args,'schema_version':2});self.assertEqual(modern['schemaVersion'],2)
+            for version in (True,False,0,3,'2',None,2.0):
+                with self.subTest(tool=tool,version=version),self.assertRaisesRegex(BrokerError,'INVALID_PARAMS'):
+                    self.client.call(tool,{**args,'schema_version':version})
+        for filters in ({'creator_ids':['fake']},{'group_ids':['fake']},{'package_ids':['fake']},{'types':'A01'},{'creator_roles':['owner']},{'include_descendants':1},{'private':True},{'types':['A01']*17}):
+            with self.subTest(filters=filters),self.assertRaisesRegex(BrokerError,'INVALID_PARAMS'):
+                self.client.call('search_assets',{'query':'','schema_version':2,'filters':filters})
+        with self.assertRaisesRegex(BrokerError,'INVALID_PARAMS'):self.client.call('search_assets',{'query':'','filters':{'types':['A01']}})
+
+    def test_v2_filters_apply_before_pagination_and_preserve_unknown_metadata(self):
+        _,identifier=self.add_asset();_,second=self.add_asset('second.png');self.add_asset('third.txt')
+        for asset in (identifier,second):self.add_metadata(asset)
+        request={'query':'','schema_version':2,'filters':{'types':['A01','A02']},'limit':1}
+        first=self.client.call('search_assets',request);last=self.client.call('search_assets',{**request,'after_id':first['next_cursor']})
+        self.assertEqual({first['items'][0]['id'],last['items'][0]['id']},{identifier,second});self.assertIsNone(last['next_cursor'])
+        unknown=self.client.call('search_assets',{'query':'','schema_version':2,'filters':{'types':['__unknown__']}})['items']
+        self.assertEqual(len(unknown),1);self.assertIsNone(unknown[0]['metadata']['classification']['value']['primary'])
+        self.assertEqual(unknown[0]['metadata']['creators'],[])
+
+    def test_v2_reference_updates_and_queries_do_not_mutate_catalog(self):
+        from ai_asset_hub_core.catalog import Catalog
+        from ai_asset_hub_core.creators import Creators
+        from ai_asset_hub_core.packages import Packages
+        from ai_asset_hub_core.mcp_queries import McpQueries
+        _,identifier=self.add_asset();group,package,creator=self.add_metadata(identifier)
+        service=Catalog(self.db);parent=service.group_create({'value':{'name':'상위그룹','description':''}})['id']
+        service.group_move(dict(group_id=group,parent_id=parent,expected_revision=1))
+        request={'query':'','schema_version':2,'filters':{'group_ids':[parent]}}
+        self.assertEqual(self.client.call('search_assets',request)['items'][0]['id'],identifier)
+        self.assertEqual(self.client.call('search_assets',{**request,'filters':{'group_ids':[parent],'include_descendants':False}})['items'],[])
+        Creators(self.db).set_enabled(dict(creator_id=creator,enabled=False,expected_revision=1))
+        detail=self.client.call('get_asset',{'asset_id':identifier,'schema_version':2})
+        self.assertFalse(detail['metadata']['creators'][0]['enabled'])
+        self.assertEqual(detail['metadata']['groups'][0]['parentId'],parent)
+        Packages(self.db).package_delete(dict(package_id=package,expected_revision=1))
+        before='\n'.join(self.db.connection.iterdump());count=self.db.connection.total_changes
+        detail=McpQueries(self.db).dispatch('get_asset',{'asset_id':identifier,'schema_version':2})
+        self.assertEqual(detail['metadata']['packages'],[]);self.assertEqual(detail['metadata']['creators'],[])
+        self.assertEqual('\n'.join(self.db.connection.iterdump()),before);self.assertEqual(self.db.connection.total_changes,count)
 
     def test_offline_search_returns_actual_ids_filters_and_no_model_jobs(self):
         library,identifier=self.add_asset();self.add_asset('other.txt')

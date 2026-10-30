@@ -812,3 +812,15 @@ Git 제외 재현 로그/보고: `.artifacts/m08g-node.log`, `m08g-python.log`, 
 
 - 최종 NSIS SHA-256: `9f00ee8e4a980c794c13ffbc5bb5bdb5191ba6141250a4959aef4b85680a9ed6`
 - 최종 동봉/설치 Sidecar SHA-256: `a0604e5b0e46e28ea8db90272a464c84966c61f79bd71be1e6f38503f8ee44ed`
+
+## R08H-01 — MCP 버전 호환·공개 메타데이터 (2026-10-30)
+
+- `python-core`에서 `../.artifacts/core-build-venv/Scripts/python.exe -B -m unittest discover -s tests -p test_mcp.py -v`: **19/19**, 8.995초. 실제 임시 SQLite/등록 파일·localhost 인증 Broker·공식 SDK 별도 stdio Bridge Host를 사용했다. 실제 사용자 DB/원본·외부 모델/제품 Host는 사용하지 않았다.
+- `$env:AI_ASSET_HUB_PYTHON='C:\Program Files\Python313\python.exe'; node scripts/run-python-checks.mjs`: 최종 **255/255**, 30.437초. 로그 `.artifacts/r08h01-core.log`. 중간 254개 전체 통과 후 참조 변경/카탈로그 무변경 검사 1개를 보강하고 최종 전체 재실행했다.
+- `node --test`: **157/157**, 6.233초. 로그 `.artifacts/r08h01-node.log`. `npm.cmd run build`: 타입 검사·Vite 통과(452ms). 저장소의 `.artifacts/tools/node-v24.22.2-win-x64`를 PATH에 사용했다. `git diff --check` 통과.
+
+모든 5도구에서 기본 호출과 명시 버전1 응답 동일성·버전2 표식·잘못된 버전 거부를 검증했다. 공식 SDK Host에서 5도구의 기존 인자/확장 버전과 제작사 키워드+분류/그룹/패키지/제작 ID/역할 조합을 확인했다. 같은 축 OR·축간 AND·하위 분류/그룹·필터 선적용 페이지·미확인·없는 UUID·부적합 형식/배열 한도·직접/패키지 참조 출처·비활성 주체/패키지 삭제 반영을 확인했다. 상세/검색 확장 투영의 비공개 값 제외·직접 조회 전후 SQLite dump/변경량 동일·원본 fixture 바이트/AI Job/임베딩 보존을 검증했다. 기존 인증/권한·감사 레드랙션·응답 상한·Core 종료·리파스 경계 회귀도 통과했다. Broker 요청 감사는 기존 허용된 쓰기다.
+
+초기 루트 cwd의 직접 unittest 호출은 모듈 경로 누락으로 실패해 `python-core` cwd로 교정했다. 제한된 샌드박스에서는 기존 `_health` 연결도 `CORE_UNAVAILABLE`였고 stdio 검사가 대기해 중단했다. 승인된 샌드박스 밖 재실행은18개 통과(7.668초); 이후 실행 권한 변경 뒤 최종 위19개 및 전체255개를 통과했다. 이 실행 환경 실패를 기능 성공으로 계산하지 않았다.
+
+미검증: 새 설치본 빌드/업그레이드·설치본 reference Host 통합(R08H-04), 특정 Codex/Claude 제품 설정/모델·구형 프로토콜의 새 확장 조합·GUI/OS 화면·대규모 성능. Rust 코드는 변경하지 않았고 이번 작업에서 Rust 테스트는 미실행이다. 파일 역할/기술/종속 확장은 R08H-02, Unity 계획은 R08H-03에 남긴다. 새 의존성/DB 마이그레이션·자동 분석/임베딩/외부 호출·실제 원본 변경·화면 조작·원격 push 없음.
