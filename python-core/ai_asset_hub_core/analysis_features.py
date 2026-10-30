@@ -3,7 +3,7 @@ from .libraries import LibraryError
 from .taxonomy import default_taxonomy, TaxonomyError
 from .classification_axes import default_facets
 
-VERSION = 'asset-description.v3'
+VERSION = 'asset-description.v4'
 
 
 def audio_suggestions(value):
@@ -17,9 +17,15 @@ def audio_suggestions(value):
 
 
 def suggestions(value):
-    if not isinstance(value, dict) or set(value)-{'primary', 'roles', 'styles', 'colors', 'material'}:
+    if not isinstance(value, dict) or set(value)-{'primary', 'roles', 'styles', 'colors', 'material','action','loopRecommended'}:
         raise LibraryError('INVALID_MODEL_OUTPUT')
     result = {}
+    if 'action' in value:
+        if not isinstance(value['action'],str) or not 1<=len(value['action'])<=128 or any(ord(c)<32 for c in value['action']):raise LibraryError('INVALID_MODEL_OUTPUT')
+        result['action']=value['action']
+    if 'loopRecommended' in value:
+        if type(value['loopRecommended']) is not bool:raise LibraryError('INVALID_MODEL_OUTPUT')
+        result['loopRecommended']=value['loopRecommended']
     try:
         if value.get('primary') is not None:
             result['primary'] = default_taxonomy().resolve(value['primary'])

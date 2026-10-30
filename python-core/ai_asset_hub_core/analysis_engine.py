@@ -38,7 +38,7 @@ class AnalysisEngine:
 
     def run(self,identifier,control):
         from .database import Database
-        from .analysis_input import prepare_image,prepare_audio,prepare_geometry,source_info
+        from .analysis_input import prepare_image,prepare_audio,prepare_geometry,prepare_animation,source_info
         from .models import ModelService
         from .inference import infer
         from .annotations import AnnotationService
@@ -69,7 +69,7 @@ class AnalysisEngine:
                     except OSError:raise LibraryError('MODEL_POLICY_DENIED') from None
                     if not checked['compatible']:raise LibraryError(checked['reason'])
                     if checked['snapshot']['profileVersion']!=snapshot['profileVersion']:raise LibraryError('MODEL_CHANGED')
-                    prepared=(prepare_geometry if snapshot.get('analysisInputKind')=='threeD' else prepare_audio if snapshot.get('inputModality')=='audio' else prepare_image)(database,asset_id,versions[asset_id])
+                    prepared=(prepare_animation if snapshot.get('analysisInputKind')=='animation' else prepare_geometry if snapshot.get('analysisInputKind')=='threeD' else prepare_audio if snapshot.get('inputModality')=='audio' else prepare_image)(database,asset_id,versions[asset_id])
                     from .providers import inspect_local,inspect_external
                     if snapshot['kind']=='local':
                         try:current=inspect_local(snapshot['modelId'])
@@ -93,7 +93,7 @@ class AnalysisEngine:
                     from .analysis_features import suggestions,VERSION
                     features={'schema':VERSION,'technical':prepared.get('technical',{}),
                         'suggestions':suggestions(output.get('suggestions',{})),'suggestionStatus':'proposed'}
-                    if prepared.get('previewKind')=='wireframe' and (features['suggestions']['colors'] or features['suggestions']['material']):raise LibraryError('INVALID_MODEL_OUTPUT')
+                    if prepared.get('previewKind')=='wireframe' and (features['suggestions']['colors'] or features['suggestions']['material'] or features['suggestions'].get('action')):raise LibraryError('INVALID_MODEL_OUTPUT')
                     if snapshot.get('inputModality')=='audio':
                         from .analysis_features import audio_suggestions
                         features['audioSuggestions']=audio_suggestions(output.get('audioSuggestions',{}))

@@ -41,3 +41,12 @@ class MultiFormatTests(unittest.TestCase):
         self.assertEqual(prepared['previewKind'],'wireframe');self.assertNotIn('raw',prepared)
         status,retained,_=self.execute(asset,'threeD',{'description':'bad fixture','tags':[],'suggestions':{'material':['metal']}})
         self.assertEqual(status['failed'],1);self.assertEqual(retained['id'],result['id'])
+
+    def test_animation_worker_keeps_actual_loop_setting_separate_from_ai_recommendation(self):
+        from test_animation import gif
+        asset=self.register('animation.gif',gif())
+        status,result,infer=self.execute(asset,'animation',{'description':'fixture changing colors','tags':['animation'],'suggestions':{'action':'color change','loopRecommended':False}})
+        self.assertEqual(status['succeeded'],1)
+        self.assertEqual(result['features']['technical']['loopCount'],0)
+        self.assertFalse(result['features']['suggestions']['loopRecommended'])
+        self.assertEqual(infer.call_args.args[1]['previewKind'],'contact-sheet')

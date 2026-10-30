@@ -136,6 +136,40 @@ def gltf(raw,extension):
         'uvAttributeCount':uv,'units':'meter (glTF convention)','boundsSpace':'mesh-local; node transforms not applied',
         'dependencies':sorted(set(dependencies))[:128],'dependencyResolution':'not-opened',
         'render':'wireframe' if points and faces else 'unsupported'}
+    clips=[];children=set()
+    for node in doc.get('nodes',[]):
+        for child in node.get('children',[]):
+            if type(child) is not int or not 0<=child<len(doc.get('nodes',[])):raise ValueError()
+            children.add(child)
+    if len(doc.get('animations',[]))>32:raise LibraryError('INPUT_TOO_LARGE')
+    for index,animation in enumerate(doc.get('animations',[])):
+        samplers=animation.get('samplers',[]);channels=animation.get('channels',[])
+        if not isinstance(samplers,list) or not isinstance(channels,list) or max(len(samplers),len(channels))>128:raise LibraryError('INPUT_TOO_LARGE')
+        starts=[];ends=[];known=True;root=[];keyframes=0
+        for sampler in samplers:
+            times,count=accessor(sampler['input'],'SCALAR');keyframes+=count
+            if times is None:known=False;continue
+            times=[t[0] for t in times]
+            if not times or any(t<0 for t in times) or any(a>=b for a,b in zip(times,times[1:])):raise ValueError()
+            starts.append(times[0]);ends.append(times[-1])
+        for channel in channels:
+            target=channel['target'];node=target.get('node');sampler_index=channel['sampler']
+            if type(sampler_index) is not int or not 0<=sampler_index<len(samplers):raise ValueError()
+            if type(node) is not int or not 0<=node<len(doc.get('nodes',[])):raise ValueError()
+            if target['path']=='translation' and node not in children:
+                sampler=samplers[sampler_index]
+                if sampler.get('interpolation','LINEAR') not in ('LINEAR','STEP'):continue
+                values,count=accessor(sampler['output'],'VEC3')
+                times,time_count=accessor(sampler['input'],'SCALAR')
+                if count!=time_count:raise ValueError()
+                if values:root.append({'node':node,'localTranslationDelta':[values[-1][i]-values[0][i] for i in range(3)]})
+        name=animation.get('name',f'animation-{index}')
+        if not isinstance(name,str):raise ValueError()
+        clips.append({'index':index,'name':name[:128],'channels':len(channels),'sampleKeyframes':keyframes,
+            'durationSeconds':max(ends)-min(starts) if known and starts else None,
+            'rootTranslation':root[:16],'rootMotionEvidence':'decoded-local-track' if root else 'unknown',
+            'loop':None,'fps':None,'engineCompatibility':None})
+    result['clips']=clips;result['animationCount']=len(clips)
     return result,points,faces
 
 

@@ -32,6 +32,9 @@ def parse(extension, raw, canceled=None):
     elif extension in ('.obj','.gltf','.glb'):
         from .geometry import geometry
         result=geometry(extension,raw)[0]
+    elif extension in ('.gif','.png'):
+        from .animation import image_animation
+        result=image_animation(raw,canceled=canceled)[0]
     else:raise LibraryError('UNSUPPORTED_FORMAT')
     if canceled is not None and canceled.is_set():raise LibraryError('USER_CANCELED')
     return {'schema':VERSION,'source':'parser','value':result,'inputFingerprint':hashlib.sha256(raw).hexdigest(),
@@ -63,6 +66,10 @@ class Technical(AnnotationService):
                     item=component(file,observed['inputFingerprint'],kind,[kind,str(index)])
                     self.db.execute('INSERT OR IGNORE INTO asset_components(id,file_id,input_fingerprint,kind,locator_json,identity_version) VALUES (?,?,?,?,?,1)',
                         (item['id'],file,observed['inputFingerprint'],kind,json.dumps(item['locator'])))
+            for kind,count in (('animation',value.get('animationCount',0)),('sprite_frame',value.get('frameCount',0))):
+                for index in range(min(count,64)):
+                    item=component(file,observed['inputFingerprint'],kind,[kind,str(index)])
+                    self.db.execute('INSERT OR IGNORE INTO asset_components VALUES (?,?,?,?,?,1)',(item['id'],file,observed['inputFingerprint'],kind,json.dumps(item['locator'])))
             self.db.execute('COMMIT')
         except Exception:self.db.execute('ROLLBACK');raise
         return self.get({'asset_id':asset})

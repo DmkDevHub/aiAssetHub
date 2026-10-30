@@ -57,6 +57,16 @@ def prepare_image(database, identifier, expected):
             'size':info.st_size,'mtimeNs':info.st_mtime_ns,'technical':technical}
 
 
+def prepare_animation(database,identifier,expected):
+    import hashlib
+    from .animation import image_animation
+    path,info,raw=read_source(database,identifier,expected)
+    if path.suffix.lower() not in ('.gif','.png'):raise LibraryError('UNSUPPORTED_FORMAT')
+    technical,image=image_animation(raw,preview=True)
+    return {'image':image,'previewKind':'contact-sheet','technical':technical,
+        'fingerprint':hashlib.sha256(raw).hexdigest(),'size':info.st_size,'mtimeNs':info.st_mtime_ns}
+
+
 def prepare_geometry(database,identifier,expected):
     import hashlib
     from .geometry import geometry,wireframe

@@ -9,7 +9,7 @@ from pathlib import Path
 
 VERSION = 'asset-analysis.v1'
 INPUT_VERSION = 'bounded-image.v1'
-OUTPUT_VERSION = 'asset-description.v3'
+OUTPUT_VERSION = 'asset-description.v4'
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg')
 _KNOWN_UNSUPPORTED = frozenset(('.wav', '.mp3', '.flac', '.ogg', '.m4a', '.fbx',
     '.obj', '.gltf', '.glb', '.blend', '.gif', '.webp', '.svg', '.mp4', '.mov',
@@ -30,7 +30,7 @@ def input_support(path):
 
 
 def contract(database):
-    from .inference import SCHEMA, PROMPT, AUDIO_PROMPT, WIREFRAME_PROMPT
+    from .inference import SCHEMA, PROMPT, AUDIO_PROMPT, WIREFRAME_PROMPT, CONTACT_PROMPT
     # Bind the actual persisted immutable dictionaries, including custom versions.
     dictionaries = [{'version': row[0], 'kind': row[1], 'sha256': digest(json.loads(row[2]))}
         for row in database.connection.execute(
@@ -42,6 +42,8 @@ def contract(database):
         'outputSchemaSha256': digest(SCHEMA),
         'promptSha256': digest(PROMPT),
         'audioPromptSha256':digest(AUDIO_PROMPT),
+        'animation':{'technical':['GIF','APNG','glTF2-clips'],'imagePreview':'first-8-contact-sheet','maxFrames':64,'maxDecodedPixels':32000000,'posed3DRender':'unsupported'},
+        'contactPromptSha256':digest(CONTACT_PROMPT),
         'wireframePromptSha256':digest(WIREFRAME_PROMPT),
         'geometry':{'technical':['OBJ','glTF2','GLB2'],'preview':'mesh-local-XY-wireframe',
             'maxVertices':100000,'maxFaces':100000,'previewFaces':10000,'surfaceRender':'unsupported',

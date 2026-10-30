@@ -21,3 +21,8 @@ PNG/JPG/JPEG는 지원 후보이며 실제 디코드·권한·픽셀 검사는 �
 OBJ는 정점/면 인덱스·삼각화 수·UV 수·사용 재질명·mtllib 참조를 파싱한다. glTF2/GLB2는 메시/재질/skin-joint 구조를 검증하고 내장 base64/GLB 버퍼의 float32 POSITION·삼각형 인덱스만 디코드한다. 외부 URI는 읽지 않고 참조로만 보고한다. sparse accessor·다른 primitive 모드의 프리뷰·FBX/BLEND는 미지원이다. glTF 단위는 규격의 meter이며 OBJ 단위/본 정보는 미확인이다. 버퍼에서 읽은 수치와 declared 수치를 구분하고 경계는 노드 변환을 적용하지 않은 mesh-local 좌표다.
 입력20MB·정점10만·면10만 한도, 미리보기는 XY 직교 투영의 앞 1만 면 와이어프레임(512px)이다. 표면 렌더·텍스처·노드 변환/포즈를 표현하지 않는다. 3D 수동 입력 선택은 image 모델에 파생 JPEG와 고정 주의 프롬프트만 전송한다. 와이어프레임에서 소재/색상을 추정한 AI 응답은 거부하고 이전 성공을 보존한다. 명시 기술 수집은 실제 파일/지문에 근거한 안정 구성 요소 ID를 저장한다. 전체 glTF 유효성/엔진 임포트 성공을 보증하는 파서는 아니다.
 규격: [Khronos glTF2](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html).
+
+## R08F-05 구현 갱신
+출력 스키마는 asset-description.v4로 증가했다. GIF/APNG는 최대64프레임·전체32M 디코드 픽셀을 읽고 실제 프레임 수/시간/loop 설정을 관측한다. APNG 기본 이미지는 애니메이션 프레임에서 제외한다. 동일한 양수 duration일 때만 FPS를 산정하며 시간 부재는 null이다. 2D 수동 분석은 앞8프레임을 시간순 좌→우/위→아래로 배치한 콘택트 시트를 사용한다. AI action/loopRecommended는 미확정 제안이다.
+glTF 클립은 실제 내장 float32 시간 accessor로 지속 시간을 산정하고 루트 노드의 LINEAR/STEP translation 트랙을 디코드한 경우에만 첫/끝 로컬 변위(월드/엔진 루트모션 아님)를 보고한다. 미해결 외부 버퍼·sparse·CUBICSPLINE 루트 이동과 3D 포즈 렌더는 미지원이며 glTF에 정의되지 않는 FPS/루프/엔진 호환은 추측하지 않는다. 기술 수집 시 관측된 프레임/클립 구성 요소만 저장한다.
+규격: [Pillow 이미지 시퀀스](https://pillow.readthedocs.io/en/stable/reference/Image.html), [Khronos glTF2 애니메이션](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html).

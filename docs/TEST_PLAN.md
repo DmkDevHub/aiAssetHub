@@ -731,3 +731,6 @@ R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 �
 
 ## R08F-04 내부 검증
 `unittest discover -s python-core/tests -p test_geometry.py -v`: 3개 통과(0.408초), OBJ와 내장 glTF/GLB 실제 파싱·미해결 외부 참조·NaN/인덱스/경계/한도 실패·구성 요소 중복 방지·원본 불변 검증. `test_multiformat_analysis.py`: 1개 통과(0.290초), 실제 파생 JPEG+mock AI 제안 저장·소재 추측 실패 후 이전 결과 보존 검증. `npm.cmd run build`: 타입/Vite 통과(591ms). 실모델/설치본은 R08F-08이며 GUI 미검증.
+
+## R08F-05 내부 검증
+`test_animation.py`: 3개 통과(0.104초), 실제 GIF 프레임/시간/loop/미리보기 픽셀·정적 입력/손상/취소·glTF 실제 시간/루트 트랙 검증. `test_multiformat_analysis.py`: 2개 통과(0.477초), loop=0 파일 관측과 AI loopRecommended=false 분리 검증. 타입/Vite 통과(580ms). 2D AI는 mock, 실제 모델/설치본은 R08F-08이며 GUI 미검증.

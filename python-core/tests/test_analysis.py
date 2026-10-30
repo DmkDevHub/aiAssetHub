@@ -426,7 +426,7 @@ class AnalysisTests(unittest.TestCase):
         response.read.return_value=json.dumps({'model':'fixture','done_reason':'length','message':{'content':'','thinking':'private fixture reasoning'}}).encode()
         snapshot={'kind':'local','provider':'Ollama','modelId':'fixture','inspection':{'supportsThinking':True}}
         limits=AnalysisPlan(self.db).preview(self.params(),internal=True)['snapshot']['analysisLimits']
-        self.assertEqual(limits['outputTokens'],1024);self.assertEqual(limits['promptSchema'],'asset-description.v3')
+        self.assertEqual(limits['outputTokens'],1024);self.assertEqual(limits['promptSchema'],'asset-description.v4')
         with patch('ai_asset_hub_core.inference.http.client.HTTPConnection',return_value=connection):
             with self.assertRaisesRegex(LibraryError,'MODEL_OUTPUT_LIMIT'):infer(snapshot,{'image':'fixture'},threading.Event(),lambda _:None)
         payload=json.loads(connection.request.call_args.args[2]);self.assertFalse(payload['think'])
