@@ -629,3 +629,7 @@ Sidecar SHA256 `403ddcf35b8f8554760bef1b4c9d2b38ed0835bb0ccd65c27a2f0d4cd8586d72
 ## R08D-02 (2026-10-30)
 Core 역할 연결 API와 v8 asset/package FK 링크·독립 revision·append-only provenance_history를 구현했다. Python 역할/공유 수정·해제/구매 당시 기록·원본 보존, 비활성/중복/미지 ID·stale revision 거부, 후반 SQL 실패 원자성, 최대 Unicode 16개 연결 응답 16KiB 미만·불변 이력을 검증했다. `npm run test:core` 최초 174개 통과는 imported TestCase 9개가 중복 발견된 결과이며 모듈 import로 고쳤다. 최종 명령/개수는 아래에 기록한다. 새 스키마 기대값은 테스트·설치 검증이 실제 마이그레이션 개수를 사용하도록 수정했다. 사용자 DB/원본·모델·GUI는 건드리지 않았다. Rust 기능/패키지/설치 통합 회귀는 M08D 최종 단계에서 실행한다.
 R08D-02 최종: npm run test:core 종료 0, Python 165개/18.493초 통과. 로그 .artifacts/r08d-02-core-final.log; cargo fmt 종료 0. 변경은 역할 연결 모듈/008 SQL·Core/Rust 허용 목록·스키마 테스트/패키징 가드·계약/검증/로드맵 문서다.
+
+## R08D-03 (2026-10-30)
+v9 출처/상품/원본·상품·다운로드 URL과 구매 가격·통화·구매/다운로드일을 asset/package 소유 기록으로 구현했다. 새 source_records.py/009 SQL·Core/Rust 허용 목록·테스트/패키징 가드·문서를 변경했다. 개인 정보/서명 URL·구매 정보는 기본 응답/감사에서 제외하고 명시 승인한 private get만 허용한다. 실제 네트워크 요청·다운로드·AI 없음. 무료 0·미확인 null·정확한 소수 금액/윤년·잘못된 입력 거부·소유 범위/페이지·버전 충돌·불변 과거 구매 값·후반 실패 원자성과 비활성 후 보존을 테스트했다. Rust/설치 통합은 M08D 최종 검증에서 실행한다.
+R08D-03 실측: npm run test:core 종료 0, Python 169개/17.325초 통과. 로그 .artifacts/r08d-03-core.log. GUI/실제 URL 접속/AI/사용자 데이터 이전은 미실행.

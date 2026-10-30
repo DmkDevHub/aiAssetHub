@@ -219,3 +219,7 @@ Tauri 인자는 camelCase, Core 인자는 snake_case이며 기존 안전 응답 
 
 ## R08D-02 주체 역할 연결 (v8)
 `creator.links {subject}`와 `creator.links.save {subject,links,expected_revision}`를 Core/Rust 내부 허용 목록에 추가한다. subject는 `{kind:asset|package,id:실제 UUID}`, links는 최대 16개 `{creator_id,role}`이며 role은 creator(제작자)/producer(제작사)/distributor(배포사)다. 중복 역할 쌍·미지 주체·새 비활성 주체 연결은 거부하며 이미 연결된 비활성 주체는 유지/해제할 수 있다. 응답은 링크 버전과 현재 주체의 공개 요약이며 이름/브랜드는 64자 요약이다. 연락처/URL을 반환하지 않는다. 공유 정보 수정은 live 조회에 반영하고 구매 스냅샷/AI/원본은 변경하지 않는다. 링크·버전·불변 provenance_history·원문 없는 감사는 한 트랜잭션이다. UI는 M08E, Rust/설치 통합 회귀는 M08D 최종 검증에서 수행한다.
+
+## R08D-03 출처·상품·구매 기록 (v9)
+`source.list/get/create/update/delete`를 Core/Rust 내부 경로로 제공한다. create는 `{subject,value}`, update는 `{record_id,value,expected_revision}`, delete는 `{record_id,expected_revision,confirmed:true}`다. get은 `{record_id,include_private?:bool,confirmed?:bool}`, list는 `{subject,after_id}`(최대 2개)다. 삭제는 행/이력을 보존하는 비활성화다.
+value는 `site,productName,originalUrl,productUrl,downloadUrl,purchase:{amount,currency,purchasedOn,downloadedOn}`다. site 128자, 상품명 256자, URL 각 512자, ISO 날짜/최대 정수 12자리·소수 4자리의 음수 없는 금액 문자열을 받는다. 미확인 금액은 null, 무료는 문자열 0이며 금액 지정 시 대문자 3자리 통화가 필요하다. 빈 날짜는 미확인이다. URL은 HTTPS/호스트/포트/userinfo·제어문자 검증 후 저장만 하며 서명 쿼리를 포함할 수 있다. 기본 응답/목록은 사이트·상품명만 공개한다. URL·구매 정보와 private 응답의 priceState(unknown/free/paid)는 `include_private:true,confirmed:true`인 명시 get에서만 제공한다. 이것은 구매/권리 확인 증명이 아니다. 기존 패키지 구매 스냅샷은 소급 변경하지 않는다.
