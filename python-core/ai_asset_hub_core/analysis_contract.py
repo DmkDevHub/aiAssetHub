@@ -30,7 +30,7 @@ def input_support(path):
 
 
 def contract(database):
-    from .inference import SCHEMA, PROMPT, AUDIO_PROMPT, WIREFRAME_PROMPT, CONTACT_PROMPT,TEXT_PROMPT
+    from .inference import SCHEMA, PROMPT, AUDIO_PROMPT, WIREFRAME_PROMPT, CONTACT_PROMPT,TEXT_PROMPT,AUDIO_SCHEMA
     # Bind the actual persisted immutable dictionaries, including custom versions.
     dictionaries = [{'version': row[0], 'kind': row[1], 'sha256': digest(json.loads(row[2]))}
         for row in database.connection.execute(
@@ -45,6 +45,7 @@ def contract(database):
         'outputSchemaSha256': digest(SCHEMA),
         'promptSha256': digest(PROMPT),
         'audioPromptSha256':digest(AUDIO_PROMPT),
+        'audioSchemaSha256':digest(AUDIO_SCHEMA),
         'textPromptSha256':digest(TEXT_PROMPT),
         'text':{'inputBytes':4096,'technicalBytes':32768,'encoding':'UTF-8','transmission':'full-reviewed-text-and-fixed-prompt','execution':'never'},
         'documents':{'ZIP':'directory-only;never-decompress','TTF/OTF':'SFNT-directory/head/maxp','MP4/MOV':'ftyp/mvhd-header-only','Unity/VFX':'declarations/guids-only','videoInference':'unsupported'},
@@ -60,8 +61,8 @@ def contract(database):
         'dictionaries': dictionaries,
         'supportMatrix': [
             {'typeCode': f'A{i:02}',
-             'imageDescription': 'supported' if i in (1, 4, 7, 8, 9) else 'unsupported',
-             'structuredClassification': 'image-proposals' if i in (1,4,7,8,9) else 'unsupported',
+             'imageDescription': 'visual-representation-only',
+             'structuredClassification': 'proposals-on-supported-input-only',
              'nativeFormatAnalysis': 'partial', 'observedPaths':paths[i]} for i in range(1, 15)],
         'supportedExtensions': list(IMAGE_EXTENSIONS),
         'requiredModelModality': 'image',

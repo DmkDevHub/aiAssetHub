@@ -36,7 +36,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(input_support('file'),'unknown')
         contract=preview['snapshot']['analysisContract']
         self.assertEqual(len(contract['supportMatrix']),14)
-        self.assertEqual(contract['supportMatrix'][0]['structuredClassification'],'image-proposals')
+        self.assertEqual(contract['supportMatrix'][0]['structuredClassification'],'proposals-on-supported-input-only')
         self.assertEqual(contract['multiFileAnalysis'],'unsupported')
         self.assertFalse(contract['transfer']['originalFile'])
         self.assertEqual(len(contract['reviewInputFingerprint']),64)

@@ -59,3 +59,6 @@ class GeometryTests(unittest.TestCase):
         document=gltf_fixture();document['bufferViews'][0]['byteLength']=35
         with self.assertRaises(LibraryError):geometry('.gltf',json.dumps(document).encode())
         with self.assertRaises(LibraryError):geometry('.glb',b'glTF')
+        document=gltf_fixture();document['meshes'][0]['primitives']*=100
+        with patch('ai_asset_hub_core.geometry.MAX_VERTICES',10):
+            with self.assertRaisesRegex(LibraryError,'INPUT_TOO_LARGE'):geometry('.gltf',json.dumps(document).encode())

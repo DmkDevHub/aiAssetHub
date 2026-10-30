@@ -1779,6 +1779,17 @@ test('manual target preview sends selected mode and shows server count without s
  assert.match(document.querySelector('[role=dialog]').textContent,/fixture-input-digest/);
 });
 
+test('audio input filters incompatible local profiles and discloses original transfer before explicit approval',async()=>{
+ await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='list_models')return {ok:true,data:{items:[{id:'local',modelId:'local',kind:'local',enabled:true,selected:true,inspection:{modalities:['image','audio']}},{id:'external-audio',modelId:'fixture audio',kind:'external',enabled:true,inspection:{modalities:['audio']}}],next_cursor:null}};return {ok:true,data:{targetCount:1,eligibleCount:1,missingCount:0,planToken:'fixture-audio',externalTransfer:true,paid:true,estimatedUpperBoundUsd:'0.01'}};}};
+ dispatch(document.querySelector('.analysis-open'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const selects=document.querySelectorAll('[role=dialog] select');selects[3].value='audio';dispatch(selects[3],new Event('change',{bubbles:true}));await nextTick();
+ assert.equal(selects[2].value,'');assert.equal([...selects[2].options].find(o=>o.value==='local').disabled,true);
+ selects[0].value='all';dispatch(selects[0],new Event('change',{bubbles:true}));selects[1].value='all';dispatch(selects[1],new Event('change',{bubbles:true}));selects[2].value='external-audio';dispatch(selects[2],new Event('change',{bubbles:true}));await nextTick();
+ dispatch([...document.querySelectorAll('[role=dialog] button')].find(b=>b.textContent==='대상 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[1][1].plan.input_kind,'audio');assert.match(document.querySelector('[role=dialog]').textContent,/PCM WAV 원본 전체/);assert.equal(document.querySelector('.analysis-start').disabled,true);assert.equal(calls.length,2);
+});
+
 test('analysis start is explicit after review and uses a stable idempotency ID',async()=>{
  await mountGallery([]);globalThis.isTauri=true;const calls=[];
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{
@@ -1797,11 +1808,11 @@ test('analysis start is explicit after review and uses a stable idempotency ID',
 
 test('technical observations are read only until explicit collection and escape parser strings',async()=>{
  app.unmount();globalThis.isTauri=true;const calls=[];
- dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:true,data:{observation:args.method==='asset.technical.collect'?{source:'parser',value:{format:'<img src=x>',channels:2}}:null}};}};
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:true,data:{observation:args.method==='asset.technical.collect'?{source:'parser',value:{format:'<img src=x>',channels:2}}:null,stale:args.method==='asset.technical.collect'}};}};
  app=createApp(components.TechnicalMetadata,{assetId:'fixture'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(calls.length,1);assert.equal(calls[0][1].method,'asset.technical');
  dispatch(document.querySelector('.technical-metadata button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
- assert.equal(calls[1][1].method,'asset.technical.collect');assert.equal(calls[1][1].params.confirmed,true);assert.equal(document.querySelector('.technical-metadata img'),null);assert.match(document.querySelector('.technical-metadata pre').textContent,/channels/);
+ assert.equal(calls[1][1].method,'asset.technical.collect');assert.equal(calls[1][1].params.confirmed,true);assert.equal(document.querySelector('.technical-metadata img'),null);assert.match(document.querySelector('.technical-metadata pre').textContent,/channels/);assert.match(document.querySelector('.technical-metadata').textContent,/재확인이 필요한/);
 });
 
 test('AI classification review requires preview and explicit approval and rejects stale apply',async()=>{

@@ -19,6 +19,7 @@ def audio_suggestions(value):
 def suggestions(value):
     if not isinstance(value, dict) or set(value)-{'primary', 'roles', 'styles', 'colors', 'material','action','loopRecommended'}:
         raise LibraryError('INVALID_MODEL_OUTPUT')
+    if any(not isinstance(value.get(key,[]),list) or len(value.get(key,[]))>8 for key in ('roles','styles')):raise LibraryError('INVALID_MODEL_OUTPUT')
     result = {}
     if 'action' in value:
         if not isinstance(value['action'],str) or not 1<=len(value['action'])<=128 or any(ord(c)<32 for c in value['action']):raise LibraryError('INVALID_MODEL_OUTPUT')

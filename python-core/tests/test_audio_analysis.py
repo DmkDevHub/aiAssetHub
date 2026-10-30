@@ -60,3 +60,10 @@ class AudioTests(unittest.TestCase):
         with patch('ai_asset_hub_core.inference.http.client.HTTPSConnection') as connection:
             with self.assertRaisesRegex(LibraryError,'USER_CANCELED'):infer({'kind':'external','provider':'OpenRouter','inputModality':'audio'},{},canceled,lambda _:None,'fixture-key')
             connection.assert_not_called()
+
+    def test_external_output_limit_is_rejected_even_when_content_is_complete_json(self):
+        from ai_asset_hub_core.inference import infer
+        connection=MagicMock();connection.getresponse.return_value.status=200
+        connection.getresponse.return_value.read.return_value=json.dumps({'model':'fixture/audio','choices':[{'finish_reason':'length','message':{'content':'{"description":"fixture","tags":[]}'}}]}).encode()
+        with patch('ai_asset_hub_core.inference.http.client.HTTPSConnection',return_value=connection):
+            with self.assertRaisesRegex(LibraryError,'MODEL_OUTPUT_LIMIT'):infer({'kind':'external','provider':'OpenRouter','modelId':'fixture/audio','inputModality':'audio'},{'audio':'fixture'},threading.Event(),lambda _:None,'fixture-key')

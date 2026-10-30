@@ -13,7 +13,8 @@ watch([scope,()=>props.folderId],()=>{retryContext.value=null;});
 const jobs=ref<{id:string;status:string;total:number;createdAt:string}[]>([]);
 const external=ref(false),paid=ref(false),startId=ref(''),jobId=ref('');
 watch([mode,scope,model,inputKind,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;startId.value='';external.value=false;paid.value=false;});
-const models=ref<{id:string;modelId:string;enabled:boolean;selected?:boolean;inspection?:{modalities?:string[]}}[]>([]);
+const models=ref<{id:string;modelId:string;enabled:boolean;kind?:string;selected?:boolean;inspection?:{modalities?:string[]}}[]>([]);
+watch(inputKind,()=>{const required=['threeD','animation'].includes(inputKind.value)?'image':inputKind.value;const current=models.value.find(m=>m.id===model.value);if(current&&(!current.inspection?.modalities?.includes(required)||(required==='audio'&&current.kind!=='external')))model.value='';});
 const trigger=ref<HTMLButtonElement>(),panel=ref<HTMLElement>();let alive=true;
 const progress=ref<{status:string;total:number;processed:number;succeeded:number;failed:number;canceled:number;needsRecovery:boolean;partialSuccess?:boolean;errors?:{assetId:string;code:string}[]}|null>(null);
 let timer:ReturnType<typeof setInterval>|undefined,polling=false,finished='';
@@ -38,7 +39,7 @@ async function loadJobs(){
 }
 function track(id:string){jobId.value=id;finished='';progress.value=null;void poll();}
 async function show(){
- open.value=true;retrySelection.value=null;retryContext.value=null;preview.value=null;error.value='';model.value='';models.value=[];busy.value=true;
+ open.value=true;inputKind.value='image';retrySelection.value=null;retryContext.value=null;preview.value=null;error.value='';model.value='';models.value=[];busy.value=true;
  await nextTick();panel.value?.querySelector<HTMLElement>('select')?.focus();
  if(!isTauri()){busy.value=false;error.value='데스크톱 Core 연결이 필요합니다.';return;}
  try{
@@ -127,7 +128,7 @@ function keys(event:KeyboardEvent){
    <p>이미지는 PNG/JPEG, 오디오는 최대 60초 PCM WAV와 검증된 OpenRouter 오디오 모델을 지원합니다. 로컬 오디오 추론과 3D 표면 렌더는 미지원이며 OBJ/glTF/GLB의 제한된 와이어프레임만 분석합니다. 검색·태그 필터는 분석 범위를 제한하지 않습니다.</p>
    <label>대상 모드 <select v-model="mode" :disabled="busy"><option value="all">전체</option><option value="unanalyzed">미분석</option><option value="completed">완료 재분석</option><option value="failed">실패 재시도</option><option value="selected">선택 {{ (retrySelection??props.selectedIds).length }}개</option></select></label>
    <label>분석 범위 <select v-model="scope" :disabled="busy"><option value="folder">현재 폴더 (하위 포함)</option><option value="library">현재 라이브러리</option><option value="all">전체 라이브러리</option></select></label>
-   <label>모델 <select v-model="model" :disabled="busy"><option value="">모델을 선택하세요</option><option v-for="item in models" :key="item.id" :value="item.id" :disabled="!item.enabled || !item.inspection?.modalities?.includes(['threeD','animation'].includes(inputKind)?'image':inputKind)">{{ item.modelId }}{{ item.enabled?'':' (비활성)' }}</option></select></label>
+   <label>모델 <select v-model="model" :disabled="busy"><option value="">모델을 선택하세요</option><option v-for="item in models" :key="item.id" :value="item.id" :disabled="!item.enabled || (inputKind==='audio'&&item.kind!=='external') || !item.inspection?.modalities?.includes(['threeD','animation'].includes(inputKind)?'image':inputKind)">{{ item.modelId }}{{ item.enabled?'':' (비활성)' }}</option></select></label>
    <label>분석 입력 <select v-model="inputKind" :disabled="busy"><option value="image">이미지</option><option value="audio">오디오 (외부 전송 필요)</option><option value="threeD">3D 와이어프레임</option><option value="animation">2D 애니메이션</option><option value="text">텍스트·코드·선언 데이터 (최대 4KB)</option></select></label>
    <p v-if="retryContext">이전 작업 범위 기준: {{ retryContext.library_id??'전체' }} / {{ retryContext.folder_parts.join('/') }}</p>
    <p v-if="error" role="alert">{{ error }}</p>

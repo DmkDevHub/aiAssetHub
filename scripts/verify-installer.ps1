@@ -1,4 +1,4 @@
-param([string]$AnalysisModel = '', [switch]$Mcp)
+param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat)
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskNsis = Join-Path $taskRoot 'src-tauri/target/release/nsis/x64'
@@ -65,6 +65,11 @@ if ($Mcp) {
     $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
     & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-mcp.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m08-installed-host.json')
     if ($LASTEXITCODE -ne 0) { throw 'Installed MCP reference Host verification failed.' }
+}
+if ($Multiformat) {
+    $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-multiformat.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m08f-installed-multiformat.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed multiformat verification failed.' }
 }
 # Retain test reports/data; uninstall only the isolated verification payload.
 $taskUninstaller = Join-Path $taskInstallDir 'uninstall.exe'

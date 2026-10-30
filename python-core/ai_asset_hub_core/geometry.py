@@ -86,7 +86,9 @@ def gltf(raw,extension):
         if data is not None and len(data)<size:raise ValueError()
         buffers.append(data[:size] if data is not None else None)
     dependencies.extend(i['uri'][:256] for i in doc.get('images',[]) if isinstance(i.get('uri'),str) and not i['uri'].startswith('data:'))
+    decoded_scalars=0
     def accessor(index,expected):
+        nonlocal decoded_scalars
         if type(index) is not int or not 0<=index<len(doc.get('accessors',[])):raise ValueError()
         entry=doc['accessors'][index]
         if entry.get('sparse') or entry.get('type')!=expected:raise LibraryError('UNSUPPORTED_FORMAT')
@@ -95,6 +97,8 @@ def gltf(raw,extension):
         widths={5121:('B',1),5123:('H',2),5125:('I',4),5126:('f',4)}
         if ctype not in widths:raise LibraryError('UNSUPPORTED_FORMAT')
         fmt,width=widths[ctype];components=3 if expected=='VEC3' else 1
+        decoded_scalars+=count*components
+        if decoded_scalars>1_000_000:raise LibraryError('INPUT_TOO_LARGE')
         if expected=='VEC3' and ctype!=5126:raise ValueError()
         view_index=entry['bufferView']
         if type(view_index) is not int or not 0<=view_index<len(doc.get('bufferViews',[])):raise ValueError()

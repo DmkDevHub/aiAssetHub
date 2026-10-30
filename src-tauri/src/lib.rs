@@ -60,6 +60,8 @@ fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
         "catalog.query",
         "catalog.order",
         "catalog.classification.save",
+        "asset.technical.collect",
+        "analysis.review.apply",
         "source.get",
     ] {
         assert!(metadata_allowed("main", method));

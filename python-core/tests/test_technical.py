@@ -37,6 +37,7 @@ class TechnicalTests(unittest.TestCase):
         self.assertEqual(result['value']['durationSeconds'],1)
         self.assertEqual(result['value']['channels'],2)
         self.assertEqual(result['value']['sampleRate'],8000)
+        self.assertEqual(self.db.connection.execute('SELECT duration_ms FROM asset_observations o JOIN asset_files f ON f.id=o.asset_file_id WHERE f.asset_id=?',(asset,)).fetchone()[0],1000)
         self.assertIsNone(result['value']['transcript'])
         self.assertEqual(result['inputFingerprint'],hashlib.sha256(raw).hexdigest())
         self.assertEqual((self.source/'소리.wav').read_bytes(),raw)
@@ -44,6 +45,9 @@ class TechnicalTests(unittest.TestCase):
         from ai_asset_hub_core.database import Database
         self.db.close();self.db=Database(self.base/'db.sqlite')
         self.assertEqual(Technical(self.db).get({'asset_id':asset})['observation'],result)
+        self.assertFalse(Technical(self.db).get({'asset_id':asset})['stale'])
+        (self.source/'소리.wav').write_bytes(raw+b'changed')
+        self.assertTrue(Technical(self.db).get({'asset_id':asset})['stale'])
 
     def test_corrupt_truncated_unsupported_cancel_and_confirmation_are_not_successes(self):
         for extension,raw in (('.wav',b'bad'),('.wav',wav()[:-1]),('.mp3',b'ID3')):

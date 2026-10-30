@@ -8,11 +8,13 @@ def image_animation(raw,preview=False,canceled=None):
     from PIL import Image,ImageOps
     try:
         with Image.open(io.BytesIO(raw)) as image:
-            if image.format not in ('GIF','PNG'):raise LibraryError('UNSUPPORTED_FORMAT')
+            if image.format not in ('GIF','PNG','JPEG'):raise LibraryError('UNSUPPORTED_FORMAT')
             count=getattr(image,'n_frames',1)
             if count>64 or count*image.width*image.height>32_000_000 or image.width*image.height>16_000_000:raise LibraryError('INPUT_TOO_LARGE')
             default=bool(image.info.get('default_image',False));durations=[];samples=[]
             loop=image.info.get('loop')
+            channels=len(image.getbands());alpha='A' in image.getbands() or 'transparency' in image.info
+            transparent=image.convert('RGBA').getchannel('A').getextrema()[0]<255
             for index in range(count):
                 if canceled is not None and canceled.is_set():raise LibraryError('USER_CANCELED')
                 image.seek(index);image.load()
@@ -23,6 +25,7 @@ def image_animation(raw,preview=False,canceled=None):
                     rgba=image.convert('RGBA');frame=Image.new('RGB',image.size,'white');frame.paste(rgba,mask=rgba.getchannel('A'))
                     samples.append(ImageOps.contain(frame,(128,128)))
             value={'format':image.format,'width':image.width,'height':image.height,
+                'channels':channels,'hasAlphaChannel':alpha,'hasTransparentPixels':transparent,
                 'frameCount':count-int(default),'defaultImage':default,'frameDurationsMs':durations,
                 'durationSeconds':sum(durations)/1000 if all(v is not None for v in durations) else None,
                 'loopCount':loop,'loopEvidence':'file-setting' if loop is not None else 'unknown',

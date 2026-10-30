@@ -269,3 +269,15 @@ criteria는 기존 library_id/folder_parts/kind/tag/analysis/group_id와 group_i
 catalog.query 커서는 query/정규화 조건/sort 해시·DB 변경 stamp·마지막 UUID를 담은 최대512자 불투명 값이다. 조회 문맥·DB 변경/프로세스 재시작 후 재사용은 METADATA_CONFLICT이며 처음부터 다시 조회해야 한다. 조회는 DB를 쓰지 않는다. UI는 전 페이지 성공 후 원자 반영하고 잘못된/반복 커서·중복 ID·조회 오류에는 결과 범위를 넓히지 않는다. 선택은 실제 ID로 유지하며 정렬 변경 시 첫 페이지, 결과 갱신 시 유효 페이지로 보정한다. 필터/정렬/탐색 선택은 같은 앱 세션 내 복원한다. 앱 재시작 영속 환경설정은 추가하지 않았다.
 
 공개 FTS는 이름/별칭/설명/사용자 태그/활성 AI 텍스트·유형/선조/독립 축·그룹 선조·패키지명/버전·주체 이름/브랜드/역할을 포함한다. 연락처·URL·구매·라이선스 조건/메모·증빙은 포함하지 않는다. 일반 FTS는 기존 SearchService, 복합 query는 같은 공개 projection을 사용한다. MCP 신규 확장 메타데이터 필터/쓰기 도구는 제공하지 않으며 M08H 범위로 남긴다.
+
+## M08F — 명시적 다중 형식 분석·기술 수집
+
+- `analysis.preview`의 선택적 `input_kind`: image(기존 기본), audio, threeD, animation, text. 원래 mode/scope/selected_ids 경계와 승인/비용 토큰은 유지한다. threeD/animation은 image 모델, audio는 OpenRouter audio 모델만 지원한다. 후보 개수는 실행 시 디코드 성공을 보증하지 않는다.
+- snapshot.analysisContract는 버전·유형 행렬·사전/스키마/프롬프트/검토 입력 지문·전송/한도를 가진다. 실제 실행은 원본 바이트 SHA-256을 별도로 기록한다. `analysis.status.partialSuccess`는 성공과 실패/취소가 혼재할 때 true다.
+- `asset.technical({asset_id})` → observation/stale/inferenceCalled(false). 조회는 파일을 읽어 파싱하거나 작업을 생성하지 않고 저장 관측과 현재 stat만 확인한다.
+- `asset.technical.collect({asset_id,confirmed:true})` → 같은 응답. 명시 기술 파서만 수행하며 원본 무변경·AI/임베딩 호출0. 미지원/잘못된 형식은 고정 오류 코드이며 claim/수치/구성 요소는 원자 저장한다.
+- `asset.analysis`는 기존 응답에 features(technical/suggestions/audioSuggestions/suggestionStatus/schema), contractVersion을 추가한다. 기존 결과에 features가 없으면 기존 표시를 유지한다.
+- `analysis.review({asset_id,result_id})` → 실제 결과 기반 before/after/expectedRevision/planToken/hasChanges. 조회만 수행한다. `analysis.review.apply({asset_id,result_id,expected_revision,plan_token,confirmed:true})`는 검토한 대표 분류/역할/스타일만 사용자 값으로 확정한다. conflict는 재검토가 필요하다. 실제 저장 결과 없는 ID를 추측·합성하지 않는다.
+- `embedding.status.staleCount`: 현재 프로필의 저장 벡터 중 현재 공개 문서 지문/유효성에 맞지 않는 개수. 자동 생성/재구축/삭제를 하지 않는다.
+
+새 기술/확정 명령은 데스크톱 main 창의 고정 IPC 허용 목록에만 추가하며 MCP 도구/쓰기 권한을 확장하지 않는다. 지원 행렬과 payload 경계는 [ANALYSIS_SUPPORT](ANALYSIS_SUPPORT.md)를 따른다.

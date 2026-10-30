@@ -9,5 +9,5 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(result['primary'],'A04')
         self.assertEqual(result['colors'],['red'])
         for value in ({'width':100},{'primary':'A99'},{'roles':['engine.unity']},
-                      {'styles':['invented']},{'material':['x'*65]},{'colors':['red']*9},[],{'colors':['\x00']}):
+                      {'styles':['invented']},{'roles':['role.item']*9},{'material':['x'*65]},{'colors':['red']*9},[],{'colors':['\x00']}):
             with self.subTest(value=value),self.assertRaises(LibraryError):suggestions(value)

@@ -101,6 +101,7 @@ class AnalysisEngine:
                     if len(json.dumps(features,ensure_ascii=False).encode('utf-8'))>8000:raise LibraryError('INPUT_TOO_LARGE')
                     try:labels=AnnotationService.labels(output['tags'])
                     except LibraryError:raise LibraryError('INVALID_MODEL_OUTPUT') from None
+                    if len(output['tags'])>8:raise LibraryError('INVALID_MODEL_OUTPUT')
                     if sum(map(len,labels.values()))>512:raise LibraryError('INVALID_MODEL_OUTPUT')
                     path,info=source_info(database,asset_id)
                     if (info.st_size,info.st_mtime_ns)!=(prepared['size'],prepared['mtimeNs']):raise LibraryError('FILE_CHANGED')

@@ -740,3 +740,32 @@ R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 �
 
 ## R08F-07 내부 검증
 `test_analysis*.py`: 23개 통과(2.646초), 실제 결과 검토/승인/revision·모드/부분 성공/취소/이력 회귀. `test_multiformat_analysis.py`: 3개 통과(0.666초), 성공 및 실패 재분석에도 사용자 확정 보존. `test_embeddings.py`: 7개 통과(0.873초), 사용자 공개 메타데이터 변경 시 stale/기존 벡터 보존/자동 호출 없음. Node150개 통과(6.033초)로 UI 검토/체크 승인·충돌 후 재검토 검증. 타입/Vite 통과(581ms). 초기 신규 fixture의 RESULT_IMMUTABLE/FK 오류는 불변 결과를 수정하지 않고 정상 job-item/run/result 순서 삽입으로 해결했다. 기존 순위 테스트는 태그/분류 변경 후 stale 제외가 의도된 정책이므로 벡터 fixture를 메타데이터 설정 뒤에 만들도록 변경했다.
+
+## R08F-08 / M08F — 2026-10-30 최종 내부·설치 검증
+
+- `node --test`: **151/151 통과**, 6.106초. 새 구조화 제안·기술 수집/문자 이스케이프/stale·분류 전후 검토/승인/충돌·오디오 원본 전송 고지/부적합 로컬 모델 차단을 가상 DOM으로 검증했다.
+- `$env:AI_ASSET_HUB_PYTHON='C:\Program Files\Python313\python.exe'; node scripts/run-python-checks.mjs`: **229/229 통과**, 25.440초. 실제 합성 파일 파서, 승인/비용/취소/지원 거부, 사용자 확정·과거 성공·불변 claim·공개 정보 벡터 stale 및 기존 개인정보/DB/MCP 회귀 포함.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check` / `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings`: 통과. 최종 Clippy 3.54초, 증분 하드링크 환경 경고를 피하기 위해 CARGO_INCREMENTAL=0 사용.
+- `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1`: **16/16 통과**, 7.78초. 기반 CPython/PYTHONPATH 및 AI_ASSET_HUB_SIDECAR_DIR를 고정했고 실제 동봉 Core 프로세스 검사도 포함했다. 총 **396개 자동화 검사**다.
+- `npm.cmd run build:installer`: 타입/Vite·잠금 의존성·PyInstaller 신규7개 계약/파서 모듈 동봉 검사·Rust release·NSIS 모두 통과. 의존성/모델 다운로드 없음(PIP_NO_INDEX=1). 최종 release Rust 38.28초, 설치본 24983984바이트(23.83MiB).
+- `scripts/verify-installer.ps1 -Mcp -Multiformat`: **통과**. 별도 제품 식별자/새 .artifacts 설치·DB로 무인 설치 → Python 없는 PATH의 실제 Tauri 무화면 Core/DB → 공식 SDK MCP5개 도구/최신 2026-07-28 및 레거시 2025-11-25/개인정보 기본 제외/정렬 필터 → 다중 형식 → 무인 제거까지 확인했다. 기존 설치 등록/원본은 보존했다.
+- 설치된 Core의 **실제 파일 파서18건**과 **모의 로컬 공급자 분석10건**(PNG/JPEG, OBJ/glTF/GLB, GIF/APNG, 코드/JSON/VFX 텍스트)이 통과했다. 조회/검토는 호출0, 시작 후에만 fixture응답10건, 실제 저장 UUID·분류 사용자 확정·재시작 동일 결과/관측 보존·등록 테스트 원본 전체 SHA-256 불변 확인. WAV·ZIP·폰트·영상·Unity 선언은 실제 합성 파일 파서로 확인하며 외부 오디오 추론은 단위 모의 HTTPS 응답으로만 확인했다.
+- 검증 공급자는 `m08f-fixture-provider-not-a-real-model`이라는 결정적 루프백 fixture다. 보고서 `realModelInference=false`, `externalCalls=0`, `guiOpened=false`. 현 PC에 기존 Ollama 실행기/모델/리스너가 없어 실제 새 모델 추론은 **미실행/미검증**이다. 실제 외부 오디오/유료 API·일반 검색/분류 품질·3D 표면/포즈/영상/폰트 렌더·미지원 형식·대규모 성능·시각/OS 화면·기존 설치 업그레이드는 성공으로 간주하지 않는다.
+
+### 실패·한도·보강 기록
+
+- 초기 R08F-02 테스트는 comprehension 괄호/v2 기대값과 신규 DOM fixture 괄호 오류를 수정하고 재실행했다. R08F-07 fixture는 불변 결과를 수정하지 않고 정상 job-item/run/result 순서로 생성하도록 수정했으며 DB 보호를 완화하지 않았다.
+- 초기 Rust 실행은 기반 Python 환경 누락으로 CORE_START_FAILED(8건)였다. NEW_PC_SETUP대로 기반 CPython/PYTHONPATH를 적용한 15개 및 동봉 포함16개 재실행이 통과했다.
+- 최초 설치 빌드는 Cargo PATH 누락, 다음 샌드박스 빌드는 NSIS 도구 다운로드 DNS 제한으로 실패했다. 도구 PATH와 제한 밖 실행으로 최종 성공했다. 최초 모의 공급자 패키지 검증은 asset.list의 1개 페이지를 전체로 오인한 harness 오류를 페이지 순회로 수정했다. 샌드박스 루프백 연결 실패는 제한 밖 검증으로 구분했다.
+- 설치 빌드와 병행한 전체 Core 검사가 기존 러너30초 제한에 도달했다. 검사 수 증가에 맞춰 제한을60초로 바꾸고 시간 초과 메시지를 별도로 처리했다. 최종 전체는25.440초에 모두 통과했다.
+- 원본 재확인/관측 stale, 실측 치수/길이 검색 투영, GIF/PNG/JPEG 공통 관측, 누적3D 디코드 한도, 외부 finish_reason=length 거부, 모드별 출력 JSON 스키마/런타임 상한 일치·지문, main 창 IPC 허용 목록을 보강했다. 새 의존성·마이그레이션·자동 작업은 추가하지 않았다.
+- 격리 NSIS 컴파일에 기존 Korean `choowHowToInstall` LangString 6040 경고1개가 남는다. 무인 검사는 통과했으며 해당 시각 UI는 미검증이다.
+
+### 재현 로그·해시
+
+- Git 제외 로그/보고: `.artifacts/m08f-node.log`, `r08f01-python.log`(최종 Core), `m08f-rust.log`, `m08f-clippy.log`, `m08f-installer-build.log`, `m08f-installed-verification.log`, `m08f-installed-multiformat.json`, `m08-installed-host.json`. 초기 실패는 위 본문에 기록했고 최종 로그는 재실행 결과다.
+- 최종 NSIS SHA-256: `eefb803434cc472e3349d26a35a9142cfcbb57a97d226d5106c30608831edd65`
+- 동봉/설치 Sidecar SHA-256: `e6c091ed64b2537966efdde92d0907f544011226786fc2b4df7b14326c543e6a`
+- 설치 경로/테스트 데이터는 `.artifacts` 안에서만 생성하고 원래 사용자 DB/에셋은 사용하지 않았다. 원격 push 및 실제 화면 조작은 수행하지 않았다.
+
+제거 최종 읽기 검증: 제한 밖 실제 사용자 레지스트리의 테스트 제품 키는 없음(false), 다중 형식 보고 passed=true, 최종 성공 로그 있음(true), 테스트 Core 프로세스 없음. 샌드박스 레지스트리 뷰에서 남아 보인 키와 실제 사용자 뷰를 구분해 확인했다.
