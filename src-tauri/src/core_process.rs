@@ -232,6 +232,8 @@ impl CoreProcess {
                 | "asset.management"
                 | "asset.management.save"
                 | "asset.technical"
+                | "analysis.review"
+                | "analysis.review.apply"
                 | "asset.technical.collect"
                 | "asset.composition"
                 | "asset.composition.save"

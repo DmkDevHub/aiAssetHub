@@ -89,19 +89,19 @@ class EmbeddingTests(unittest.TestCase):
         other=self.db.connection.execute('SELECT id FROM assets WHERE id!=?',(self.id,)).fetchone()[0]
         test_analysis.AnalysisTests.history(self,other,'completed',True)
         self.db.connection.execute("UPDATE asset_files SET sha256='fixture'")
+        self.service.tags({'asset_id':self.id,'add':['selected-tag'],'remove':[]})
+        from ai_asset_hub_core.metadata_store import MetadataStore
+        MetadataStore(self.db).classify(self.id,facets={'style':['style.pixel']},expected_revision=0,confirmed=True)
         for doc in Embeddings(self.db).documents().values():
             values=[1,0,0] if doc['id']==self.id else [0,1,0]
             self.db.connection.execute("INSERT INTO asset_embeddings VALUES (?,?,?,?,?,?,'fixture')",(doc['id'],doc['resultId'],profile['version'],3,struct.pack('<fff',*values),doc['fingerprint']))
         control={'cancel':threading.Event()};job={'profile':profile,'query':'한국어','mode':'semantic'}
-        self.service.tags({'asset_id':self.id,'add':['selected-tag'],'remove':[]})
         with patch('ai_asset_hub_core.embeddings.inspect',return_value=(3,profile['metadataVersion'])),patch('ai_asset_hub_core.semantic_search.embed',return_value=[.6,.8,0]):
             rows=search(self.db,job,control)
             self.assertEqual([r['id'] for r in rows],[other,self.id])
             self.assertAlmostEqual(rows[0]['score'],.8)
             job['criteria']={'tag':'selected-tag'}
             self.assertEqual([r['id'] for r in search(self.db,job,control)],[self.id])
-            from ai_asset_hub_core.metadata_store import MetadataStore
-            MetadataStore(self.db).classify(self.id,facets={'style':['style.pixel']},expected_revision=0,confirmed=True)
             job['criteria']={'styles':['style.pixel']}
             self.assertEqual([r['id'] for r in search(self.db,job,control)],[self.id])
 

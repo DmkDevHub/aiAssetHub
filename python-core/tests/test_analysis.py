@@ -216,6 +216,7 @@ class AnalysisTests(unittest.TestCase):
             engine.close()
         status=jobs.status({'job_id':job})
         self.assertEqual((status['processed'],status['succeeded'],status['failed']),(3,2,1))
+        self.assertTrue(status['partialSuccess'])
         self.assertEqual(status['status'],'failed');self.assertEqual(status['errors'][0]['code'],'API_RATE_LIMIT')
         self.assertEqual(len(calls),3);self.assertEqual(jobs.list({})['items'][0]['id'],job)
 

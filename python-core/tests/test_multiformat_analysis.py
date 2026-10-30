@@ -39,8 +39,15 @@ class MultiFormatTests(unittest.TestCase):
         self.assertEqual(result['features']['technical']['vertexCount'],3)
         prepared=infer.call_args.args[1]
         self.assertEqual(prepared['previewKind'],'wireframe');self.assertNotIn('raw',prepared)
+        from ai_asset_hub_core.analysis_review import AnalysisReview
+        from ai_asset_hub_core.catalog import Catalog
+        review=AnalysisReview(self.db);params={'asset_id':asset,'result_id':result['id']};preview=review.preview(params)
+        review.apply({**params,'plan_token':preview['planToken'],'expected_revision':preview['expectedRevision'],'confirmed':True})
         status,retained,_=self.execute(asset,'threeD',{'description':'bad fixture','tags':[],'suggestions':{'material':['metal']}})
         self.assertEqual(status['failed'],1);self.assertEqual(retained['id'],result['id'])
+        status,_,_=self.execute(asset,'threeD',{'description':'new successful fixture','tags':[],'suggestions':{'primary':'A01'}})
+        self.assertEqual(status['succeeded'],1)
+        self.assertEqual(Catalog(self.db).classification({'asset_id':asset})['value']['primary'],'A02')
 
     def test_animation_worker_keeps_actual_loop_setting_separate_from_ai_recommendation(self):
         from test_animation import gif

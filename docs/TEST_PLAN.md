@@ -737,3 +737,6 @@ R08E-01~06을 완료했다. 폴더/그룹/패키지/분류 탐색, 7개 상세 �
 
 ## R08F-06 내부 검증
 `test_document_formats.py`: 4개 통과(0.007초), 코드 미실행·JSON/CSV·Unity/VFX GUID·ZIP 미압축 해제/위험 경로·실제 SFNT/MP4 헤더 및 손상/한도 거부. `test_multiformat_analysis.py`: 3개 통과(0.616초), 명시 text 모델 경로·원문/파서/AI 제안 분리. Node149개·타입/Vite 통과. 합성 파일과 mock AI 기준이며 실제 영상/폰트 렌더·외부 API·GUI는 미검증/미지원.
+
+## R08F-07 내부 검증
+`test_analysis*.py`: 23개 통과(2.646초), 실제 결과 검토/승인/revision·모드/부분 성공/취소/이력 회귀. `test_multiformat_analysis.py`: 3개 통과(0.666초), 성공 및 실패 재분석에도 사용자 확정 보존. `test_embeddings.py`: 7개 통과(0.873초), 사용자 공개 메타데이터 변경 시 stale/기존 벡터 보존/자동 호출 없음. Node150개 통과(6.033초)로 UI 검토/체크 승인·충돌 후 재검토 검증. 타입/Vite 통과(581ms). 초기 신규 fixture의 RESULT_IMMUTABLE/FK 오류는 불변 결과를 수정하지 않고 정상 job-item/run/result 순서 삽입으로 해결했다. 기존 순위 테스트는 태그/분류 변경 후 stale 제외가 의도된 정책이므로 벡터 fixture를 메타데이터 설정 뒤에 만들도록 변경했다.

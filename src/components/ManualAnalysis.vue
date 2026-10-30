@@ -15,7 +15,7 @@ const external=ref(false),paid=ref(false),startId=ref(''),jobId=ref('');
 watch([mode,scope,model,inputKind,()=>props.selectedIds.join(','),()=>props.folderId],()=>{preview.value=null;startId.value='';external.value=false;paid.value=false;});
 const models=ref<{id:string;modelId:string;enabled:boolean;selected?:boolean;inspection?:{modalities?:string[]}}[]>([]);
 const trigger=ref<HTMLButtonElement>(),panel=ref<HTMLElement>();let alive=true;
-const progress=ref<{status:string;total:number;processed:number;succeeded:number;failed:number;canceled:number;needsRecovery:boolean;errors?:{assetId:string;code:string}[]}|null>(null);
+const progress=ref<{status:string;total:number;processed:number;succeeded:number;failed:number;canceled:number;needsRecovery:boolean;partialSuccess?:boolean;errors?:{assetId:string;code:string}[]}|null>(null);
 let timer:ReturnType<typeof setInterval>|undefined,polling=false,finished='';
 onMounted(()=>{timer=setInterval(()=>{if(jobId.value)void poll();},1000);});
 onBeforeUnmount(()=>{alive=false;if(timer)clearInterval(timer);});
@@ -117,7 +117,7 @@ function keys(event:KeyboardEvent){
  <p v-if="error && !open" role="alert">{{ error }}</p>
  <p v-if="progress && !open" role="status">분석 {{ progress.status }} · {{ progress.processed }}/{{ progress.total }} · 성공 {{ progress.succeeded }} · 실패 {{ progress.failed }}</p>
  <ul v-if="jobs.length" class="analysis-job-list" aria-label="최근 20개 분석 작업"><li v-for="job in jobs" :key="job.id"><button type="button" @click="track(job.id)">{{ job.createdAt }} · {{ job.status }} · {{ job.total }}개</button></li></ul>
- <p v-if="cancelMessage" role="status">{{ cancelMessage }}</p>
+ <p v-if="progress?.partialSuccess" role="status">일부 대상만 성공했습니다. 실패/취소 대상과 이전 성공 결과를 확인하세요.</p><p v-if="cancelMessage" role="status">{{ cancelMessage }}</p>
  <button v-if="jobId && (!progress || ['queued','running'].includes(progress.status))" type="button" :disabled="busy" @click="cancel">{{ progress?.needsRecovery?'중단 작업 취소/정리':'분석 취소 요청' }}</button>
  <button v-if="progress && ['completed','failed','canceled'].includes(progress.status)" type="button" :disabled="busy" @click="retry">같은 조건으로 재검토</button>
  <div v-if="open" class="analysis-overlay">

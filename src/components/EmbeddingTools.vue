@@ -4,7 +4,7 @@ import { invoke,isTauri } from '@tauri-apps/api/core';
 const props=defineProps<{selected:readonly {asset_id:string;result_id:string}[]}>();
 const rebuildApproved=ref(false);
 const model=ref(''),prefix=ref('plain'),busy=ref(false),error=ref('');
-const status=ref<{profile:{modelName:string;dimension:number;version:string}|null;readyCount:number}|null>(null);
+const status=ref<{profile:{modelName:string;dimension:number;version:string}|null;readyCount:number;staleCount?:number}|null>(null);
 async function read(){
  if(!isTauri() || busy.value)return;busy.value=true;error.value='';
  try{const r=await invoke<{ok:boolean;data:NonNullable<typeof status.value>}>('embedding_status');if(!r.ok)throw new Error();status.value=r.data;}
@@ -36,9 +36,9 @@ async function generate(rebuild=false){
   <form @submit.prevent="configure"><label>실제 임베딩 모델 ID <input v-model="model" required maxlength="160" :disabled="busy" /></label>
    <label>텍스트 규격 <select v-model="prefix" :disabled="busy"><option value="plain">일반</option><option value="embeddinggemma">EmbeddingGemma 검색 규격</option></select></label><button :disabled="busy">모델 확인·저장</button></form>
   <button type="button" :disabled="busy" @click="read">임베딩 준비 상태 확인</button>
-  <p v-if="status?.profile">{{ status.profile.modelName }} · {{ status.profile.dimension }}차원 · 버전 {{ status.profile.version }} · 준비 {{ status.readyCount }}개</p>
+  <p v-if="status?.profile">{{ status.profile.modelName }} · {{ status.profile.dimension }}차원 · 버전 {{ status.profile.version }} · 준비 {{ status.readyCount }}개 · 재확인 필요 {{ status.staleCount??0 }}개</p>
   <p v-else-if="status">임베딩 모델이 설정되지 않았습니다.</p>
-  <p>선택된 현재 성공 결과의 설명·태그만 로컬 모델로 전송합니다. 원본 파일은 전송하지 않습니다.</p>
+  <p>선택된 현재 성공 결과의 설명·태그와 공개 검색 메타데이터를 로컬 모델로 전송합니다. 원본 파일·비공개 연락처/구매 메모는 전송하지 않습니다. 변경된 벡터는 자동 재생성하지 않습니다.</p>
   <button type="button" :disabled="busy || !props.selected.length || props.selected.length>100" @click="generate(false)">선택 결과 임베딩 생성 (최대 100개)</button>
   <p v-if="work" role="status">{{ work.status }} · {{ work.processed }}/{{ work.total }} · 실패 {{ work.failed }}</p>
   <label><input v-model="rebuildApproved" type="checkbox" :disabled="busy" />현재 버전의 전체 활성 결과(최대 1000개)와 키워드 인덱스 재구축을 승인합니다.</label>

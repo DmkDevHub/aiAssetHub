@@ -1804,6 +1804,18 @@ test('technical observations are read only until explicit collection and escape 
  assert.equal(calls[1][1].method,'asset.technical.collect');assert.equal(calls[1][1].params.confirmed,true);assert.equal(document.querySelector('.technical-metadata img'),null);assert.match(document.querySelector('.technical-metadata pre').textContent,/channels/);
 });
 
+test('AI classification review requires preview and explicit approval and rejects stale apply',async()=>{
+ app.unmount();globalThis.isTauri=true;const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push(args);return args.method==='analysis.review'?{ok:true,data:{before:{primary:null,facets:{}},after:{primary:'A01',facets:{role:['role.item']}},expectedRevision:0,planToken:'fixture-token',hasChanges:true}}:{ok:false,error:{code:'METADATA_CONFLICT'}};}};
+ app=createApp(components.AnalysisReview,{assetId:'fixture',resultId:'actual-fixture-result'});app.config.errorHandler=e=>errors.push(e);app.mount('#app');await nextTick();
+ assert.equal(calls.length,0);
+ dispatch(document.querySelector('.analysis-review button'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ const apply=[...document.querySelectorAll('.analysis-review button')].at(-1);assert.equal(apply.disabled,true);assert.equal(calls.length,1);
+ const approval=document.querySelector('.analysis-review input');approval.checked=true;dispatch(approval,new Event('change',{bubbles:true}));await nextTick();
+ dispatch(apply,new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[1].method,'analysis.review.apply');assert.equal(calls[1].params.confirmed,true);assert.equal(calls[1].params.result_id,'actual-fixture-result');assert.equal(document.querySelector('.analysis-review input'),null);assert.match(document.querySelector('.analysis-review').textContent,/다시 검토/);
+});
+
 test('stored AI result renders description and provenance as text without executing content',async()=>{
  app.unmount();globalThis.isTauri=true;
  dom.window.__TAURI_INTERNALS__={invoke:async command=>{assert.equal(command,'asset_analysis');return {ok:true,data:{active:{description:'<img src=x onerror=alert(1)> red square',tags:['red'],provider:'Ollama',modelId:'fixture-model',createdAt:'fixture-time',features:{technical:{width:64,height:32,hasTransparentPixels:true},suggestions:{primary:'A04',roles:['role.item'],styles:['style.pixel'],colors:['red'],material:['<b>metal</b>']}}}}};}};

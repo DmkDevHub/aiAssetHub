@@ -98,6 +98,7 @@ class AnalysisEngine:
                         from .analysis_features import audio_suggestions
                         features['audioSuggestions']=audio_suggestions(output.get('audioSuggestions',{}))
                     elif 'audioSuggestions' in output:raise LibraryError('INVALID_MODEL_OUTPUT')
+                    if len(json.dumps(features,ensure_ascii=False).encode('utf-8'))>8000:raise LibraryError('INPUT_TOO_LARGE')
                     try:labels=AnnotationService.labels(output['tags'])
                     except LibraryError:raise LibraryError('INVALID_MODEL_OUTPUT') from None
                     if sum(map(len,labels.values()))>512:raise LibraryError('INVALID_MODEL_OUTPUT')
@@ -107,6 +108,8 @@ class AnalysisEngine:
                     try:
                         db.execute("UPDATE analysis_runs SET status='completed',usage_json=? WHERE id=?",(json.dumps(usage),run))
                         db.execute("INSERT INTO analysis_results(id,run_id,asset_id,description,tags_json,features_json,created_at) VALUES (?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",(result,run,asset_id,output['description'].strip(),json.dumps(list(labels.values())),json.dumps(features)))
+                        from .metadata_store import MetadataStore
+                        MetadataStore(database).propose(asset_id,'analysis_suggestions','ai',features['suggestions'],result,VERSION)
                         db.execute("INSERT INTO asset_active_results VALUES (?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(asset_id) DO UPDATE SET analysis_result_id=excluded.analysis_result_id,selected_at=excluded.selected_at",(asset_id,result))
                         db.execute("DELETE FROM asset_tags WHERE asset_id=? AND source='ai'",(asset_id,))
                         for normalized,label in labels.items():

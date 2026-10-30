@@ -43,7 +43,9 @@ class Embeddings:
     def status(self,params):
         if params!={}:raise LibraryError('INVALID_PARAMS')
         profile=self.profile()
-        return {'profile':profile,'readyCount':len(self.ready(profile)) if profile else 0,'inferenceCalled':False}
+        ready=len(self.ready(profile)) if profile else 0
+        stored=self.db.execute('SELECT count(*) FROM asset_embeddings WHERE embedding_model=?',(profile['version'],)).fetchone()[0] if profile else 0
+        return {'profile':profile,'readyCount':ready,'staleCount':stored-ready,'inferenceCalled':False}
 
     def documents(self):
         rows=self.db.execute('''SELECT a.id,r.id,r.description,r.tags_json,run.input_fingerprint,a.library_root_id,f.relative_path,f.extension
@@ -53,7 +55,9 @@ class Embeddings:
         if len(rows)>10000:raise LibraryError('EMBEDDING_LIMIT')
         result={}
         for r in rows:
-            text=r[2]+'\n'+' '.join(json.loads(r[3]))
+            public=self.db.execute('SELECT searchable_text FROM catalog_search_projection WHERE asset_id=?',(r[0],)).fetchone()
+            text=r[2]+'\n'+' '.join(json.loads(r[3]))+'\n'+(public[0] if public else '')
+            if len(text.encode('utf-8'))>24000:continue
             fingerprint=hashlib.sha256(json.dumps((r[1],text,r[4]),ensure_ascii=False).encode()).hexdigest()
             result[r[0]]={'id':r[0],'resultId':r[1],'text':text,'fingerprint':fingerprint,'libraryId':r[5],'relativePath':r[6],'kind':r[7].lstrip('.').upper()}
         return result

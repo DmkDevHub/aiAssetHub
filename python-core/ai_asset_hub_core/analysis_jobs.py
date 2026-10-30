@@ -44,7 +44,8 @@ class AnalysisJobs:
         errors=[{'assetId':r[0],'code':r[1] if r[1] in ERROR_MESSAGES else 'INTERNAL_ERROR'} for r in self.db.execute('SELECT asset_id,error_code FROM analysis_job_items WHERE job_id=? AND error_code IS NOT NULL ORDER BY asset_id LIMIT 10',(params['job_id'],))]
         return {'jobId':params['job_id'],'status':row[0],'total':row[1], 'processed':sum(counts.get(k,0) for k in ('completed','failed','canceled')),
                 'succeeded':counts.get('completed',0),'failed':counts.get('failed',0),'canceled':counts.get('canceled',0),
-                'active':active,'needsRecovery':row[0] in ('queued','running') and not active,'errors':errors}
+                'active':active,'needsRecovery':row[0] in ('queued','running') and not active,'errors':errors,
+                'partialSuccess':counts.get('completed',0)>0 and (counts.get('failed',0)>0 or counts.get('canceled',0)>0)}
 
     def list(self, params):
         if params!={}:raise LibraryError('INVALID_PARAMS')
