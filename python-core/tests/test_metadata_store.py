@@ -103,11 +103,13 @@ class MetadataStoreTests(unittest.TestCase):
 
     def test_v3_upgrade_preserves_ids_history_fts_vectors_and_original(self):
         self.v3();tables=('assets','asset_files','tags','asset_tags','asset_user_annotations','analysis_jobs','analysis_job_items','analysis_runs','analysis_results','asset_active_results','search_documents','asset_embeddings')
-        before={t:self.db.connection.execute('SELECT * FROM '+t+' ORDER BY rowid').fetchall() for t in tables}
+        columns={t:','.join(r[1] for r in self.db.connection.execute('PRAGMA table_info('+t+')')) for t in tables}
+        before={t:self.db.connection.execute('SELECT '+columns[t]+' FROM '+t+' ORDER BY rowid').fetchall() for t in tables}
         original=hashlib.sha256((self.source/'나무.png').read_bytes()).hexdigest()
         self.db.close();self.db=Database(self.base/'v3.sqlite')
         self.assertEqual(self.db.health()['schema_version'],len(list(migration_directory().glob('*.sql'))));self.assertTrue(self.db.backup_path.exists())
-        self.assertEqual(before,{t:self.db.connection.execute('SELECT * FROM '+t+' ORDER BY rowid').fetchall() for t in tables})
+        self.assertEqual(before,{t:self.db.connection.execute('SELECT '+columns[t]+' FROM '+t+' ORDER BY rowid').fetchall() for t in tables})
+        self.assertEqual(self.db.connection.execute('SELECT enabled,revision FROM tags').fetchone(),(1,1))
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_file_members').fetchone()[0],1)
         self.db.connection.execute("INSERT INTO asset_fts(asset_fts,rank) VALUES ('integrity-check',1)")
         self.assertEqual(original,hashlib.sha256((self.source/'나무.png').read_bytes()).hexdigest())

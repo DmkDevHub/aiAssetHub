@@ -75,7 +75,7 @@ class SearchTests(unittest.TestCase):
         from unittest.mock import patch
         test_analysis.AnalysisTests.history(self,self.id,'completed',True)
         result=self.db.connection.execute('SELECT id FROM analysis_results').fetchone()[0]
-        tag=str(uuid4());self.db.connection.execute('INSERT INTO tags VALUES (?,?,?)',(tag,'중세 횃불','중세 횃불'))
+        tag=str(uuid4());self.db.connection.execute('INSERT INTO tags(id,label,normalized_label) VALUES (?,?,?)',(tag,'중세 횃불','중세 횃불'))
         self.db.connection.execute("INSERT INTO asset_tags VALUES (?,?,'ai',?)",(self.id,tag,result))
         test_analysis.AnalysisTests.history(self,self.id,'failed',timestamp='2030-01-01')
         with patch('ai_asset_hub_core.providers.metadata',side_effect=AssertionError('no model calls')):

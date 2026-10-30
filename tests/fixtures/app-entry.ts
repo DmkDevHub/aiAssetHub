@@ -60,3 +60,5 @@ export {navigation,navigateMode,selectCatalog,resetNavigation} from '../../src/s
 export {default as ProvenanceRecords} from '../../src/components/ProvenanceRecords.vue';
 export {default as ClassificationEditor} from '../../src/components/ClassificationEditor.vue';
 export {default as CreatorLinks} from '../../src/components/CreatorLinks.vue';
+
+export {default as CatalogManager} from '../../src/components/CatalogManager.vue';

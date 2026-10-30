@@ -113,6 +113,8 @@ class AnnotationService:
                 for normalized in remove:
                     self.db.execute("DELETE FROM asset_tags WHERE asset_id=? AND source='user' AND tag_id IN (SELECT id FROM tags WHERE normalized_label=?)", (identifier, normalized))
                 for normalized, label in add.items():
+                    disabled=self.db.execute('SELECT id FROM tags WHERE normalized_label=? AND enabled=0',(normalized,)).fetchone()
+                    if disabled and not self.db.execute("SELECT 1 FROM asset_tags WHERE tag_id=? AND asset_id=? AND source='user'",(disabled[0],identifier)).fetchone():raise LibraryError('INVALID_PARAMS')
                     self.db.execute('INSERT OR IGNORE INTO tags(id,label,normalized_label) VALUES (?,?,?)', (str(uuid4()), label, normalized))
                     self.db.execute("INSERT OR IGNORE INTO asset_tags(asset_id,tag_id,source) SELECT ?,id,'user' FROM tags WHERE normalized_label=?", (identifier, normalized))
                 labels = self.get({'asset_id':identifier})['tags']

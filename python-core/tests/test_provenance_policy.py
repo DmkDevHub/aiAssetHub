@@ -152,7 +152,7 @@ class ProvenancePolicyTests(unittest.TestCase):
         columns = {t: ','.join('"' + r[1] + '"' for r in self.db.connection.execute('PRAGMA table_info(' + t + ')')) for t in tables}
         before = {t: self.db.connection.execute('SELECT ' + columns[t] + ' FROM ' + t).fetchall() for t in tables}
         self.db.close(); self.db = Database(self.base / 'v7.sqlite')
-        self.assertEqual(self.db.health()['schema_version'], 11)
+        self.assertEqual(self.db.health()['schema_version'], len(list(migration_directory().glob('*.sql'))))
         self.assertEqual(before, {t: self.db.connection.execute('SELECT ' + columns[t] + ' FROM ' + t).fetchall() for t in tables})
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM provenance_history').fetchone()[0], 0)
         backup = sqlite3.connect(self.db.backup_path)

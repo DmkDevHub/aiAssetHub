@@ -8,27 +8,29 @@ from .libraries import LibraryError, valid_id
 
 class Catalog(Collections):
     def options(self, params):
-        if not isinstance(params, dict) or set(params)-{'kind','after_id','version'} or {'kind','after_id'}-set(params): raise LibraryError('INVALID_PARAMS')
+        if not isinstance(params, dict) or set(params)-{'kind','after_id','version','include_inactive'} or {'kind','after_id'}-set(params): raise LibraryError('INVALID_PARAMS')
         kind, cursor = params['kind'], params['after_id']
+        if type(params.get('include_inactive',False)) is not bool:raise LibraryError('INVALID_PARAMS')
         if cursor is not None and (not isinstance(cursor, str) or len(cursor) > 128): raise LibraryError('INVALID_PARAMS')
         queries = {
             'groups': 'SELECT id,name,parent_id FROM asset_groups WHERE id>? ORDER BY id LIMIT 21',
             'packages': 'SELECT id,name,NULL FROM asset_packages WHERE enabled=1 AND id>? ORDER BY id LIMIT 21',
             'creators': 'SELECT id,name,NULL FROM creators WHERE enabled=1 AND deleted=0 AND id>? ORDER BY id LIMIT 21',
-            'tags': 'SELECT id,label,NULL FROM tags WHERE id>? ORDER BY id LIMIT 21',
+            'tags': 'SELECT id,label,NULL,enabled FROM tags WHERE id>? ORDER BY id LIMIT 21',
             'types': "SELECT code,ko,parent_code FROM classification_terms WHERE version=(SELECT version FROM classification_dictionaries WHERE kind='type' ORDER BY rowid DESC LIMIT 1) AND active=1 AND code>? ORDER BY code LIMIT 21",
         }
+        if kind=='tags' and not params.get('include_inactive'):queries['tags']='SELECT id,label,NULL,enabled FROM tags WHERE enabled=1 AND id>? ORDER BY id LIMIT 21'
         if kind in ('types', 'facets'):
             dictionary = 'type' if kind == 'types' else 'facet'
             version = params.get('version')
             if version is None:
                 version = self.db.execute('SELECT version FROM classification_dictionaries WHERE kind=? ORDER BY rowid DESC LIMIT 1', (dictionary,)).fetchone()[0]
             if not isinstance(version, str) or not self.db.execute('SELECT 1 FROM classification_dictionaries WHERE version=? AND kind=?', (version, dictionary)).fetchone(): raise LibraryError('INVALID_PARAMS')
-            rows = self.db.execute('SELECT code,ko,parent_code,axis FROM classification_terms WHERE version=? AND active=1 AND code>? ORDER BY code LIMIT 21', (version, cursor or '')).fetchall()
-            return {'version': version, 'items': [dict(id=r[0], name=r[1][:64], parentId=r[2], axis=r[3]) for r in rows[:20]], 'next_cursor': rows[19][0] if len(rows)>20 else None}
+            rows = self.db.execute('SELECT code,ko,parent_code,axis,active FROM classification_terms WHERE version=? AND (active=1 OR ?) AND code>? ORDER BY code LIMIT 21', (version, params.get('include_inactive',False), cursor or '')).fetchall()
+            return {'version': version, 'items': [dict(id=r[0], name=r[1][:64], parentId=r[2], axis=r[3], enabled=bool(r[4])) for r in rows[:20]], 'next_cursor': rows[19][0] if len(rows)>20 else None}
         if not isinstance(kind, str) or kind not in queries: raise LibraryError('INVALID_PARAMS')
         rows = self.db.execute(queries[kind], (cursor or '',)).fetchall()
-        return {'items': [dict(id=r[0], name=r[1][:64], parentId=r[2]) for r in rows[:20]], 'next_cursor': rows[19][0] if len(rows) > 20 else None}
+        return {'items': [dict(id=r[0], name=r[1][:64], parentId=r[2],enabled=bool(r[3]) if len(r)>3 else True) for r in rows[:20]], 'next_cursor': rows[19][0] if len(rows) > 20 else None}
 
     def scope(self, params):
         self.keys(params, 'kind id after_id')

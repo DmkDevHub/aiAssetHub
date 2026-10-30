@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import CatalogManager from '../components/CatalogManager.vue';
 import CatalogNavigation from '../components/CatalogNavigation.vue';
 import {navigation} from '../stores/navigation';
 import {metadata} from '../services/metadata';
 import {collectionUi} from '../stores/collections';
 import PackageManager from '../components/PackageManager.vue';
-import GroupManager from '../components/GroupManager.vue';
 import LibraryTreePanel from "../components/LibraryTreePanel.vue";
 import AssetGallery from "../components/AssetGallery.vue";
 import AssetDetailsPanel from "../components/AssetDetailsPanel.vue";
@@ -134,7 +134,7 @@ function moveRegion(event: KeyboardEvent) {
   }">
     <LibraryTreePanel :show-folders="navigation.mode==='folders'" :nodes="nodes" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
       :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
-      <template #management><CatalogNavigation /><LibraryManagement v-show="navigation.mode==='folders'" /><GroupManager v-show="navigation.mode==='groups'" /><PackageManager v-show="navigation.mode==='packages'" /></template>
+      <template #management><CatalogNavigation /><CatalogManager /><LibraryManagement v-show="navigation.mode==='folders'" /><PackageManager v-show="navigation.mode==='packages'" /></template>
     </LibraryTreePanel>
     <AssetGallery :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" @select="selectedId = $event">
       <template #filters><p v-if="collectionUi.groupId">그룹 필터: {{ collectionUi.groupId }}</p><label>검색 방식 <select v-model="searchMode" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
