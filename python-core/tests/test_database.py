@@ -32,9 +32,9 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(health['sqlite_version'], sqlite3.sqlite_version)
         self.assertEqual(health['journal_mode'], 'wal')
         tables = [row[0] for row in database.connection.execute("SELECT name FROM sqlite_master WHERE type='table'")]
-        self.assertEqual(len(tables), 51)
+        self.assertEqual(len(tables), 57)
         for table in tables:
-            if table not in ('schema_migrations','classification_dictionaries','classification_terms') and not table.startswith('asset_fts'):
+            if table not in ('schema_migrations','classification_dictionaries','classification_terms') and not table.startswith(('asset_fts','catalog_fts')):
                 self.assertEqual(database.connection.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0], 0)
         self.assertEqual(database.connection.execute('PRAGMA foreign_keys').fetchone()[0], 1)
         database.close()

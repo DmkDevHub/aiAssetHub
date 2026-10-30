@@ -18,9 +18,9 @@ class SearchService:
         # Quote every literal token; user input can never supply FTS operators.
         match=' AND '.join('"'+term.replace('"','""')+'"*' for term in terms)
         substring=' AND '.join('instr(d.searchable_text,?)>0' for _ in terms)
-        rows=self.db.execute(f'''SELECT d.asset_id FROM search_documents d JOIN assets a ON a.id=d.asset_id
+        rows=self.db.execute(f'''SELECT d.asset_id FROM catalog_documents d JOIN assets a ON a.id=d.asset_id
             JOIN library_roots l ON l.id=a.library_root_id WHERE l.enabled=1 AND d.asset_id>?
-            AND (d.rowid IN (SELECT rowid FROM asset_fts WHERE asset_fts MATCH ?) OR ({substring}))
+            AND (d.rowid IN (SELECT rowid FROM catalog_fts WHERE catalog_fts MATCH ?) OR ({substring}))
             ORDER BY d.asset_id LIMIT 201''',(cursor or '',match,*terms)).fetchall()
         ids=[row[0] for row in rows[:200]]
         return {'ids':ids,'next_cursor':ids[-1] if len(rows)>200 else None}
