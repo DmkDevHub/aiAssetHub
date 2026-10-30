@@ -69,3 +69,5 @@ export {default as AdvancedFilters} from '../../src/components/AdvancedFilters.v
 export {catalogFilters,applyCatalogFilters,resetCatalogFilters} from '../../src/stores/catalogFilters';
 
 export {default as BulkMetadata} from '../../src/components/BulkMetadata.vue';
+
+export {default as MetadataExchange} from '../../src/components/MetadataExchange.vue';

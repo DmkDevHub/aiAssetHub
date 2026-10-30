@@ -1,0 +1,10 @@
+<script setup lang="ts">
+import {ref,watch} from 'vue';
+import {metadata} from '../services/metadata';
+const props=defineProps<{assetIds:string[]}>();
+const choices=[['basic','이름·설명·별칭'],['tags','사용자 태그'],['classification','분류'],['groups','그룹'],['packages','패키지'],['creators','제작 주체'],['sources','공개 출처'],['relations','에셋 관계']] as const;
+const format=ref('json'),fields=ref<string[]>(['basic','tags','classification','groups','creators','sources']),content=ref(''),busy=ref(false),message=ref('');let generation=0;
+watch([()=>props.assetIds.join(','),()=>fields.value.join(','),format],()=>{generation++;content.value='';message.value='';});
+async function exportDocument(){if(busy.value||!fields.value.length||!props.assetIds.length||props.assetIds.length>20)return;busy.value=true;const token=generation;message.value='';try{const result=await metadata<{content:string;assetCount:number}>('exchange.export',{asset_ids:[...props.assetIds],fields:[...fields.value],format:format.value});if(token===generation){content.value=result.content;message.value=`${result.assetCount}개 에셋의 공개 메타데이터 문서를 생성했습니다.`;}}catch{if(token===generation)message.value='내보내기 실패: 대상·선택 필드 또는 크기 제한을 확인하세요.';}finally{busy.value=false;}}
+</script>
+<template><details class="metadata-exchange"><summary>메타데이터 JSON/CSV 교환</summary><p>최대20개·문서6000 UTF-8 바이트, 선택한 공개 값과 실제 참조 ID를 내보냅니다. 연락처·구매·증빙·URL·원본 경로는 제외합니다. CSV 값은 JSON 셀로 기록해 수식으로 실행되지 않게 합니다.</p><fieldset :disabled="busy"><label v-for="choice in choices" :key="choice[0]"><input v-model="fields" type="checkbox" :value="choice[0]" />{{choice[1]}}</label><label>형식<select v-model="format"><option value="json">JSON</option><option value="csv">CSV</option></select></label><button type="button" :disabled="!fields.length||!assetIds.length||assetIds.length>20" @click="exportDocument">선택 메타데이터 내보내기</button></fieldset><textarea v-if="content" :value="content" readonly rows="8" aria-label="내보내기 문서" /><a v-if="content" :href="'data:text/plain;charset=utf-8,'+encodeURIComponent(content)" :download="'asset-metadata.'+format">내보내기 파일 저장</a><p role="status">{{message}}</p></details></template>

@@ -7,6 +7,7 @@ import { sortAssets } from '../services/assetSearch';
 import EmbeddingTools from './EmbeddingTools.vue';
 import ManualAnalysis from './ManualAnalysis.vue';
 import BulkMetadata from './BulkMetadata.vue';
+import MetadataExchange from './MetadataExchange.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, toRef, watch } from 'vue';
 import {catalogFilters} from '../stores/catalogFilters';
@@ -87,8 +88,8 @@ function moveAssetFocus(event: KeyboardEvent) {
       <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
     </div>
 
-    <BulkMetadata v-if="selection.size" :asset-ids="[...selection]" />
-    
+    <MetadataExchange v-if="selection.size" :asset-ids="[...selection]" /><BulkMetadata v-if="selection.size" :asset-ids="[...selection]" />
+
     <div v-if="items.length === 0" class="gallery-empty" role="status">
       <span class="gallery-empty-mark" aria-hidden="true">◇</span>
       <h2>표시할 에셋이 없습니다.</h2>

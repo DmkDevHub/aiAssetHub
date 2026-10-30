@@ -232,6 +232,7 @@ impl CoreProcess {
                 | "asset.management"
                 | "asset.management.save"
                 | "asset.technical"
+                | "exchange.export"
                 | "bulk.preview"
                 | "bulk.apply"
                 | "analysis.review"

@@ -56,7 +56,7 @@ class BulkMetadata(Catalog):
             records=[service.record(r[0]) for r in self.db.execute('SELECT id FROM provenance_sources WHERE asset_id=? AND enabled=1 ORDER BY id',(asset,))]
             if len(records)>16:raise LibraryError('BULK_LIMIT')
             public=[{'id':r['id'],**service.public_value(r['value'])} for r in records]
-            return public,digest(records),records
+            return public,digest([{k:r[k] for k in ('id','revision','enabled')} for r in records]),records
         raise LibraryError('INVALID_PARAMS')
 
     def next_value(self,asset,field,before,change):
