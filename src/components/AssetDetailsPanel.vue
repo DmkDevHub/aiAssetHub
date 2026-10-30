@@ -2,6 +2,9 @@
 import { nextTick, ref, watch } from "vue";
 import { libraryUi, setDetailsCollapsed } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
+import ClassificationEditor from './ClassificationEditor.vue';
+import ProvenancePanel from './ProvenancePanel.vue';
+import ProvenanceHistory from './ProvenanceHistory.vue';
 import AssetAnalysis from './AssetAnalysis.vue';
 import AssetAnnotations from './AssetAnnotations.vue';
 import AssetPackageMetadata from './AssetPackageMetadata.vue';
@@ -14,8 +17,11 @@ import AssetManagement from './AssetManagement.vue';
 import AssetMetadata from './AssetMetadata.vue';
 
 const props = withDefaults(defineProps<{ asset?: AssetSummary | null }>(), { asset: null });
-const tabs = [{ id: "info", name: "기본 정보" }, { id: "analysis", name: "분석 결과" }] as const;
+const tabs = [{id:'info',name:'기본 정보'},{id:'classification',name:'분류·그룹'},{id:'source',name:'제작·출처'},{id:'rights',name:'라이선스·구매'},{id:'technical',name:'기술 정보'},{id:'analysis',name:'AI 분석 결과'},{id:'relations',name:'관계·이력'}] as const;
+const visited=ref(new Set(['info']));
+
 const activeTab = ref("info");
+watch(activeTab,id=>{visited.value.add(id);});
 const tabList = ref<HTMLElement>();
 watch(() => props.asset?.id, () => { activeTab.value = "info"; });
 
@@ -57,13 +63,13 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
           <AssetMetadata :asset="asset" />
           <AssetAnnotations :asset-id="asset.id" :user-tags="asset.userTags" />
           <AssetManagement :asset-id="asset.id" />
-          <GroupManager :asset-id="asset.id" />
-          <PackageManager :asset-id="asset.id" />
-          <AssetPackageMetadata :asset-id="asset.id" />
-          <AssetComposition :asset-id="asset.id" />
-          <AssetRelations :asset-id="asset.id" />
-          <AssetMetadataHistory :asset-id="asset.id" />
+
         </div>
+        <div id="detail-panel-classification" role="tabpanel" aria-labelledby="detail-tab-classification" :hidden="activeTab!=='classification'"><ClassificationEditor v-if="visited.has('classification')" :asset-id="asset.id" /><GroupManager v-if="visited.has('classification')" :asset-id="asset.id" /><PackageManager v-if="visited.has('classification')" :asset-id="asset.id" /></div>
+        <div id="detail-panel-source" role="tabpanel" aria-labelledby="detail-tab-source" :hidden="activeTab!=='source'"><ProvenancePanel v-if="visited.has('source')" :asset-id="asset.id" area="source" /></div>
+        <div id="detail-panel-rights" role="tabpanel" aria-labelledby="detail-tab-rights" :hidden="activeTab!=='rights'"><ProvenancePanel v-if="visited.has('rights')" :asset-id="asset.id" area="license" /><AssetPackageMetadata v-if="visited.has('rights')" :asset-id="asset.id" /></div>
+        <div id="detail-panel-technical" role="tabpanel" aria-labelledby="detail-tab-technical" :hidden="activeTab!=='technical'"><AssetComposition v-if="visited.has('technical')" :asset-id="asset.id" /></div>
+        <div id="detail-panel-relations" role="tabpanel" aria-labelledby="detail-tab-relations" :hidden="activeTab!=='relations'"><AssetRelations v-if="visited.has('relations')" :asset-id="asset.id" /><AssetMetadataHistory v-if="visited.has('relations')" :asset-id="asset.id" /><ProvenanceHistory v-if="visited.has('relations')" :asset-id="asset.id" /></div>
         <div id="detail-panel-analysis" role="tabpanel" aria-labelledby="detail-tab-analysis"
           :hidden="activeTab !== 'analysis'" tabindex="0">
           <AssetAnalysis v-if="asset.path" :asset-id="asset.id" :revision="`${asset.activeResultId}:${asset.lastAnalysisJobId}:${asset.lastAttemptState}`" :last-attempt-state="asset.lastAttemptState" :stale="asset.analysisStale" />

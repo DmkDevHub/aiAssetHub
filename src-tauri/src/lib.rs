@@ -17,7 +17,10 @@ async fn metadata_request(
     if window.label() != "main"
         || !matches!(
             method.as_str(),
-            "catalog.options"
+            "catalog.classification"
+                | "catalog.classification.save"
+                | "catalog.evidence_candidates"
+                | "catalog.options"
                 | "catalog.scope"
                 | "creator.list"
                 | "creator.get"

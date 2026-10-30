@@ -52,5 +52,5 @@ watch(()=>props.assetId,load,{immediate:true});
     </form>
     <p role="status">{{ message }}</p>
     <button v-if="!busy&&(!loaded||conflict)" type="button" @click="load">초안을 버리고 다시 불러오기</button>
-  </section>
+  <button type="button" :disabled="busy" @click="load()">변경 취소 · 저장값 다시 조회</button></section>
 </template>

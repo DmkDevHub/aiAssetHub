@@ -1,12 +1,14 @@
 """Bounded offline catalog navigation and editing contracts. No model/file actions."""
 import json
+from .metadata_values import MetadataError
+from .taxonomy import TaxonomyError
 from .collections import Collections
 from .libraries import LibraryError, valid_id
 
 
 class Catalog(Collections):
     def options(self, params):
-        self.keys(params, 'kind after_id')
+        if not isinstance(params, dict) or set(params)-{'kind','after_id','version'} or {'kind','after_id'}-set(params): raise LibraryError('INVALID_PARAMS')
         kind, cursor = params['kind'], params['after_id']
         if cursor is not None and (not isinstance(cursor, str) or len(cursor) > 128): raise LibraryError('INVALID_PARAMS')
         queries = {
@@ -16,6 +18,14 @@ class Catalog(Collections):
             'tags': 'SELECT id,label,NULL FROM tags WHERE id>? ORDER BY id LIMIT 21',
             'types': "SELECT code,ko,parent_code FROM classification_terms WHERE version=(SELECT version FROM classification_dictionaries WHERE kind='type' ORDER BY rowid DESC LIMIT 1) AND active=1 AND code>? ORDER BY code LIMIT 21",
         }
+        if kind in ('types', 'facets'):
+            dictionary = 'type' if kind == 'types' else 'facet'
+            version = params.get('version')
+            if version is None:
+                version = self.db.execute('SELECT version FROM classification_dictionaries WHERE kind=? ORDER BY rowid DESC LIMIT 1', (dictionary,)).fetchone()[0]
+            if not isinstance(version, str) or not self.db.execute('SELECT 1 FROM classification_dictionaries WHERE version=? AND kind=?', (version, dictionary)).fetchone(): raise LibraryError('INVALID_PARAMS')
+            rows = self.db.execute('SELECT code,ko,parent_code,axis FROM classification_terms WHERE version=? AND active=1 AND code>? ORDER BY code LIMIT 21', (version, cursor or '')).fetchall()
+            return {'version': version, 'items': [dict(id=r[0], name=r[1][:64], parentId=r[2], axis=r[3]) for r in rows[:20]], 'next_cursor': rows[19][0] if len(rows)>20 else None}
         if not isinstance(kind, str) or kind not in queries: raise LibraryError('INVALID_PARAMS')
         rows = self.db.execute(queries[kind], (cursor or '',)).fetchall()
         return {'items': [dict(id=r[0], name=r[1][:64], parentId=r[2]) for r in rows[:20]], 'next_cursor': rows[19][0] if len(rows) > 20 else None}
@@ -39,3 +49,31 @@ class Catalog(Collections):
                                f'WHERE l.enabled=1 AND a.id>? AND {condition} ORDER BY a.id LIMIT 201', (cursor or '', *args)).fetchall()
         ids = [r[0] for r in rows[:200]]
         return {'ids': ids, 'next_cursor': ids[-1] if len(rows) > 200 else None}
+
+    def classification(self, params):
+        self.keys(params, 'asset_id'); self.require_asset(params['asset_id']); state = self.metadata.effective(params['asset_id'], 'classification')
+        value = state['value'] if isinstance(state.get('value'), dict) else None
+        versions = {kind: self.db.execute('SELECT version FROM classification_dictionaries WHERE kind=? ORDER BY rowid DESC LIMIT 1', (kind,)).fetchone()[0] for kind in ('type','facet')}
+        return dict(value={'primary': value['type']['primary'] if value else None, 'navigation': value['type']['navigation'] if value else [],
+                           'facets': value['facets']['values'] if value else {}, 'type_version': value['type']['version'] if value else versions['type'],
+                           'facet_version': value['facets']['version'] if value else versions['facet']}, revision=state['revision'], source=state['source'], status=state['status'])
+
+    def save_classification(self, params):
+        self.keys(params, 'asset_id value expected_revision confirmed'); value=params['value']
+        self.keys(value, 'primary navigation facets type_version facet_version')
+        try:
+            self.metadata.classify(params['asset_id'], **value, expected_revision=params['expected_revision'], confirmed=params['confirmed'])
+        except (MetadataError, TaxonomyError) as error:
+            raise LibraryError('METADATA_CONFLICT' if str(error)=='METADATA_CONFLICT' else 'INVALID_PARAMS') from None
+        return self.classification({'asset_id':params['asset_id']})
+
+    def evidence_candidates(self, params):
+        from .provenance import Provenance
+        self.keys(params, 'subject after_id'); kind, owner=Provenance(self.database).subject(params['subject'])
+        cursor=params['after_id']
+        if cursor is not None and not valid_id(cursor): raise LibraryError('INVALID_PARAMS')
+        scope='m.asset_id=?' if kind=='asset' else 'EXISTS(SELECT 1 FROM asset_package_members p WHERE p.package_id=? AND p.asset_id=m.asset_id)'
+        rows=self.db.execute('SELECT DISTINCT f.id,f.relative_path,f.exists_flag FROM asset_file_members m JOIN asset_files f ON f.id=m.file_id '
+            'JOIN assets a ON a.id=f.asset_id JOIN library_roots l ON l.id=a.library_root_id '
+            f'WHERE l.enabled=1 AND {scope} AND f.id>? ORDER BY f.id LIMIT 21',(owner,cursor or '')).fetchall()
+        return {'items':[dict(id=r[0],name=r[1][-64:],available=bool(r[2])) for r in rows[:20]],'next_cursor':rows[19][0] if len(rows)>20 else None}

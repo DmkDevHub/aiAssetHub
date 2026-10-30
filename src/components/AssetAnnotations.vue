@@ -82,5 +82,5 @@ async function save() {
       <button :disabled="busy || !loaded || conflict || !input.trim()">추가</button>
     </form>
     <p v-if="error" role="alert">{{ error }}</p>
-  </section>
+  <button type="button" :disabled="busy" @click="load(assetId)">변경 취소 · 저장값 다시 조회</button></section>
 </template>

@@ -56,3 +56,7 @@ export {collectionsChanged} from '../../src/stores/collections';
 
 export {default as CatalogNavigation} from '../../src/components/CatalogNavigation.vue';
 export {navigation,navigateMode,selectCatalog,resetNavigation} from '../../src/stores/navigation';
+
+export {default as ProvenanceRecords} from '../../src/components/ProvenanceRecords.vue';
+export {default as ClassificationEditor} from '../../src/components/ClassificationEditor.vue';
+export {default as CreatorLinks} from '../../src/components/CreatorLinks.vue';

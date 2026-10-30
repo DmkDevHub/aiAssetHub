@@ -668,3 +668,7 @@ M08D Core/DB 범위를 완료했다. 관리/7개 상세 탭·통합 검색(M08E)
 
 ## R08E-01 (2026-10-30)
 폴더/그룹/패키지/분류 탐색과 선택 상태를 분리하고 모드 복원·읽기 전용 catalog.options/scope를 구현했다. 실제 소속/분류 ID로 조회하며 탐색으로 스캔/AI/파일 이동은 없다. metadata_request는 main 창·고정 메타데이터 명령만 허용하며 분석/임베딩/임의 SQL은 전달하지 않는다. 변경: Catalog Core·Rust 허용 목록/명령·Vue 탐색/저장소·LibraryView·DOM/DB 테스트·문서. npm run check 종료 0: Node 139개·Python 185개, 타입/Vite 통과 (.artifacts/r08e-01-check.log). Unicode/HTML 이스케이프·선택 복원·조회만 실행/원본·Job/벡터 보존을 검증했다. 실제 화면은 미검증이고 Rust/설치 최종 회귀는 M08E 마무리에 실행한다.
+
+## R08E-02 (2026-10-30)
+상세 탭을 기본/분류·그룹/제작·출처/라이선스·구매/기술/AI/관계·이력 7개로 분리했다. 연결된 패널/키보드 탐색과 지연 조회·탭 이동 중 상태 보존, 분류 사용자 확정·제작 역할·에셋/공유 패키지 출처/구매·라이선스/등록 증빙·공개/승인 원문 이력 UI를 추가했다. 새 편집은 입력만으로 쓰지 않고 저장/취소·충돌 차단/초안 보존·소유자 전환 후 늦은 응답 무시·민감 조회 명시 승인·삭제 영향 검토를 제공한다. 취소는 기존 저장값 조회/초안 복원이며 원본 파일 변경/모델 호출이 없다.
+변경: 새 ClassificationEditor/CreatorLinks/ProvenancePanel/Records/History와 기존 상세/취소 UI, catalog.classification/save/evidence_candidates·버전별 사전 옵션/고정 IPC, DOM/DB 테스트. npm run check 종료 0: Node 142·Python 187개(19.183초), 타입/Vite 통과. 최종 aria-controls/증빙 후보 중복 조회 보완 뒤 node --test 142개/4.541초 통과. 로그 r08e-02-check.log/r08e-02-dom-final.log. 첫 실행은 기존 2개 탭을 전제로 한 키보드 테스트가 실패해 실제 7개 패널/전체 순환·Home/End 검사로 갱신했다. 실제 화면 배치/OS 상호작용은 미검증이고 Rust/설치 회귀는 마일스톤 최종에 실행한다.

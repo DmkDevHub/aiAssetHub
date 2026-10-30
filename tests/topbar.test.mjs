@@ -615,26 +615,11 @@ test("supplied gallery selection drives details in both grid and list", async ()
   assert.equal(document.querySelectorAll('.asset-select[aria-pressed="true"]').length, 1);
 });
 
-test("detail tabs support roving keyboard activation with linked panels", async () => {
-  await mountWorkspace(galleryFixture);
-  await clickElement('.asset-select');
-  const info = document.querySelector('#detail-tab-info');
-  const analysis = document.querySelector('#detail-tab-analysis');
-  await key(info, 'ArrowRight');
-  assert.equal(document.activeElement, analysis);
-  assert.equal(analysis.getAttribute('aria-selected'), 'true');
-  assert.equal(info.tabIndex, -1);
-  assert.equal(document.querySelector('#detail-panel-info').hidden, true);
-  assert.equal(document.querySelector('#detail-panel-analysis').hidden, false);
-  assert.match(document.querySelector('.detail-analysis').textContent, /제공된 분석 결과가 없습니다/);
-  await key(analysis, 'ArrowRight');
-  assert.equal(document.activeElement, info);
-  await key(info, 'End');
-  assert.equal(document.activeElement, analysis);
-  await key(analysis, 'Home');
-  assert.equal(document.activeElement, info);
-  await key(info, 'ArrowLeft');
-  assert.equal(document.activeElement, analysis);
+test("detail tabs support seven linked panels and roving keyboard activation", async () => {
+ await mountWorkspace(galleryFixture);await clickElement('.asset-select');
+ const tabs=[...document.querySelectorAll('.detail-tabs [role="tab"]')];assert.equal(tabs.length,7);assert.ok(tabs.every(t=>document.getElementById(t.getAttribute('aria-controls'))));
+ for(let i=0;i<tabs.length;i++){await key(tabs[i],'ArrowRight');const target=tabs[(i+1)%tabs.length];assert.equal(document.activeElement,target);assert.equal(target.getAttribute('aria-selected'),'true');assert.equal(document.getElementById(target.getAttribute('aria-controls')).hidden,false);}
+ await key(tabs[0],'End');assert.equal(document.activeElement,tabs[6]);await key(tabs[6],'Home');assert.equal(document.activeElement,tabs[0]);await key(tabs[0],'ArrowLeft');assert.equal(document.activeElement,tabs[6]);
 });
 
 test("selection changes reset the tab and removed assets clear stale details", async () => {
@@ -2124,4 +2109,32 @@ test('catalog navigation uses read-only paginated options and renders literal Un
  assert.equal(calls.length,1);assert.equal(calls[0][1].method,'catalog.options');
  components.selectCatalog('fixture-group');components.navigateMode('folders');await nextTick();components.navigateMode('groups');await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(components.navigation.selected.groups,'fixture-group');assert.ok(calls.every(c=>c[1].method==='catalog.options'));
+});
+
+async function mountMetadataComponent(name,props,mock){
+ app.unmount();globalThis.isTauri=true;dom.window.__TAURI_INTERNALS__={invoke:mock};
+ app=createApp({render:()=>h(components[name],props.value??props)});app.config.errorHandler=e=>errors.push(e);app.config.warnHandler=e=>errors.push(new Error(e));app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
+}
+function metaButton(text){return [...document.querySelectorAll('button')].find(b=>b.textContent.trim()===text);}
+async function metaField(label,value){const l=[...document.querySelectorAll('label')].find(l=>l.textContent.trim().startsWith(label));const e=l.querySelector('input,textarea,select');e.value=value;dispatch(e,new dom.window.Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));await nextTick();return e;}
+test('provenance draft input performs no write and failed save plus cancel preserve boundaries',async()=>{
+ const calls=[];await mountMetadataComponent('ProvenanceRecords',{subject:{kind:'asset',id:'fixture-owner'},area:'source'},async(command,args)=>{calls.push(args);return args.method==='source.list'?{ok:true,data:{items:[],next_cursor:null}}:{ok:false,error:{code:'DB_UNAVAILABLE'}};});
+ await metaField('상품명','<script>초안</script>');assert.equal(calls.length,1);
+ dispatch(document.querySelector('form'),new dom.window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls.at(-1).method,'source.create');assert.equal(calls.at(-1).params.value.productName,'<script>초안</script>');assert.equal(calls.at(-1).params.value.purchase.amount,null);
+ assert.match(document.querySelector('[role="alert"]').textContent,/초안/);assert.equal(document.querySelector('script'),null);
+ dispatch(metaButton('기록 변경 취소'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();assert.equal([...document.querySelectorAll('label')].find(l=>l.textContent.startsWith('상품명')).querySelector('input').value,'');
+});
+test('private source loads require explicit gesture and old-owner response cannot replace a new draft',async()=>{
+ const calls=[];let finish;const props=ref({subject:{kind:'asset',id:'fixture-old'},area:'source'});
+ await mountMetadataComponent('ProvenanceRecords',props,async(command,args)=>{calls.push(args);if(args.method==='source.list')return {ok:true,data:{items:args.params.subject.id==='fixture-old'?[{id:'fixture-record',value:{productName:'공개 이름'},revision:1,enabled:true}]:[],next_cursor:null}};if(args.method==='source.get')return new Promise(r=>finish=r);throw new Error('unexpected');});
+ dispatch(metaButton('공개 이름'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(calls.length,1);
+ dispatch(metaButton('민감 원문 조회 승인 · 초안 다시 불러오기'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(calls.at(-1).params.include_private,true);assert.equal(calls.at(-1).params.confirmed,true);
+ props.value={subject:{kind:'asset',id:'fixture-new'},area:'source'};await nextTick();finish({ok:true,data:{id:'fixture-record',value:{productName:'OLD-PRIVATE',purchase:{amount:'1',currency:'KRW',purchasedOn:'',downloadedOn:''}},revision:1,evidence:[]}});await new Promise(r=>setImmediate(r));await nextTick();assert.ok([...document.querySelectorAll('input')].every(e=>!e.value.includes('OLD-PRIVATE')));
+});
+test('classification editor saves only explicit user action and preserves a conflicting draft',async()=>{
+ const calls=[];const value={primary:null,navigation:[],facets:{},type_version:'fixture-types',facet_version:'fixture-facets'};
+ await mountMetadataComponent('ClassificationEditor',{assetId:'fixture-asset'},async(command,args)=>{calls.push(args);if(args.method==='catalog.classification')return {ok:true,data:{value,revision:2,source:'user',status:'confirmed'}};if(args.method==='catalog.options')return {ok:true,data:{items:[{id:args.params.kind==='types'?'A01':'style.pixel',name:'픽셀',axis:'style'}],next_cursor:null}};return {ok:false,error:{code:'METADATA_CONFLICT'}};});
+ const checkbox=document.querySelector('input[type="checkbox"]');checkbox.checked=true;dispatch(checkbox,new dom.window.Event('change',{bubbles:true}));await nextTick();assert.ok(calls.every(c=>c.method!=='catalog.classification.save'));
+ dispatch(document.querySelector('form'),new dom.window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.at(-1).params.expected_revision,2);assert.deepEqual(calls.at(-1).params.value.facets.style,['style.pixel']);assert.equal(document.querySelector('input[type="checkbox"]').checked,true);assert.equal(metaButton('분류 저장').disabled,true);
 });
