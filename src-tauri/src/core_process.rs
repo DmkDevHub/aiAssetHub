@@ -256,6 +256,11 @@ impl CoreProcess {
                 | "asset.packages.defaults"
                 | "asset.packages.effective"
                 | "asset.packages.override"
+                | "creator.list"
+                | "creator.get"
+                | "creator.create"
+                | "creator.update"
+                | "creator.set_enabled"
                 | "asset.annotations"
                 | "asset.tags"
                 | "asset.annotate"
@@ -348,6 +353,66 @@ impl CoreProcess {
 mod tests {
     use super::*;
 
+    fn verify_creator_dictionary(core: &mut CoreProcess) {
+        let mut value = json!({"name":"제작 주체", "kind":"company", "brand":"fixture brand",
+            "homepageUrl":"https://example.com", "profileUrl":"", "contact":"private@example.com",
+            "country":"대한민국", "description":"fixture"});
+        let created = core
+            .library_request("creator.create", json!({"value":value}))
+            .unwrap();
+        assert_eq!(created["ok"], true);
+        let id = created["data"]["id"].as_str().unwrap().to_owned();
+        assert!(uuid::Uuid::parse_str(&id).is_ok());
+        let listed = core
+            .library_request(
+                "creator.list",
+                json!({"after_id":null,"include_disabled":false}),
+            )
+            .unwrap();
+        assert_eq!(listed["data"]["items"][0]["id"], id);
+        assert!(listed["data"]["items"][0].get("contact").is_none());
+        value["name"] = json!("수정된 제작 주체");
+        let updated = core
+            .library_request(
+                "creator.update",
+                json!({"creator_id":id,"value":value,"expected_revision":1}),
+            )
+            .unwrap();
+        assert_eq!(updated["data"]["revision"], 2);
+        let stale = core
+            .library_request(
+                "creator.update",
+                json!({"creator_id":id,"value":value,"expected_revision":1}),
+            )
+            .unwrap();
+        assert_eq!(stale["error"]["code"], "METADATA_CONFLICT");
+        let disabled = core
+            .library_request(
+                "creator.set_enabled",
+                json!({"creator_id":id,"enabled":false,"expected_revision":2}),
+            )
+            .unwrap();
+        assert_eq!(disabled["data"]["enabled"], false);
+        core.stop();
+        core.start().unwrap();
+        let restored = core
+            .library_request("creator.get", json!({"creator_id":id}))
+            .unwrap();
+        assert_eq!(restored["data"], disabled["data"]);
+        let jobs = core.library_request("analysis.jobs", json!({})).unwrap();
+        assert_eq!(jobs["data"]["items"], json!([]));
+    }
+
+    #[test]
+    fn creator_dictionary_survives_restart_without_starting_analysis() {
+        let data = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../.artifacts/creator-wire-tests")
+            .join(uuid::Uuid::new_v4().to_string());
+        let mut core = CoreProcess::new(LaunchSpec::development().with_data(data, "development"));
+        core.start().unwrap();
+        verify_creator_dictionary(&mut core);
+    }
+
     fn verify_model_registry(core: &mut CoreProcess) {
         let connection = core.library_request("mcp.connection", json!({})).unwrap();
         assert_eq!(connection["data"]["brokerReady"], true);
@@ -415,8 +480,9 @@ mod tests {
             CoreProcess::new(LaunchSpec::packaged(directory).with_data(data.clone(), "production"));
         let first = core.start().unwrap();
         assert_eq!(first["data"]["database"]["status"], "ready");
-        assert_eq!(first["data"]["database"]["schema_version"], 6);
+        assert_eq!(first["data"]["database"]["schema_version"], 7);
         verify_model_registry(&mut core);
+        verify_creator_dictionary(&mut core);
         let source = data
             .parent()
             .unwrap()
@@ -649,7 +715,7 @@ mod tests {
             CoreProcess::new(LaunchSpec::development().with_data(prod.clone(), environment));
         let health = core.start().unwrap();
         assert_eq!(health["data"]["database"]["status"], "ready");
-        assert_eq!(health["data"]["database"]["schema_version"], 6);
+        assert_eq!(health["data"]["database"]["schema_version"], 7);
         core.stop();
         assert!(prod.join("asset_hub.sqlite").is_file());
         assert_eq!(core.start().unwrap()["data"]["database"]["status"], "ready");

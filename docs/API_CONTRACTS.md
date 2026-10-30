@@ -200,3 +200,19 @@ Tauri 인자는 camelCase, Core 인자는 snake_case이며 기존 안전 응답 
 그룹/패키지 목록은 2개씩 UUID 커서, 그룹 검색은 필터 적용 후 200개씩 UUID 커서다. 전체 그룹/패키지 목록 로드 실패 시 확인되지 않은 항목을 빈 목록으로 저장하지 않는다. 소속 조회는 아직 목록에서 로드하지 않은 ID도 포함하고 클라이언트는 이를 보존한다. 요약 이름은 64자로 줄여 전송 크기를 제한한다.
 
 일괄 검토는 최대 100개 실제 활성 에셋의 소속 버전과 추가/해제 그룹 버전을 포함하는 plan, 이전/이후 소속 2개씩, next_cursor를 반환한다. 검토만으로 기록을 변경하지 않는다. 적용 시 plan을 DB 현재 상태에서 다시 계산해 전체 일치해야 하며, 하나라도 충돌/실패하면 전체 롤백한다. 기본 값 계약·불변 구매 당시 기록·다중 패키지 충돌 규칙은 METADATA_SCHEMA.md를 따른다. 선언된 금액/통화/라이선스명은 검증된 구매·권리 증명으로 표시하지 않는다.
+
+## R08D-01 제작 주체 사전 Core API
+
+개인/팀/회사는 공유 주체의 유형이며 제작자/제작사/배포사 역할 연결은 R08D-02에서 제공한다. 아래 명령은 Core 안전 응답 봉투와 Rust 내부 명령 허용 목록에 추가했다. Tauri UI 명령/관리 화면·MCP 쓰기 도구는 추가하지 않는다.
+
+| Core | 입력 | 응답 data |
+| --- | --- | --- |
+| `creator.list` | `after_id`: null/실제 UUID, `include_disabled`: bool | items(최대 2개), next_cursor |
+| `creator.get` | `creator_id` | 실제 주체의 전체 정보 |
+| `creator.create` | `value` | 새 UUID·전체 정보·enabled=true·revision=1 |
+| `creator.update` | `creator_id,value,expected_revision` | 같은 UUID의 갱신된 정보·revision+1 |
+| `creator.set_enabled` | `creator_id,enabled,expected_revision` | 비활성/복원된 정보·revision+1; 동일 상태는 revision/감사 추가 없이 반환 |
+
+입력 객체의 키는 표와 정확히 일치해야 한다. value는 `name,kind,brand,homepageUrl,profileUrl,contact,country,description` 8개 필드를 모두 받으며 선택 정보는 빈 문자열이다. 상세 값 계약은 METADATA_SCHEMA의 R08D-01 절을 따른다. 목록은 `id,name,kind,brand,country,enabled,revision`만 반환하고 연락처·URL·설명을 포함하지 않는다. 전체 정보는 명시적인 get/쓰기 응답으로만 제공한다. 비활성 주체도 get으로 조회·수정·복원 가능하며 삭제 API는 없다.
+
+커서는 실제 존재하는 UUID여야 하며 UUID 오름차순 keyset이다. 같은 이름의 서로 다른 주체는 별도 UUID로 보존한다. 잘못된 필드/UUID/유형/URL은 INVALID_PARAMS, 오래된 revision은 METADATA_CONFLICT, SQL 오류는 비밀 없는 DB_UNAVAILABLE이다. 쓰기·레드랙션 감사 기록은 같은 BEGIN IMMEDIATE 트랜잭션이며 한쪽 실패 시 전체 롤백한다. 조회·저장·활성 변경으로 URL 접속·스캔·AI/임베딩·외부 과금을 시작하지 않는다.

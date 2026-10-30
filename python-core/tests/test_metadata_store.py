@@ -106,7 +106,7 @@ class MetadataStoreTests(unittest.TestCase):
         before={t:self.db.connection.execute('SELECT * FROM '+t+' ORDER BY rowid').fetchall() for t in tables}
         original=hashlib.sha256((self.source/'나무.png').read_bytes()).hexdigest()
         self.db.close();self.db=Database(self.base/'v3.sqlite')
-        self.assertEqual(self.db.health()['schema_version'],6);self.assertTrue(self.db.backup_path.exists())
+        self.assertEqual(self.db.health()['schema_version'],7);self.assertTrue(self.db.backup_path.exists())
         self.assertEqual(before,{t:self.db.connection.execute('SELECT * FROM '+t+' ORDER BY rowid').fetchall() for t in tables})
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM asset_file_members').fetchone()[0],1)
         self.db.connection.execute("INSERT INTO asset_fts(asset_fts,rank) VALUES ('integrity-check',1)")

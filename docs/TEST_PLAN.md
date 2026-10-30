@@ -598,3 +598,30 @@ Sidecar SHA256 `403ddcf35b8f8554760bef1b4c9d2b38ed0835bb0ccd65c27a2f0d4cd8586d72
 로그/근거: `.artifacts/new-pc-check.log`, `new-pc-fmt.log`, `new-pc-clippy.log`, `new-pc-rust-tests.log`, `new-pc-installer.log`, `new-pc-verify.log`, `new-pc-verify-first-failure.log`, `new-pc-mcp-debug.log`; 명령별 실측 `new-pc-steps.jsonl`; 설치 Core/Host 보고서 `new-pc-installed-result.json`, `new-pc-installed-host.json`; 해시 `new-pc-final-hashes.json`; 재부팅/OS `new-pc-post-reboot.json`; 설치 전 등록 `new-pc-install-registry-before.json`; 최종 정리 `new-pc-final-cleanup.json`. 원본 검증 스크립트가 생성한 `r02-05-installed-result.json`, `m08-installed-host.json`도 보존했다.
 
 **완료 범위:** ENV-02의 도구/새 환경·Sidecar 복원, 순차 내부 테스트·타입/Rust 검사, Windows 설치본 빌드·격리 무화면 설치/제거 검증을 완료했다. 최초 실패는 위에 별도 기록했다. 변경 파일은 `docs/TEST_PLAN.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`이며 기능/잠금 파일 변경은 없다. Ollama/모델 다운로드·실제 AI 추론·사용자 DB/원본 이전·실제 GUI/OS 시각 배치·개발 도구가 없는 깨끗한 PC·서명/업그레이드·대규모 성능은 **미실행/미검증**이다. 앱/브라우저 화면 조작·다음 기능 개발·원격 push는 수행하지 않았다.
+
+## R08D-01 제작 주체 사전·Core 관리 API (2026-10-30)
+
+- 신규 `007_creators.sql`(v7)과 `creators.py`를 추가했다. 개인/팀/회사·브랜드·홈페이지/판매자 프로필 URL·연락처·국가·설명을 저장하며 Core `creator.list/get/create/update/set_enabled` 5개 명령과 Rust 내부 허용 목록을 제공한다. 신규 의존성은 없다. UI/Tauri 화면 명령·MCP 쓰기·에셋/패키지 역할 연결은 이번 범위가 아니다.
+- 명시 쓰기·revision 충돌 검사·원자 저장/감사·비활성/복원을 제공한다. 목록은 2개씩 UUID 커서의 공개 요약이다. HTTPS 호스트/포트/IDNA·제어문자/크기/타입을 검증하고 userinfo·쿼리/fragment를 거부한다. URL 접속·신원/국가/연락 가능성 확인은 하지 않는다. 연락처·URL·설명 원문은 목록/감사/MCP/FTS에 복제하지 않는다. 감사에는 ID·revision·변경 필드명만 기록한다.
+- 변경 파일: `db/migrations/007_creators.sql`, `python-core/ai_asset_hub_core/{creators,application}.py`, `python-core/tests/test_creators.py` 및 기존 스키마 기대값 3개 테스트 파일, `src-tauri/src/core_process.rs`, `scripts/package-core.mjs`, `scripts/verify-installer.ps1`, API/메타데이터/DB/이전 안내·ROADMAP·CHANGELOG·본 문서. 기존 SQL 001~006/잠금 파일/프런트엔드 코드는 변경하지 않았다.
+
+| 내부 자동화 명령 | 실측 결과 |
+| --- | --- |
+| `AI_ASSET_HUB_PYTHON=<기반 CPython 3.13.17>`, `PYTHONPATH=<저장소>/python-core`, `python -B -m unittest discover -s python-core/tests -p test_creators.py -v` | 종료 0, 신규 9개 통과, 1.033초 |
+| `npm.cmd run check` | 종료 0, Node 137개·Python 161개(17.825초), vue-tsc/tsc·Vite(0.967초) 통과 |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` | 종료 0, 통과 |
+| `npm.cmd run package:core` | 종료 0, 새 creators 모듈 포함 PYZ 검사·v7 SQL 동봉 성공; PyInstaller 빌드 로그 35.729초 |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | 종료 0, 경고 없음, 19.264초 |
+| `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1` | 종료 0, 14개 통과/ignored 0, 전체 17.548초·테스트 5.34초 |
+
+고유 내부 테스트 합계 **312개(Node 137 + Python 161 + Rust 14)**다. 모든 빌드와 테스트는 순차 실행했다. Rust 신규 테스트는 실제 개발 Core의 생성/조회/수정/충돌/비활성/재시작 보존을 확인했고, 패키지 전용 테스트에도 같은 검증을 넣어 Python/개발 PATH 없는 동봉 Core에서 API를 확인했다.
+
+신규 Python 테스트는 다음 상태·실패 경로를 확인했다: 유형/한글/NFKC와 동명 UUID 분리·재개방 보존, 안전하지 않은 URL/잘못된 타입·길이/서로게이트 거부, 두 DB 연결의 낙관적 충돌·stale 쓰기 불변, 비활성/복원·동일 상태 no-op, 민감 원문의 목록/감사 미포함·MCP 감사 분리, 5개 항목의 2개씩 커서 페이지·Unicode 응답 한도, 감사 SQL 후반 실패 시 생성/수정/비활성 전체 롤백과 오류 원문 레드랙션. 별도 v6 fixture를 v7로 올려 **모든 기존 테이블 행**·활성 분석 결과·FTS/원본 bytes·v6 백업을 보존했고, 새 SQL 뒤 오류를 넣어 v6/에셋/스키마 롤백과 creators 부분 테이블 없음도 확인했다. 생성·수정이 AI Job/벡터·기존 에셋/분석/검색 기록을 바꾸지 않았으며 네트워크 진입점을 막은 사전 작업도 통과했다.
+
+후속 패키지 검증도 순차 실행했다. `npm.cmd run build:installer` 종료 0(93.968초, Release 컴파일 48.85초), `./scripts/verify-installer.ps1 -Mcp` 종료 0(32.666초). 격리 설치본은 버전 0.5.0/DB v7 ready/WAL·실제 Core PID·개발 Python 없는 PATH·비어 있는 stderr·Core 종료를 통과했다. 공식 MCP SDK의 읽기 5종·실제 fixture ID·감사/경로 거부·최신 2026-07-28 및 레거시 2025-11-25·종료 오류/명시 재시작·원본/Job/벡터 보존과 검증 설치본 제거를 확인했다. 이번 실행은 재시도 없이 통과했고, ENV-02 최초 MCP 일시 실패의 원인이 해결됐다고 주장하지 않는다. 기존 Korean choowHowToInstall 경고 6040(요약 1 warning)은 유지한다.
+
+최종 설치본 `src-tauri/target/release/bundle/nsis/AI Asset Hub_0.5.0_x64-setup.exe`: 24,040,442 bytes, SHA256 `2238999f7952d92b98a53795218b71939630d6eaf0056ba4674f92ae3d7b9dfe`. 소스/설치 Sidecar SHA256 `4ba3a46438f31ed74feb00aa00cf1f7a937e3f00dfce10f7e5b860e52000fc19` 일치. API 동작은 개발/동봉 Core의 Rust 검사로, 설치된 앱은 무화면 Core/DB/MCP 회귀로 구분해 검증했다.
+
+로그/보고서: `.artifacts/r08d-01-creators.log`, `r08d-01-check.log`, `r08d-01-package-core.log`, `r08d-01-clippy.log`, `r08d-01-rust-tests.log`, `r08d-01-installer.log`, `r08d-01-verify.log`, `r08d-01-steps.jsonl`, `r08d-01-installed-result.json`, `r08d-01-installed-host.json`, `r08d-01-hashes.json`. 문서/코드 공백 검사는 `git diff --check`로 확인한다.
+
+이번 작업은 R08D-01만 완료한다. 제작 주체와 에셋/패키지의 역할 연결(R08D-02), 출처/구매·라이선스(R08D-03~04), 전체 변경 원문 이력/삭제 영향/내보내기 보호 확장(R08D-05), 실제 관리 UI(M08E)는 미구현/미검증이다. 실제 GUI/OS 화면·깨끗한 PC·기존 설치 업그레이드·대규모 성능은 미검증이다. 연락처는 이 사전 DB에 일반 텍스트로 저장되며 비밀 저장소로 제공하지 않는다. 실제 사용자 DB·원본·모델·유료 API를 다루지 않았고 화면/브라우저 조작·AI/임베딩·다음 작업·원격 push는 수행하지 않았다.
