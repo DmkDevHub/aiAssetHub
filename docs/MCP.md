@@ -109,3 +109,6 @@ MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만
 
 ## R08H-03 — Unity 계획용 공개 선언
 버전2 `get_asset`의 `unityPlanning`에 실제 에셋/패키지의 공개 라이선스 선언과 엔진 상속/충돌 상태를 반환한다. permission/compatibility는 unknown, project는 not-connected, executable은 false다. 사용자 검토 완료도 사용 허가/엔진 성공으로 추론하지 않는다. 개인정보·권리 원문·증빙을 제외한다. 신뢰된 Core 호출자 전용의 실제 프로젝트/파일/목적지 충돌 검증 계약과 미지원 실행 경계는 [Unity 계약](UNITY_INTEGRATION.md)에 기록한다. 이 채널은 프로젝트 경로/allowlist를 받거나 Editor를 시작하지 않고 기존5개 도구를 유지한다.
+
+## R08H-04 — 설치본 확장 계약 검증 (2026-11-04)
+새 NSIS의 격리 설치에서 공식 SDK reference Host로 최신2026-07-28·레거시2025-11-25 프로토콜을 협상하고 기존5도구와 v2 확장 검색/메타데이터/구성/파서 수치·권리 unknown을 검증했다. 실제 등록 fixture UUID를 사용하고 raw 라이선스/연락/URL을 제외했다. 등록 종속 파일의 임시 누락·잘못된 인증/쓰기 거부와 감사 레드랙션·Core 종료 오류/새 프로세스 재시작 후 확장 결과/원본 SHA256 보존을 확인했다. 무화면 Tauri/Core·다중형식18파서/모의10분석·교환/해시 회귀·검증 설치본 제거/기존 설치 등록 보존도 통과했다. 개인 Codex/Claude 설정이나 실제 모델·Unity Editor를 실행한 검증은 아니다. 재현 명령/실측/한계는 [TEST_PLAN](TEST_PLAN.md)의 R08H-04 기록을 따른다.

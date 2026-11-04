@@ -284,3 +284,7 @@ catalog.query 커서는 query/정규화 조건/sort 해시·DB 변경 stamp·마
 
 ## M08G — 일괄·교환·해시
 `bulk.preview/apply`, `exchange.export/preview/apply`, `duplicates.start/list/status/cancel/candidates`는 main 창 metadata_request와 Core 고정 허용 목록에만 추가했다. 요청 키·버전/토큰·페이지/상한·원자성·개인정보·중단 복구는 [BATCH_METADATA](BATCH_METADATA.md)를 따른다. 모델/임베딩/원본 쓰기·경로 등록·외부 URL 접속을 호출하지 않고 MCP 권한은 확장하지 않는다.
+
+## R08H-03~04 — MCP/Unity 계획 메타데이터 계약
+
+기존5개 MCP 도구의 schema_version=1 응답을 보존하고 버전2에서 실제 공개 분류/소속/제작 참조·파일 역할/기술/종속과 get_asset.unityPlanning의 권리/엔진 선언을 제공한다. 실제 인자/상한/개인정보/미확인 정책은 MCP.md를 따른다. UnityMetadata.preview는 신뢰된 Core 호출자가 허용 목록을 주입하는 내부 계약으로 실제 프로젝트 폴더/파일/충돌만 조회한다. 공개 unity.preview_operation/프로젝트 경로 인자/Editor 연결·쓰기 API를 구현했다는 뜻이 아니며 실제 작업은 M09에서 구현한다. UNITY_INTEGRATION.md와 TEST_PLAN.md의 R08H 기록을 참조한다.

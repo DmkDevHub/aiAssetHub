@@ -846,3 +846,19 @@ Git 제외 재현 로그/보고: `.artifacts/m08g-node.log`, `m08g-python.log`, 
 실제 임시 프로젝트 Assets/ProjectSettings/ProjectVersion.txt·원본/목적지/.meta 파일 fixture로 read-only preview·복사/프로세스 호출 금지·SQL dump/파일 bytes 보존·잘못된 프로젝트/allowlist 선거부/리파스 오류·source 누락/stale/종속 미선택·동일 파일명·패키지 엔진 상충/라이선스 공개 원문 제외를 검증했다. source는 기존 PNG/OBJ fixture이며 Unity Editor는 실행하지 않았다. get_asset v1 응답 유지와 v2 permission=unknown/executable=false는 실제 공식 SDK 별도 stdio Host 회귀에 포함했다. 사용자 프로젝트/DB·외부 모델/AI/임베딩/원본 변경 없음.
 
 실제 열린 프로젝트 식별/Editor 연결/허용 목록 등록 UI·실제 호환·복사/임포트·승인 토큰은 M09 미구현 범위다. 이번 내부 allowlist 주입은 MCP 인자/사용자 승인으로 간주하지 않는다. 계획은 filesystem-validated/editorConnected=false이며 실행 허가가 아니다. 프로젝트 version 파일만512자로 제한하여 읽고 에셋은 stat/저장 메타데이터만 조회한다. Rust 코드는 변경하지 않아 Rust 테스트는 이번 단위 미실행, 설치본은 다음 R08H-04에서 검증한다. GUI/OS 직접 조작·특정 제품 Host·대규모 성능은 미검증이다.
+
+## R08H-04 — 설치본 확장 reference Host 통합 회귀 (2026-11-04)
+
+- R08H-03까지의 전체 Core265/265(33.118초)·Node157/157(24.614초)·타입/Vite(1.05초)를 기반으로 새 설치본을 빌드했다. 테스트 재실행을 대신한 빌드 판정이 아니며 해당 유닛/DOM/Host 회귀와 아래 실설치 통합을 구분한다.
+- 저장소 Node24/Rust PATH, PIP_NO_INDEX=1의 npm.cmd run build:installer: 타입/Vite·PyInstaller·mcp_files/unity_metadata 포함 TOC 동봉 검사·Rust release(58.62초)·NSIS 통과. .artifacts/r08h04-installer-build.log. 최종 NSIS25037308바이트(23.88MiB), 새 의존성/모델 다운로드 없음.
+- scripts/verify-installer.ps1 -Mcp -Multiformat -BulkMetadata: 격리 제품 ID/새 .artifacts 설치 폴더와 데이터로 무인 설치→Tauri 무화면 Core/PID/SQLite v13→공식 SDK Host/업무 회귀→무인 제거/기존 설치 등록 보존 통과. .artifacts/r08h04-installed.log 마지막 성공 문구 확인, 검증용 HKCU uninstall key 없음·남은 ai-asset-hub-core 프로세스 없음.
+- 설치 MCP: Python 없는 PATH의 실제 별도 stdio Bridge에서 5도구/최신2026-07-28 및 레거시2025-11-25 협상. fixture3에셋의 실제 분류 A02/그룹/패키지/제작사 producer 필터→OBJ 구성2파일/관측 mesh1개/vertex3/공개 license user_reviewed지만 permission unknown·executable=false를 확인했다. source 역할·등록 dependency의 실제 UUID/present, 외부 URL blocked·미등록 unresolved, 등록 종속 파일 임시 누락 partial/missing도 검증했다. 최종 원본 SHA256은 동일하다.
+- 설치 Broker 잘못된 MAC은 AUTH_DENIED, analysis.start는 MCP_TOOL_NOT_ALLOWED로 거부했고 해당 감사·ID/오류/필터 원문·인증 비밀 미기록을 확인했다. 없는 에셋 오류·Core 종료 APP_NOT_RUNNING/CORE_UNAVAILABLE·새 PID 재시작 후 확장 metadata/component UUID 동일성과 Job/벡터 무생성을 확인했다. 최신/레거시 양쪽에서 같은 확장 체크를 실행했다. .artifacts/r08h04-installed-host.json.
+- 추가 설치 회귀: 실제 parserObservations18·모의 loopback 공급자10분석/재시작/원본 보존, 외부 호출0·realModelInference=false. .artifacts/r08h04-installed-multiformat.json. 일괄2대상/공개8필드 JSON/CSV/오래된 import 거부·비공개 출처 보존/명시 해시2파일·중복 후보1그룹/재시작/원본 보존·AI/임베딩/외부 호출0, .artifacts/r08h04-installed-metadata.json. 모의10회는 MCP 조회에 의해 생성된 작업이 아니며 실제 모델 품질/외부 오디오 검증으로 해석하지 않는다.
+- cargo fmt --manifest-path src-tauri/Cargo.toml --check, cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings: 통과(Clippy13.13초). cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1: 16/16, 6.34초. AI_ASSET_HUB_PYTHON=기반 CPython313·PYTHONPATH=core-build-venv/Lib/site-packages·AI_ASSET_HUB_SIDECAR_DIR=src-tauri/binaries/core/ai-asset-hub-core·CARGO_INCREMENTAL=0을 지정했다. .artifacts/r08h04-rust.log, r08h04-clippy.log. 총438개 내부 테스트와 별도 설치 통합이 통과했다.
+
+최초 설치 검증은 확장 fixture가 asset.list의1개 페이지 계약을 놓쳐 registered.mtl 조회 KeyError로 중단했다. 스크립트를 전 페이지 순회로 수정하고 fixture setup 예외에도 Core를 종료하도록 정리했다. 실패한 검증용 설치 경로가 .artifacts 내부임을 확인 후 해당 uninstall.exe /S만 실행하고, 전체 무인 설치/검증/제거를 새 폴더로 재실행해 통과했다. 실패 로그는 .artifacts/r08h04-first-installed.log에 보존한다. 제품 페이징/시작 제한을 완화하지 않았다.
+
+최종 NSIS SHA256: 964ad57a24274b11f06a32d249128d2404a9935cdf6492b54b1308ae58e82699. 동봉/설치 Sidecar SHA256: f14828a0f3041b0ab2ded33df300111cc8d3ea0240eb48229c0add50219c45d9. NSIS 검증 템플릿의 기존 Korean choowHowToInstall LangString6040 경고는 남지만 무인 검증은 통과했다. GUI/OS 화면은 확인하지 않았다.
+
+미검증/경계: 실제 사용자 프로젝트/에셋/DB·열린 Editor 연결/플레이 모드·실제 임포트/배치·특정 Codex/Claude 제품 설정/모델·실제 외부/유료 모델/오디오 품질·기존 설치 업그레이드/서명·깨끗한 PC·대량 성능. 새 마이그레이션/스택 변경·원본 자동 이동/병합/삭제·GUI 조작·원격 push 없음. M08H는 읽기/계획 계약과 설치 검증까지이며 M08I/M09를 자동으로 시작하지 않는다.
