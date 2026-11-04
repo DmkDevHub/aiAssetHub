@@ -862,3 +862,11 @@ Git 제외 재현 로그/보고: `.artifacts/m08g-node.log`, `m08g-python.log`, 
 최종 NSIS SHA256: 964ad57a24274b11f06a32d249128d2404a9935cdf6492b54b1308ae58e82699. 동봉/설치 Sidecar SHA256: f14828a0f3041b0ab2ded33df300111cc8d3ea0240eb48229c0add50219c45d9. NSIS 검증 템플릿의 기존 Korean choowHowToInstall LangString6040 경고는 남지만 무인 검증은 통과했다. GUI/OS 화면은 확인하지 않았다.
 
 미검증/경계: 실제 사용자 프로젝트/에셋/DB·열린 Editor 연결/플레이 모드·실제 임포트/배치·특정 Codex/Claude 제품 설정/모델·실제 외부/유료 모델/오디오 품질·기존 설치 업그레이드/서명·깨끗한 PC·대량 성능. 새 마이그레이션/스택 변경·원본 자동 이동/병합/삭제·GUI 조작·원격 push 없음. M08H는 읽기/계획 계약과 설치 검증까지이며 M08I/M09를 자동으로 시작하지 않는다.
+
+## R08I-01 — 스마트 그룹 (2026-11-05)
+
+Core 새5개(1.542초) 및 전체270/270(35.089초): AI_ASSET_HUB_PYTHON을 기반 CPython313으로 지정한 node scripts/run-python-checks.mjs, .artifacts/r08i01-core.log. 저장 조건 동적 태그 반영/참조 교집합·읽기 전후 SQL dump/변경량0·원본 open/스캔/embed 금지·순환/없는 UUID/코드·참조 삭제 거부·깊이8·200/2페이지/오래된 cursor·두 SQLite 연결 revision 충돌/재개방·이력 INSERT 실패 후 전체 롤백을 검증했다. settings 및 기존 collection_history를 재사용하며 마이그레이션은 없다.
+
+Node24 PATH의 node --test: 최종160/160, 6.359초(.artifacts/r08i01-node.log). 새3개 가상 DOM 테스트에서 현재 조건 캡처 입력 시 호출0·명시 저장/취소/충돌·HTML 문자 이스케이프·선택/해제·갤러리 동적 평가/오류 빈 결과·의미 질의 비활성화를 검증했다. 이전159개도 통과했으며 갤러리 연결 검사를 보강한 뒤 재실행했다. npm.cmd run build: 타입/Vite 통과(1.09초). Rust main-window 고정 allowlist와 fmt 검사도 실행하며 로그는 .artifacts/r08i01-rust.log다.
+
+미검증: 실제 GUI·OS 화면·대규모 성능. 설치본/전체 Rust 회귀는 이어지는 R08I-02 완료 시 함께 수행한다. 평가가 OS 파일의 현시점 존재를 검사한다는 뜻이 아니며 현재 인덱스 기준이다. 폴더·메타데이터 변경 후에는 결과를 새로 조회한다. 스캔/AI/임베딩/네트워크/원본 변경·새 의존성·자동 push 없음.

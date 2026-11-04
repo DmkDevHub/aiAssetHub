@@ -94,6 +94,7 @@ beforeEach(async (t) => {
   components.resetCollections();
   components.resetNavigation();
   components.resetCatalogFilters();
+  components.resetSmartGroups();
   components.setSearchQuery("");
   components.setTheme("dark");
   components.setLibraryPanelWidth(components.LIBRARY_PANEL_WIDTH.initial);
@@ -2280,4 +2281,37 @@ test('invalid sorted pages fail closed without dropping the chosen sort or filte
  await metaField('정렬','registered');await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(document.querySelectorAll('.asset-card').length,0);assert.match(document.body.textContent,/복합 검색·정렬을 완료하지 못했습니다/);
  assert.equal(components.catalogFilters.sort,'registered');
+});
+
+test('smart groups capture current criteria without calls and save only on explicit submit',async()=>{
+ const calls=[];const definition={schema:'smart-group.v1',query:'숲',criteria:{kind:'PNG'},include_groups:[]};
+ await mountMetadataComponent('SmartGroups',{query:'숲',criteria:{kind:'PNG'}},async(command,args)=>{calls.push(args);if(args.method==='catalog.smart.list')return {ok:true,data:{items:[{id:'smart',name:'<script>숲</script>',revision:1}],next_cursor:null}};if(args.method==='catalog.smart.save')return {ok:true,data:{id:'smart',name:'숲 그림',revision:1,description:'',definition}};throw new Error('unexpected');});
+ assert.equal(calls.length,0);await metaField('스마트 그룹 이름','숲 그림');assert.equal(calls.length,0);
+ dispatch(document.querySelector('.smart-groups form'),new dom.window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls[0].method,'catalog.smart.save');assert.equal(calls[0].params.expected_revision,0);assert.deepEqual(calls[0].params.definition,definition);
+ assert.match(document.body.textContent,/<script>숲<\/script>/);assert.equal(document.querySelector('script'),null);
+ dispatch(metaButton('이 조건으로 탐색'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(components.smartUi.groupId,'smart');
+ dispatch(metaButton('스마트 그룹 필터 해제'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(components.smartUi.groupId,null);
+ assert.ok(calls.every(c=>c.method.startsWith('catalog.smart.')));
+});
+
+test('smart group conflict preserves draft and cancel reloads the stored condition',async()=>{
+ const calls=[];let fail=true;
+ const row={id:'smart',name:'저장 이름',description:'',revision:2,definition:{schema:'smart-group.v1',query:'기존',criteria:{},include_groups:[]}};
+ await mountMetadataComponent('SmartGroups',{query:'새 검색',criteria:{}},async(command,args)=>{calls.push(args);if(args.method==='catalog.smart.list')return {ok:true,data:{items:[row],next_cursor:null}};if(args.method==='catalog.smart.get')return {ok:true,data:row};if(args.method==='catalog.smart.save')return fail?{ok:false,error:{code:'METADATA_CONFLICT'}}:{ok:true,data:row};throw new Error('unexpected');});
+ dispatch(metaButton('스마트 그룹 불러오기'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ dispatch(metaButton('조건 편집'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();await metaField('스마트 그룹 이름','충돌 초안');
+ dispatch(document.querySelector('.smart-groups form'),new dom.window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls.at(-1).params.expected_revision,2);assert.match(document.querySelector('.smart-groups [role="alert"]').textContent,/저장하지 못/);assert.equal(metaButton('스마트 그룹 저장').disabled,true);
+ assert.equal(document.querySelector('.smart-groups input').value,'충돌 초안');
+ dispatch(metaButton('스마트 그룹 변경 취소'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelector('.smart-groups input').value,'저장 이름');assert.equal(metaButton('스마트 그룹 저장').disabled,false);
+});
+
+test('smart group selection filters gallery with offline evaluation and fails closed on errors',async()=>{
+ await mountWorkspace([{id:'a',name:'alpha',kind:'PNG'},{id:'b',name:'beta',kind:'PNG'}]);globalThis.isTauri=true;const calls=[];let fail=false;
+ dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);assert.equal(command,'metadata_request');assert.equal(args.method,'catalog.smart.evaluate');assert.equal(args.params.group_id,'smart');return fail?{ok:false,error:{code:'INVALID_PARAMS'}}:{ok:true,data:{ids:['b'],next_cursor:null}};}};
+ components.smartUi.groupId='smart';await new Promise(r=>setImmediate(r));await nextTick();
+ assert.deepEqual([...document.querySelectorAll('.asset-card')].map(e=>e.dataset.assetId),['b']);assert.equal(document.querySelector('[aria-label="검색 방식"]').disabled,true);
+ fail=true;components.smartUi.revision++;await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,0);
+ components.smartUi.groupId=null;await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,2);assert.equal(calls.length,2);
 });

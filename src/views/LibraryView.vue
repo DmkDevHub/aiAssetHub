@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import SmartGroups from '../components/SmartGroups.vue';
+import {smartUi} from '../stores/smartGroups';
 import AdvancedFilters from '../components/AdvancedFilters.vue';
 import {catalogFilters} from '../stores/catalogFilters';
 import CatalogManager from '../components/CatalogManager.vue';
@@ -45,13 +47,15 @@ async function refreshSearch(reset=true){
   const query=searchState.searchQuery;
   const token=++searchGeneration;if(reset){semanticResults.value=null;searchIds.value=null;coreOrdered.value=false;}if(semanticTimer)clearInterval(semanticTimer);searchError.value=''; searching.value=false;
   if(searchMode.value!=='keyword' || !isTauri())return;
-  if(!query.trim()&&!collectionUi.groupId&&!(navigation.mode!=='folders'&&navigation.selected[navigation.mode])&&!catalogFilters.active&&sort.value==='source'){searchIds.value=null;coreOrdered.value=false;return;}
+  if(!smartUi.groupId&&!query.trim()&&!collectionUi.groupId&&!(navigation.mode!=='folders'&&navigation.selected[navigation.mode])&&!catalogFilters.active&&sort.value==='source'){searchIds.value=null;coreOrdered.value=false;return;}
   if(query.length>256 || query.trim().split(/\s+/).length>16){searchError.value='검색어는 256자, 16개 단어까지 입력하세요.';return;}
   searching.value=true;
   try {
     const ids=new Set<string>();
-    const orderedQuery=catalogFilters.active||sort.value!=='source';
-    if(orderedQuery){
+    const orderedQuery=!!smartUi.groupId||catalogFilters.active||sort.value!=='source';
+    if(smartUi.groupId){
+      const cursors=new Set<string>();let cursor:string|null=null;do{const r:{ids:string[];next_cursor:string|null}=await metadata('catalog.smart.evaluate',{group_id:smartUi.groupId,query,criteria:searchCriteria(),sort:sort.value,after_id:cursor});if(token!==searchGeneration)return;for(const id of r.ids){if(ids.has(id))throw new Error();ids.add(id);}cursor=r.next_cursor;if(cursor!==null){if(!r.ids.length||cursors.has(cursor)||ids.size>10000)throw new Error();cursors.add(cursor);}}while(cursor);
+    }else if(orderedQuery){
       const cursors=new Set<string>();let cursor:string|null=null;do{const r:{ids:string[];next_cursor:string|null}=await metadata('catalog.query',{query,criteria:searchCriteria(),after_id:cursor,sort:sort.value});if(token!==searchGeneration)return;if(!Array.isArray(r.ids))throw new Error();for(const id of r.ids){if(typeof id!=='string'||ids.has(id))throw new Error();ids.add(id);}cursor=r.next_cursor;if(cursor!==null){if(typeof cursor!=='string'||!r.ids.length||cursors.has(cursor)||ids.size>10000)throw new Error();cursors.add(cursor);}}while(cursor);
     }else if(collectionUi.groupId){
       let cursor:string|null=null;
@@ -70,7 +74,8 @@ async function refreshSearch(reset=true){
   catch { if(token===searchGeneration){searchIds.value=null;searchError.value=catalogFilters.active||sort.value!=='source'?'복합 검색·정렬을 완료하지 못했습니다. 필터를 유지하고 다시 조회하세요.':collectionUi.groupId?'그룹 검색을 완료하지 못했습니다. 다시 조회하세요.':'전문 검색을 완료하지 못했습니다. 현재 파일명·태그 일치 결과를 표시합니다.';} }
   finally { if(token===searchGeneration)searching.value=false; }
 }
-watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis, ()=>libraryUi.selectedFolderId,()=>collectionUi.groupId,()=>collectionUi.revision,()=>navigation.revision,()=>navigation.mode,()=>catalogFilters.revision],()=>refreshSearch(),{immediate:true});
+watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis, ()=>libraryUi.selectedFolderId,()=>collectionUi.groupId,()=>collectionUi.revision,()=>navigation.revision,()=>navigation.mode,()=>catalogFilters.revision,()=>smartUi.groupId,()=>smartUi.revision],()=>refreshSearch(),{immediate:true});
+watch(()=>smartUi.groupId,id=>{if(id)searchMode.value='keyword';});
 watch(sort,()=>{if(searchMode.value==='keyword')void refreshSearch(false);});
 watch([semanticResults,sort],async()=>{
  const epoch=++orderGeneration;semanticOrder.value=null;orderError.value='';ordering.value=false;
@@ -111,7 +116,7 @@ const items = computed(() => {
     const ranked=rows.flatMap(row=>{const item=folderItems.find(i=>i.id===row.id);return item?[{...item,searchScore:row.score,matchReason:row.reason}]:[];});
     return stateFilter(keywordFilter(ranked,'',tag.value),kind.value,analysis.value);
   }
-  if((catalogFilters.active||requiresSort&&(!searching.value||!!searchError.value)||collectionUi.groupId||(navigation.mode!=='folders'&&navigation.selected[navigation.mode]))&&!searchIds.value)return [];
+  if((smartUi.groupId||catalogFilters.active||requiresSort&&(!searching.value||!!searchError.value)||collectionUi.groupId||(navigation.mode!=='folders'&&navigation.selected[navigation.mode]))&&!searchIds.value)return [];
   const candidates=coreOrdered.value&&searchIds.value?[...searchIds.value].flatMap(id=>folderItems.find(i=>i.id===id)??[]):folderItems;
   const matches=searchIds.value ? keywordFilter(candidates.filter(item=>searchIds.value!.has(item.id)), '', tag.value)
     : keywordFilter(folderItems, searchState.searchQuery, tag.value);
@@ -161,7 +166,7 @@ function moveRegion(event: KeyboardEvent) {
       <template #management><CatalogNavigation /><CatalogManager /><LibraryManagement v-show="navigation.mode==='folders'" /><PackageManager v-show="navigation.mode==='packages'" /></template>
     </LibraryTreePanel>
     <AssetGallery :ordered-by-core="coreOrdered || searchMode!=='keyword' && semanticResults!==null" :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" @select="selectedId = $event">
-      <template #filters><AdvancedFilters /><p v-if="collectionUi.groupId">그룹 필터: {{ collectionUi.groupId }}</p><label>검색 방식 <select v-model="searchMode" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
+      <template #filters><SmartGroups :query="searchState.searchQuery" :criteria="searchCriteria()" /><AdvancedFilters /><p v-if="collectionUi.groupId">그룹 필터: {{ collectionUi.groupId }}</p><label>검색 방식 <select v-model="searchMode" :disabled="!!smartUi.groupId" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
       <button v-if="searchMode!=='keyword'" type="button" :disabled="searching || !searchState.searchQuery.trim()" @click="semanticSearch">로컬 검색 실행</button>
       <p v-if="ordering" role="status">검색 결과 정렬 중…</p><p v-if="orderError" role="alert">{{ orderError }}</p>
       <button v-if="searchError && searchMode==='keyword'" type="button" :disabled="searching" @click="refreshSearch(false)">검색·정렬 다시 조회</button>

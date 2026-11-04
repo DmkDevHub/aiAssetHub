@@ -12,6 +12,11 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
         && matches!(
             method,
             "asset.technical"
+                | "catalog.smart.list"
+                | "catalog.smart.get"
+                | "catalog.smart.save"
+                | "catalog.smart.delete"
+                | "catalog.smart.evaluate"
                 | "exchange.export"
                 | "exchange.preview"
                 | "exchange.apply"
@@ -68,6 +73,8 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
 fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
     for method in [
         "catalog.query",
+        "catalog.smart.save",
+        "catalog.smart.evaluate",
         "catalog.order",
         "catalog.classification.save",
         "asset.technical.collect",
