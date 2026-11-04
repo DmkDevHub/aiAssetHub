@@ -106,3 +106,6 @@ MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만
 - `components[]`: 공개 구성 파일의 저장된 실제 id/fileId/kind/locator·사용자 구성의 selected·stale을 최대 50개씩 ID순 조회한다. 더 있으면 `next_component_cursor`를 다음 호출의 after_component_id로 보낸다. 관측 fingerprint가 바뀌거나 파일 접근/수정이 감지되면 stale=true, 비교 관측이 없으면 null이다. locator는 내부 파서 참조이며 Unity 객체 ID/임포트 성공이 아니다. 페이지마다 파일 목록도 다시 검증하며 페이지 사이 변경을 고정 snapshot으로 보장하지 않는다.
 
 `modelCalled=false,contentRead=false,evidenceExcluded=true`를 반환한다. 읽기는 원본 open/해시/재파싱·스캔·다운로드·압축 해제·분석/임베딩을 실행하지 않는다. 저장 관측과 stat만 사용하므로 같은 크기/mtime으로 덮어쓴 내용이나 호출 직후 파일 교체까지 검출한다고 주장하지 않는다. 일부 형식의 클립/코덱/단위 등 자유문자열·중첩 상세는 현재 공개 투영에 포함하지 않는다. 64KiB 전체 응답 한도 초과는 기존 `MCP_RESPONSE_LIMIT`이며 구성 요소 페이지 축소만으로 큰 파일/종속 목록이 해결되지 않을 수도 있다. 새 설치본 통합은 R08H-04 범위다.
+
+## R08H-03 — Unity 계획용 공개 선언
+버전2 `get_asset`의 `unityPlanning`에 실제 에셋/패키지의 공개 라이선스 선언과 엔진 상속/충돌 상태를 반환한다. permission/compatibility는 unknown, project는 not-connected, executable은 false다. 사용자 검토 완료도 사용 허가/엔진 성공으로 추론하지 않는다. 개인정보·권리 원문·증빙을 제외한다. 신뢰된 Core 호출자 전용의 실제 프로젝트/파일/목적지 충돌 검증 계약과 미지원 실행 경계는 [Unity 계약](UNITY_INTEGRATION.md)에 기록한다. 이 채널은 프로젝트 경로/allowlist를 받거나 Editor를 시작하지 않고 기존5개 도구를 유지한다.

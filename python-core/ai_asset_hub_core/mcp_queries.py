@@ -101,9 +101,13 @@ class McpQueries:
     def detail(self,params):
         identifier=self.require(params,('history_after_id',));history={'asset_id':identifier}
         if params.get('history_after_id') is not None:history['after_id']=params['history_after_id']
-        return {**self.summary(identifier),'user':AnnotationService(self.database).get({'asset_id':identifier}),
+        result={**self.summary(identifier),'user':AnnotationService(self.database).get({'asset_id':identifier}),
                 'activeResult':AssetAnalysis(self.database).get({'asset_id':identifier})['active'],
                 'history':AssetAnalysis(self.database).history(history)}
+        if getattr(self,'version',1)==2:
+            from .unity_metadata import UnityMetadata
+            result['unityPlanning']=UnityMetadata(self.database).describe(identifier)
+        return result
 
     def files(self,params):
         if getattr(self,'version',1)==2:

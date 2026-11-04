@@ -57,6 +57,9 @@ class McpTests(unittest.TestCase):
                     self.assertEqual(legacy.structured_content,explicit.structured_content)
                     modern=await client.call_tool(tool,{**args,'schema_version':2})
                     self.assertFalse(modern.is_error,modern.content);self.assertEqual(modern.structured_content['schemaVersion'],2)
+                    if tool=='get_asset':
+                        self.assertEqual(modern.structured_content['unityPlanning']['rights']['permission'],'unknown')
+                        self.assertFalse(modern.structured_content['unityPlanning']['executable'])
                     if tool=='get_asset_files':
                         self.assertEqual(modern.structured_content['files'][0]['roles'],['source'])
                         self.assertIsNone(modern.structured_content['files'][0]['technical']['observation'])

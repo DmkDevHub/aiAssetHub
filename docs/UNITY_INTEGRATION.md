@@ -41,6 +41,14 @@ Codex: 실제 임포트된 파일 / 생성된 오브젝트 / 실패 항목 보�
 - Unity Editor가 연결되지 않거나 플레이 중이며 작업 불가하면 명확하게 오류 반환.
 
 ## 확장 포인트
+
+### R08H-03 — 읽기 전용 계획 메타데이터 계약 (2026-11-04)
+`unity-planning.v1`은 Editor 실행과 분리된 Core 내부 계약이다. `get_asset(schema_version=2).unityPlanning`은 실제 assetId, compatibility(status=unknown/declaredEngine/editorVerified=false), rights(permission=unknown/reviewRequired=true/공개 declarations), project(status=not-connected), executable=false, requiresExecutionApproval=true를 반환한다. 버전1에는 추가하지 않는다. 직접 에셋 및 활성 소속 패키지의 라이선스 ID/소유자/리비전/label/scope/reviewStatus만 공개하며 terms/attribution/note/출처/증빙은 제외한다. user_reviewed도 사용 허가나 법률 판정을 뜻하지 않는다. 상속 엔진 선언의 conflict를 보존하며 Unity 선언도 실제 호환 성공으로 승격하지 않는다. 라이선스20건 초과는 MCP_SEARCH_LIMIT로 실패한다.
+
+`UnityMetadata(database, allowed_projects=()).preview({asset_id,project_path})`는 신뢰된 Core 호출자 전용이다. 기본 허용 목록은 비어 있으며 목록 대조 전에 입력 프로젝트를 탐색하지 않는다. 허용된 로컬 프로젝트의 전체 부모 리파스/링크·Assets 디렉터리·ProjectSettings/ProjectVersion.txt(최대512자/바이트, m_EditorVersion 선언)를 확인한다. source/dependency 역할의 실제 등록 파일에 대해 현재 가용성·저장 기술 stale·미선택/미해결 종속·목적지 Assets/AIAssetHub의 기존 파일/.meta/동일 이름 충돌·엔진 선언 상충을 표시한다. preview/evidence는 복사 대상에서 제외한다. 결과 project.status=filesystem-validated는 폴더 구조 확인이며 editorConnected=false를 유지한다. 디렉터리 생성/파일 복사/임포트/프로세스 실행/AI/DB 변경을 하지 않는다. 원문 예외 대신 INVALID_PARAMS/UNITY_PROJECT_NOT_ALLOWED/UNITY_PROJECT_UNAVAILABLE로 실패한다. 이 결과는 실행 승인 토큰이 아니며 재검증/실행 정책은 M09에서 구현한다.
+
+프로젝트 경로·허용 목록을 받는 공개 MCP/Tauri 명령이나 새 도구는 추가하지 않았다. 실제 열린 Editor 대상/허용 목록 UI·프로젝트 식별/연결·작업 생성/실행은 R09-01 이후다. 신뢰된 allowlist 주입과 실제 임시 프로젝트/파일 fixture를 사용하는 내부 테스트로 이 계약을 검증하며 사용자 프로젝트/Editor 성공을 가정하지 않는다.
+
 `TargetToolConnector` 인터페이스: `discover_targets()`, `plan_import()`, `execute_import()`, `plan_place()`, `execute_place()`, `get_status()`.
 
 Unity를 1차 구현하고 Godot/Unreal/Blender 등은 **확장 가능성만 확보**한다. 지원한다고 선전하기 전에 실제 연결·임포트·결과 확인 테스트 필요.

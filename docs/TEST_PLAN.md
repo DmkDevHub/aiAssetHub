@@ -836,3 +836,13 @@ Git 제외 재현 로그/보고: `.artifacts/m08g-node.log`, `m08g-python.log`, 
 공식 SDK 별도 stdio Bridge Host에서 버전2 파일 역할·미관측 상태·구성 커서 전달을 검증했고 기존5도구·오류/인증·감사/레드랙션·응답 크기 상한 회귀도 통과했다. 직접 조회 전후 SQLite dump/total_changes 동일 및 원본 open/파서/AI/임베딩 호출 금지 mock·Job/벡터0을 확인했다. 실제 사용자 DB/에셋·외부 모델·앱/브라우저 화면은 사용하지 않았다. Core Broker 요청 감사는 기존 허용된 기록이다.
 
 미검증/제한: 설치본/패키징(R08H-04)·특정 제품 Host/레거시 협상의 새 확장 조합·GUI/OS 화면·대규모 성능. Rust 변경이 없어 Rust 검사는 이번 작업 미실행이다. 기술 투영은 알려진 parser schema의 공개 수치/불리언/format으로 제한하며 자유문자열/클립 상세·원문 참조를 반환하지 않는다. 미등록 종속 파일의 존재를 탐색하거나 내용을 디코드하지 않으므로 unresolved를 missing으로 오인하지 않는다. 크기/mtime 기반 stale은 동일 크기/mtime 덮어쓰기·조회 후 교체를 검출하는 해시 보증이 아니다. 구성 파일20개·구성 요소50개 페이지·파일별 선언 종속128개·기존 전체 응답64KiB 상한을 유지한다. 새 의존성/마이그레이션·스캔/자동 분석/임베딩/다운로드·실제 원본 수정·화면 조작·push 없음.
+
+## R08H-03 — Unity 계획 메타데이터 계약 (2026-11-04)
+
+- python-core cwd: ../.artifacts/core-build-venv/Scripts/python.exe -B -m unittest discover -s tests -p test_unity_metadata.py -v: 5/5, 0.660초.
+- AI_ASSET_HUB_PYTHON=C:\Program Files\Python313\python.exe 설정 후 node scripts/run-python-checks.mjs: 265/265, 33.118초. .artifacts/r08h03-core.log.
+- Node24 PATH의 node --test: 157/157, 24.614초. .artifacts/r08h03-node.log. npm.cmd run build: 타입/Vite 통과(1.05초). git diff --check 통과.
+
+실제 임시 프로젝트 Assets/ProjectSettings/ProjectVersion.txt·원본/목적지/.meta 파일 fixture로 read-only preview·복사/프로세스 호출 금지·SQL dump/파일 bytes 보존·잘못된 프로젝트/allowlist 선거부/리파스 오류·source 누락/stale/종속 미선택·동일 파일명·패키지 엔진 상충/라이선스 공개 원문 제외를 검증했다. source는 기존 PNG/OBJ fixture이며 Unity Editor는 실행하지 않았다. get_asset v1 응답 유지와 v2 permission=unknown/executable=false는 실제 공식 SDK 별도 stdio Host 회귀에 포함했다. 사용자 프로젝트/DB·외부 모델/AI/임베딩/원본 변경 없음.
+
+실제 열린 프로젝트 식별/Editor 연결/허용 목록 등록 UI·실제 호환·복사/임포트·승인 토큰은 M09 미구현 범위다. 이번 내부 allowlist 주입은 MCP 인자/사용자 승인으로 간주하지 않는다. 계획은 filesystem-validated/editorConnected=false이며 실행 허가가 아니다. 프로젝트 version 파일만512자로 제한하여 읽고 에셋은 stat/저장 메타데이터만 조회한다. Rust 코드는 변경하지 않아 Rust 테스트는 이번 단위 미실행, 설치본은 다음 R08H-04에서 검증한다. GUI/OS 직접 조작·특정 제품 Host·대규모 성능은 미검증이다.
