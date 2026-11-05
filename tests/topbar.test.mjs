@@ -2312,6 +2312,26 @@ test('smart group selection filters gallery with offline evaluation and fails cl
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);assert.equal(command,'metadata_request');assert.equal(args.method,'catalog.smart.evaluate');assert.equal(args.params.group_id,'smart');return fail?{ok:false,error:{code:'INVALID_PARAMS'}}:{ok:true,data:{ids:['b'],next_cursor:null}};}};
  components.smartUi.groupId='smart';await new Promise(r=>setImmediate(r));await nextTick();
  assert.deepEqual([...document.querySelectorAll('.asset-card')].map(e=>e.dataset.assetId),['b']);assert.equal(document.querySelector('[aria-label="검색 방식"]').disabled,true);
- fail=true;components.smartUi.revision++;await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,0);
+ fail=true;components.smartUi.revision++;await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,0);assert.match(document.body.textContent,/스마트 그룹 조건을 평가하지 못했습니다/);
  components.smartUi.groupId=null;await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,2);assert.equal(calls.length,2);
+});
+
+test('recommendations stay unconfirmed until explicitly added to the relation draft and saved',async()=>{
+ const calls=[];let saved;
+ await mountMetadataComponent('AssetRelations',{assetId:'source'},async(command,args)=>{calls.push([command,args]);if(command==='get_asset_relations')return {ok:true,data:{value:[],revision:4,items:[]}};if(command==='metadata_request'){assert.equal(args.method,'catalog.related');return {ok:true,data:{items:[{id:'target',name:'<script>추천</script>',score:.5,reasons:[{kind:'shared_tag',count:1}],confirmed:false}],vectorStatus:'not-requested',inferenceCalled:false,relationshipCreated:false}};}if(command==='save_asset_relations'){saved=args;return {ok:true,data:{value:args.value,revision:5,items:[{targetId:'target',kind:'related',name:'추천',available:true}]}};}throw new Error('unexpected');});
+ assert.equal(calls.length,1);dispatch(metaButton('관련 추천 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.match(document.querySelector('.related-recommendations').textContent,/미확정/);assert.equal(document.querySelector('script'),null);assert.equal(saved,undefined);
+ dispatch(metaButton('관련 관계 초안에 추가'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();assert.equal(saved,undefined);
+ dispatch(metaButton('관계 저장'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(saved.expectedRevision,4);assert.deepEqual(saved.value,[{targetId:'target',kind:'related'}]);
+ assert.deepEqual(calls.map(c=>c[0]),['get_asset_relations','metadata_request','save_asset_relations']);
+});
+
+test('late recommendation responses cannot leak old-owner candidates and missing vectors never start inference',async()=>{
+ const calls=[];let finish;const props=ref({assetId:'old'});
+ await mountMetadataComponent('RelatedAssets',props,async(command,args)=>{calls.push(args);assert.equal(args.method,'catalog.related');if(args.params.asset_id==='old')return new Promise(r=>finish=r);return {ok:true,data:{items:[],vectorStatus:'source-vector-unavailable',inferenceCalled:false,relationshipCreated:false}};});
+ assert.equal(calls.length,0);dispatch(metaButton('관련 추천 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();props.value={assetId:'new'};await nextTick();
+ dispatch(metaButton('관련 추천 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ finish({ok:true,data:{items:[{id:'old-target',name:'OLD-CANDIDATE',score:1,confirmed:false,reasons:[]}],vectorStatus:'ready',inferenceCalled:false,relationshipCreated:false}});await new Promise(r=>setImmediate(r));await nextTick();
+ assert.doesNotMatch(document.body.textContent,/OLD-CANDIDATE/);assert.match(document.body.textContent,/유효한 저장 벡터가 없습니다/);assert.equal(calls.length,2);
 });

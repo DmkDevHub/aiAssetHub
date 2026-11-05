@@ -17,6 +17,7 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
                 | "catalog.smart.save"
                 | "catalog.smart.delete"
                 | "catalog.smart.evaluate"
+                | "catalog.related"
                 | "exchange.export"
                 | "exchange.preview"
                 | "exchange.apply"
@@ -75,6 +76,7 @@ fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
         "catalog.query",
         "catalog.smart.save",
         "catalog.smart.evaluate",
+        "catalog.related",
         "catalog.order",
         "catalog.classification.save",
         "asset.technical.collect",

@@ -71,7 +71,7 @@ async function refreshSearch(reset=true){
     }else{for(const id of await coreSearch(query,()=>token===searchGeneration))ids.add(id);}
     if(token===searchGeneration){searchIds.value=ids;coreOrdered.value=orderedQuery;}
   }
-  catch { if(token===searchGeneration){searchIds.value=null;searchError.value=catalogFilters.active||sort.value!=='source'?'복합 검색·정렬을 완료하지 못했습니다. 필터를 유지하고 다시 조회하세요.':collectionUi.groupId?'그룹 검색을 완료하지 못했습니다. 다시 조회하세요.':'전문 검색을 완료하지 못했습니다. 현재 파일명·태그 일치 결과를 표시합니다.';} }
+  catch { if(token===searchGeneration){searchIds.value=null;searchError.value=smartUi.groupId?'스마트 그룹 조건을 평가하지 못했습니다. 조건·참조를 확인하고 다시 조회하세요.':catalogFilters.active||sort.value!=='source'?'복합 검색·정렬을 완료하지 못했습니다. 필터를 유지하고 다시 조회하세요.':collectionUi.groupId?'그룹 검색을 완료하지 못했습니다. 다시 조회하세요.':'전문 검색을 완료하지 못했습니다. 현재 파일명·태그 일치 결과를 표시합니다.';} }
   finally { if(token===searchGeneration)searching.value=false; }
 }
 watch([()=>searchState.searchQuery, sourceItems, searchMode, tag, kind, analysis, ()=>libraryUi.selectedFolderId,()=>collectionUi.groupId,()=>collectionUi.revision,()=>navigation.revision,()=>navigation.mode,()=>catalogFilters.revision,()=>smartUi.groupId,()=>smartUi.revision],()=>refreshSearch(),{immediate:true});

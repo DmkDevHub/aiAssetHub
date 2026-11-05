@@ -1,4 +1,4 @@
-param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat, [switch]$BulkMetadata)
+param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat, [switch]$BulkMetadata, [switch]$SmartDiscovery)
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskNsis = Join-Path $taskRoot 'src-tauri/target/release/nsis/x64'
@@ -75,6 +75,11 @@ if ($BulkMetadata) {
     $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
     & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-bulk-metadata.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m08g-installed-metadata.json')
     if ($LASTEXITCODE -ne 0) { throw 'Installed bulk metadata verification failed.' }
+}
+if ($SmartDiscovery) {
+    $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-smart-discovery.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m08i-installed-discovery.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed smart discovery verification failed.' }
 }
 # Retain test reports/data; uninstall only the isolated verification payload.
 $taskUninstaller = Join-Path $taskInstallDir 'uninstall.exe'

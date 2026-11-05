@@ -870,3 +870,17 @@ Core 새5개(1.542초) 및 전체270/270(35.089초): AI_ASSET_HUB_PYTHON을 기�
 Node24 PATH의 node --test: 최종160/160, 6.359초(.artifacts/r08i01-node.log). 새3개 가상 DOM 테스트에서 현재 조건 캡처 입력 시 호출0·명시 저장/취소/충돌·HTML 문자 이스케이프·선택/해제·갤러리 동적 평가/오류 빈 결과·의미 질의 비활성화를 검증했다. 이전159개도 통과했으며 갤러리 연결 검사를 보강한 뒤 재실행했다. npm.cmd run build: 타입/Vite 통과(1.09초). Rust main-window 고정 allowlist와 fmt 검사도 실행하며 로그는 .artifacts/r08i01-rust.log다.
 
 미검증: 실제 GUI·OS 화면·대규모 성능. 설치본/전체 Rust 회귀는 이어지는 R08I-02 완료 시 함께 수행한다. 평가가 OS 파일의 현시점 존재를 검사한다는 뜻이 아니며 현재 인덱스 기준이다. 폴더·메타데이터 변경 후에는 결과를 새로 조회한다. 스캔/AI/임베딩/네트워크/원본 변경·새 의존성·자동 push 없음.
+
+## R08I-02 및 M08I 최종 검증 (2026-11-05)
+
+- 기반 CPython313을 AI_ASSET_HUB_PYTHON으로 지정한 node scripts/run-python-checks.mjs: 최종276/276, 34.272초(.artifacts/r08i02-core.log). 새 추천6개에 실제 공개 토큰/Jaccard·필터/누락·수학 fixture 저장 벡터/부적합 차원·오래된 텍스트/미준비·hybrid fallback·원본 open/model inspect/embed 금지·SQL dump/쓰기0·관계 미확정→명시 저장/충돌/재개방·긴 Unicode 응답 실패/적은 개수 재조회 검사를 포함했다. 벡터/분석 결과는 테스트용 합성 값이며 실제 모델 품질이 아니다.
+- Node24 PATH의 node --test: 162/162, 6.415초(.artifacts/r08i02-node.log). 추천2개 가상 DOM 검사에서 조회 전 호출0·후보 HTML 이스케이프/미확정·초안 추가만으로 쓰기0·관계 저장 revision·owner 변경 뒤 늦은 응답 폐기·벡터 미준비 시 추론0을 검증했다. 스마트 그룹3개·기존157개도 포함한다. 같은 스마트 그룹 선택으로 재평가하도록 연결했고 추천 개수를 조절할 수 있다.
+- npm.cmd run build:installer: 타입/Vite445ms·PyInstaller 새 smart_groups/related_assets TOC 동봉 검사·Rust release38.68초·NSIS 통과(.artifacts/m08i-installer-build.log). PIP_NO_INDEX=1이며 새 의존성/모델 다운로드·DB 마이그레이션은 없다. 초기 설치 검증은 통과했으나 긴 이름/많은 근거 응답이16KiB 프레임을 넘을 수 있는 경계를 보강해12000바이트 오류/개수 재조회를 검증하고 최종 설치본을 다시 빌드했다. 초기 성공 보고는 m08i-initial-installed.log/json에 보존하고 아래는 최종 코드 검증이다.
+- scripts/verify-installer.ps1 -Mcp -SmartDiscovery: 별도 제품 ID/새 설치·데이터 폴더로 무인 설치→Tauri 무화면 Core/SQLite v13→공식 SDK 최신2026-07-28·레거시2025-11-25 MCP5도구/확장 metadata·인증/쓰기 거부/감사/종료·재시작→스마트 동적 태그 조건/저장 조건 보존·추천과 확정 분리/오래된 관계 revision 거부/재시작 관계 보존·원본 SHA256→무인 제거/기존 설치 보존 통과. .artifacts/m08i-installed.log, m08i-installed-discovery.json. 실제 합성 BIN3개를 등록하고 코어의 실제 생성 UUID를 사용했다. 설치 검증에서는 저장 벡터 미준비 상태를 확인했으며 새 모델/벡터/분석 Job·외부 호출0, GUI0이다. 동봉 벡터의 수학/버전/오래된 데이터 제거는 위 유닛 fixture와 구분한다.
+- cargo fmt --manifest-path src-tauri/Cargo.toml --check / cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings 통과(Clippy7.66초). cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1: 16/16, 6.39초. 기반 Python/PYTHONPATH·AI_ASSET_HUB_SIDECAR_DIR와 CARGO_INCREMENTAL=0을 고정했다. .artifacts/m08i-rust.log, m08i-clippy.log. R08I-01의 main-window guard1개도 먼저 통과했다. 합계454개 내부 테스트 및 별도 설치 통합이다.
+
+최종 NSIS25052641바이트/ SHA256 65cb43caae2e528f12b0d1c4c13677521409b51c71532403ef0e1dbaf6f8c030. Sidecar SHA256 601a2c48958f4de11ee991df01c250909d457f9d254a668c336ea812a1f3a2d2. 검증용 uninstall registry key 없음과 기존 설치 보존을 확인했다. 기존 NSIS Korean choowHowToInstall LangString6040 경고1개는 남고 해당 GUI는 미검증이다. git diff --check 통과.
+
+미검증/제한: 실제 GUI/OS 화면·대규모 라이브러리/추천 성능·실제 모델의 주관적 유사도 품질·프로필 공급자의 실시간 변경·특정 Codex/Claude 제품 Host·기존 설치 업그레이드/정식 서명/깨끗한 PC. 메타데이터/존재·벡터 최신성은 현재 DB 인덱스/저장 지문이며 조회가 재스캔/네트워크 검사나 새 계산을 보증하지 않는다. 스마트 그룹32개/조건6000바이트/참조8/깊이8·최대10000자산/50000평가쌍·200개 페이지, 추천1~20개/12000바이트 한도는 SMART_DISCOVERY를 따른다. 자동 AI/임베딩·실제 원본 이동/수정/삭제·MCP 쓰기·새 의존성·원격 push 없음. M09는 자동으로 시작하지 않는다.
+
+스마트 그룹 실패 시 일반 키워드 대체 결과를 표시한다는 안내가 나오지 않도록 전용 오류 문구도 보강했다. 이를 포함한 최종 Node162개 재검증 후 설치본을 다시 빌드/검증했다. Core 바이너리는 위 Rust16개가 검증한 동일 SHA256(601a2c48...)이며 최종 설치 보고서에서도 일치한다.

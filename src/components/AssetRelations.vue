@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {ref,watch,onBeforeUnmount} from 'vue';
 import {invoke,isTauri} from '@tauri-apps/api/core';
+import RelatedAssets from './RelatedAssets.vue';
 const props=defineProps<{assetId:string}>();
 type Link={targetId:string;kind:string};
 type Candidate={id:string;name:string;relations:string[]};
@@ -25,6 +26,7 @@ async function find(more=false){
  finally {if(token===generation)busy.value=false;}
 }
 function add(c:Candidate){if(links.value.length<16&&!links.value.some(l=>l.targetId===c.id&&l.kind===kind.value))links.value.push({targetId:c.id,kind:kind.value});}
+function recommend(c:{id:string;name:string}){if(links.value.length<16&&!links.value.some(l=>l.targetId===c.id&&l.kind==='related'))links.value.push({targetId:c.id,kind:'related'});}
 async function save(){
  if(!snapshot.value||busy.value||conflict.value||!isTauri())return;
  const token=generation;busy.value=true;message.value='';
@@ -50,6 +52,7 @@ watch(()=>props.assetId,load,{immediate:true});
     <button v-else type="button" @click="add(c)">관계 추가</button></li></ul>
    <button v-if="cursor" type="button" @click="find(true)">다음 에셋</button>
    <button type="button" :disabled="conflict" @click="save">관계 저장</button>
+   <RelatedAssets :asset-id="assetId" @choose="recommend" />
   </fieldset>
   <p role="status">{{ message }}</p>
   <button v-if="!busy&&(!snapshot||conflict)" type="button" @click="load">초안을 버리고 다시 불러오기</button>

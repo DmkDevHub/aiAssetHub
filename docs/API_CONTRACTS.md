@@ -288,3 +288,6 @@ catalog.query 커서는 query/정규화 조건/sort 해시·DB 변경 stamp·마
 ## R08H-03~04 — MCP/Unity 계획 메타데이터 계약
 
 기존5개 MCP 도구의 schema_version=1 응답을 보존하고 버전2에서 실제 공개 분류/소속/제작 참조·파일 역할/기술/종속과 get_asset.unityPlanning의 권리/엔진 선언을 제공한다. 실제 인자/상한/개인정보/미확인 정책은 MCP.md를 따른다. UnityMetadata.preview는 신뢰된 Core 호출자가 허용 목록을 주입하는 내부 계약으로 실제 프로젝트 폴더/파일/충돌만 조회한다. 공개 unity.preview_operation/프로젝트 경로 인자/Editor 연결·쓰기 API를 구현했다는 뜻이 아니며 실제 작업은 M09에서 구현한다. UNITY_INTEGRATION.md와 TEST_PLAN.md의 R08H 기록을 참조한다.
+
+## M08I — 저장 조건과 관련 후보
+main-window metadata_request의 catalog.smart.list/get/save/delete/evaluate 및 catalog.related를 추가했다. 버전형 저장 조건·실제 참조/깊이/순환·revision·동적200개 페이지·준비된 공개 데이터/벡터 비교·추천과 사용자 확정 분리의 상세 인자/상한/실패 계약은 SMART_DISCOVERY.md를 따른다. 기존 MCP5도구에는 새 쓰기/자동 계산 권한을 노출하지 않는다. 스마트 그룹은 settings/collection_history를 재사용하고 확정 관계는 기존 asset.relations.save를 사용한다.

@@ -21,7 +21,7 @@ onMounted(capture);
 </script>
 <template><details class="smart-groups"><summary>스마트 그룹</summary><section aria-label="스마트 그룹 관리">
  <p>현재 인덱스에서 저장 조건을 동적으로 평가합니다.</p><button type="button" :disabled="busy" @click="refresh">스마트 그룹 불러오기</button><button type="button" :disabled="busy" @click="smartUi.groupId=null">스마트 그룹 필터 해제</button>
- <ul><li v-for="row in rows" :key="row.id">{{row.name}} <button type="button" :disabled="busy" :aria-pressed="smartUi.groupId===row.id" @click="smartUi.groupId=row.id">이 조건으로 탐색</button><button type="button" :disabled="busy" @click="edit(row.id)">조건 편집</button></li></ul>
+ <ul><li v-for="row in rows" :key="row.id">{{row.name}} <button type="button" :disabled="busy" :aria-pressed="smartUi.groupId===row.id" @click="smartUi.groupId=row.id;smartUi.revision++">이 조건으로 탐색</button><button type="button" :disabled="busy" @click="edit(row.id)">조건 편집</button></li></ul>
  <button type="button" :disabled="busy" @click="fresh">새 스마트 그룹</button>
  <form @submit.prevent="save"><fieldset :disabled="busy"><label>스마트 그룹 이름<input v-model="name" maxlength="128" required /></label><label>스마트 그룹 설명<input v-model="description" maxlength="512" /></label>
  <p>저장할 검색어: {{definition.query||'전체'}} · 조건 {{Object.keys(definition.criteria).length}}개</p><button type="button" @click="capture">현재 검색 조건으로 교체</button>

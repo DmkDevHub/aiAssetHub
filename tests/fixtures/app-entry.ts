@@ -76,4 +76,5 @@ export {default as MetadataImport} from '../../src/components/MetadataImport.vue
 
 export {default as DuplicateCandidates} from '../../src/components/DuplicateCandidates.vue';
 export {default as SmartGroups} from '../../src/components/SmartGroups.vue';
+export {default as RelatedAssets} from '../../src/components/RelatedAssets.vue';
 export {smartUi,resetSmartGroups} from '../../src/stores/smartGroups';
