@@ -223,7 +223,7 @@
 - [x] **R10-02** SQLite 백업/복구·마이그레이션 안전성. **검증:** SQLite online backup/WAL 일관성·private ACL·SHA256/정규 migration 체크섬/FK/quick_check·명시 offline restore/단일 lease·기존 DB/WAL/SHM 사전 보존/실패 rollback 구현. Core4개(0.514초)·DOM1개(1.682초) 통과. 최초 CRLF 체크섬 차이 수정 후 통과. 동일 스키마 백업만 복구, 설치/전체 회귀는 R10-06, GUI 미검증.
 - [x] **R10-03** 대량 파일/비정상 포맷/한글 경로 성능 테스트. **검증:** 실제5004파일 scan10.983초/rescan19.599초/list0.448초·313페이지/최대11634바이트·검색최대2.991ms·복합368.779ms. 3초 IPC 초과를 발견해 명시 background scan/status/중단 rollback·재시작 interrupted로 수정. Core 페이지5개(0.577초)·scan job2개(0.207초), DOM5000개 검색/복원142.433ms·실측 job 조회1개(1.745초), 타입/Vite 통과. 실제 GUI/FPS·다른 하드웨어/10000초과는 미검증. 설치 대량 스캔은 R10-06.
 - [x] **R10-04** 권한·원본 보존·외부 API 차단 시나리오 통합 검증. **검증:** 네트워크/infer 차단 상태에서 조회/스캔/진단/기본OFF 외부 모델·미승인 거부·MCP 유지보수 명령 거부, 실제 Windows 캐시/원본 루트 junction·감사 원문 마스킹3개(0.449초) 통과. 원본/캐시 전체 부모 no_links·migration backup private ACL 강화 후 DB9개(0.794초) 회귀 통과. 설치/최종 회귀는 R10-06, 관리자 공격/다른 OS 미검증.
-- [ ] **R10-05** Windows x64 최종 NSIS 설치·업데이트·제거 테스트. **확인:** 사용자 데이터 정책 일치.
+- [x] **R10-05** Windows x64 NSIS 설치·업데이트·제거 테스트. **검증:** 보존한 실제 M09 0.5.0 검증 설치본→최신0.5.0 동일 버전 갱신·합성0.4.9 등록 업데이트 분기·0.6.0 등록 상태 다운그레이드 차단·태그/설명/DB SHA/원본 유지·기본 제거 뒤 격리 AppData 유지 통과. 테스트 AppData는 소유 표식/경로 확인 후 workspace로 보존 이동했다. 실제0.4.9 출시본/GUI/데이터 추가삭제 체크/서명/깨끗한 PC는 미검증.
 - [ ] **R10-06** v0.5 사용자 인수 테스트 및 README/설계/CHANGELOG 동기화. **확인:** 목표 1·2 모두 시연.
 
 **마일스톤 K:** Windows 설치형 AI Asset Hub v0.5의 엔드투엔드 완료.

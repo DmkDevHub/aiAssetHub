@@ -1,4 +1,4 @@
-param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat, [switch]$BulkMetadata, [switch]$SmartDiscovery, [switch]$Unity, [string]$UnityEditor = '')
+param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat, [switch]$BulkMetadata, [switch]$SmartDiscovery, [switch]$Unity, [string]$UnityEditor = '', [switch]$Upgrade, [string]$BaselineInstaller = '', [switch]$ReleaseChecks)
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskNsis = Join-Path $taskRoot 'src-tauri/target/release/nsis/x64'
@@ -25,6 +25,22 @@ $taskInstallDir = Join-Path $taskRoot ('.artifacts/m02-installed-' + [guid]::New
 $taskArtifactPrefix = [IO.Path]::GetFullPath((Join-Path $taskRoot '.artifacts')) + [IO.Path]::DirectorySeparatorChar
 if (![IO.Path]::GetFullPath($taskInstallDir).StartsWith($taskArtifactPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'Verification install escaped workspace artifacts.' }
 if (Test-Path -LiteralPath $taskInstallDir) { throw 'Verification destination must be new.' }
+if ($Upgrade) {
+    if (!(Test-Path -LiteralPath $BaselineInstaller -PathType Leaf)) { throw 'An actual previous isolated verification installer is required.' }
+    $taskUpgradeRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'local.aiassethub.m02verification'
+    if (Test-Path -LiteralPath $taskUpgradeRoot) { throw 'Do not reuse an existing isolated AppData root.' }
+    $taskOwnership = [guid]::NewGuid().ToString()
+    New-Item -ItemType Directory -Path $taskUpgradeRoot | Out-Null
+    Set-Content -LiteralPath (Join-Path $taskUpgradeRoot '.m10-owned') -Value $taskOwnership -Encoding ascii
+    $taskUpgradeData = Join-Path $taskUpgradeRoot 'data'
+    $taskUpgradeState = Join-Path $taskRoot '.artifacts/m10-upgrade-state.json'
+    $taskUpgradeSource = Join-Path $taskRoot ('.artifacts/m10-upgrade-source-' + [guid]::NewGuid().ToString())
+    $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+    $taskProcess = Start-Process -FilePath $BaselineInstaller -ArgumentList "/S /NS /D=$taskInstallDir" -PassThru -WindowStyle Hidden
+    if (!$taskProcess.WaitForExit(60000) -or $taskProcess.ExitCode -ne 0) { throw 'Baseline silent installation failed.' }
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-release-data.py') --mode seed --core (Join-Path $taskInstallDir 'ai-asset-hub-core.exe') --data $taskUpgradeData --state $taskUpgradeState --source $taskUpgradeSource
+    if ($LASTEXITCODE -ne 0) { throw 'Baseline data fixture failed.' }
+}
 $taskProcess = Start-Process -FilePath $taskInstaller -ArgumentList "/S /NS /D=$taskInstallDir" -PassThru -WindowStyle Hidden
 if (!$taskProcess.WaitForExit(60000) -or $taskProcess.ExitCode -ne 0) { throw 'Silent verification installation failed.' }
 $taskRegistry = Get-ItemProperty -LiteralPath $taskKey
@@ -32,6 +48,22 @@ if ($taskRegistry.DisplayVersion -ne '0.5.0') { throw 'Installed version mismatc
 $taskSourceCore = Join-Path $taskRoot 'src-tauri/binaries/ai-asset-hub-core-x86_64-pc-windows-msvc.exe'
 $taskInstalledCore = Join-Path $taskInstallDir 'ai-asset-hub-core.exe'
 if ((Get-FileHash -LiteralPath $taskSourceCore).Hash -ne (Get-FileHash -LiteralPath $taskInstalledCore).Hash) { throw 'Installed Sidecar hash mismatch.' }
+if ($Upgrade) {
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-release-data.py') --mode check --core $taskInstalledCore --data $taskUpgradeData --state $taskUpgradeState
+    if ($LASTEXITCODE -ne 0) { throw 'Same-version update did not preserve data.' }
+    # Exercise the version comparison branch with an explicitly synthetic older registration.
+    Set-ItemProperty -LiteralPath $taskKey -Name DisplayVersion -Value '0.4.9'
+    $taskProcess = Start-Process -FilePath $taskInstaller -ArgumentList "/S /NS /UPDATE /D=$taskInstallDir" -PassThru -WindowStyle Hidden
+    if (!$taskProcess.WaitForExit(60000) -or $taskProcess.ExitCode -ne 0) { throw 'Synthetic older-version registration update failed.' }
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-release-data.py') --mode check --core $taskInstalledCore --data $taskUpgradeData --state $taskUpgradeState
+    if ($LASTEXITCODE -ne 0) { throw 'Version-branch update did not preserve data.' }
+    try {
+        Set-ItemProperty -LiteralPath $taskKey -Name DisplayVersion -Value '0.6.0'
+        $taskProcess = Start-Process -FilePath $taskInstaller -ArgumentList "/S /NS /D=$taskInstallDir" -PassThru -WindowStyle Hidden
+        if (!$taskProcess.WaitForExit(60000) -or $taskProcess.ExitCode -eq 0) { throw 'Downgrade should be rejected.' }
+        if ((Get-FileHash -LiteralPath $taskInstalledCore).Hash -ne (Get-FileHash -LiteralPath $taskSourceCore).Hash) { throw 'Downgrade modified the installed payload.' }
+    } finally { Set-ItemProperty -LiteralPath $taskKey -Name DisplayVersion -Value '0.5.0' }
+}
 if (!(Test-Path -LiteralPath (Join-Path $taskInstallDir '_internal/migrations/001_initial.sql'))) { throw 'Packaged migrations missing.' }
 $taskData = Join-Path $taskRoot ('.artifacts/core-verification-' + [guid]::NewGuid().ToString())
 $taskStdout = Join-Path $taskRoot '.artifacts/installed-core-health.json'
@@ -90,12 +122,29 @@ if ($SmartDiscovery) {
     if ($LASTEXITCODE -ne 0) { throw 'Installed smart discovery verification failed.' }
 }
 # Retain test reports/data; uninstall only the isolated verification payload.
+if ($ReleaseChecks) {
+    $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-release.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m10-installed-acceptance.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed maintenance/background-scan acceptance failed.' }
+}
 $taskUninstaller = Join-Path $taskInstallDir 'uninstall.exe'
 $taskProcess = Start-Process -FilePath $taskUninstaller -ArgumentList '/S' -PassThru -WindowStyle Hidden
 if (!$taskProcess.WaitForExit(60000) -or $taskProcess.ExitCode -ne 0) { throw 'Verification uninstall failed.' }
 $taskUninstallDeadline = [DateTime]::UtcNow.AddSeconds(10)
 while ((Test-Path -LiteralPath $taskKey) -and [DateTime]::UtcNow -lt $taskUninstallDeadline) { Start-Sleep -Milliseconds 100 }
 if (Test-Path -LiteralPath $taskKey) { throw 'Verification registry entry remained.' }
+if ($Upgrade) {
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-release-data.py') --mode retained --data $taskUpgradeData --state $taskUpgradeState
+    if ($LASTEXITCODE -ne 0) { throw 'Silent uninstall removed or modified user-data fixtures.' }
+    @{ passed=$true; actualPreviousPayload='M09 0.5.0'; sameVersionUpdated=$true; syntheticOlderVersionBranch=$true; downgradeBlocked=$true; uninstallRetainedData=$true; guiOpened=$false; baselineSha256=(Get-FileHash -LiteralPath $BaselineInstaller).Hash } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskRoot '.artifacts/m10-upgrade-result.json') -Encoding UTF8
+    # Preserve the newly created, ownership-marked AppData fixture under workspace artifacts.
+    $taskExpectedUpgradeRoot = [IO.Path]::GetFullPath((Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'local.aiassethub.m02verification'))
+    $taskResolvedUpgradeRoot = (Get-Item -LiteralPath $taskUpgradeRoot).FullName
+    if ($taskResolvedUpgradeRoot -ne $taskExpectedUpgradeRoot -or ((Get-Item -LiteralPath $taskUpgradeRoot).Attributes -band [IO.FileAttributes]::ReparsePoint) -or (Get-Content -LiteralPath (Join-Path $taskUpgradeRoot '.m10-owned') -Raw).Trim() -ne $taskOwnership) { throw 'AppData fixture cleanup scope failed.' }
+    $taskRetainedArchive = [IO.Path]::GetFullPath((Join-Path $taskRoot ('.artifacts/m10-retained-appdata-' + [guid]::NewGuid().ToString())))
+    if (!$taskRetainedArchive.StartsWith($taskArtifactPrefix, [StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $taskRetainedArchive)) { throw 'Retained fixture archive scope failed.' }
+    Move-Item -LiteralPath $taskResolvedUpgradeRoot -Destination $taskRetainedArchive
+}
 if ($taskOriginal) {
     $taskAfter = Get-ItemProperty -LiteralPath $taskOriginalKey
     if ($taskAfter.InstallLocation -ne $taskOriginal.InstallLocation -or $taskAfter.DisplayVersion -ne $taskOriginal.DisplayVersion) { throw 'Original installation registration changed.' }
