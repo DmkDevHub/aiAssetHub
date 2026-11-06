@@ -91,6 +91,34 @@ class UnityOperations:
 
     def execute_import(self,params):return self._execute(params,'import')
 
+    def preview_place(self,params):
+        import math
+        if not isinstance(params,dict) or set(params)!={'target_id','import_operation_id','position','rotation','scale','name'}:raise LibraryError('INVALID_PARAMS')
+        for key,bound in (('position',100000),('rotation',360000),('scale',1000)):
+            value=params[key]
+            if not isinstance(value,list) or len(value)!=3 or any(type(x) not in (int,float) or not math.isfinite(x) or abs(x)>bound or key=='scale' and abs(x)<.0001 for x in value):raise LibraryError('INVALID_PARAMS')
+        name=params['name']
+        if not isinstance(name,str) or not name.strip() or len(name)>80 or any(ord(c)<32 for c in name):raise LibraryError('INVALID_PARAMS')
+        target,_,state=self._target(params['target_id'])
+        if state.get('prefabStage') or type(state.get('sceneRevision')) is not int:raise LibraryError('UNITY_EDITOR_BUSY')
+        operation=self.status(dict(operation_id=params['import_operation_id']))
+        if operation['action']!='import' or operation['targetId']!=target['id'] or operation['status'] not in ('succeeded','partial'):raise LibraryError('UNITY_IMPORT_REQUIRED')
+        raw=json.loads(self.db.execute('SELECT result_json FROM unity_operations WHERE id=?',(operation['operationId'],)).fetchone()[0])
+        if raw['session']!=state['session']:raise LibraryError('UNITY_SESSION_CHANGED')
+        successful={r['fileId']:r for r in operation['result']['items'] if r['status']=='succeeded'}
+        items=[]
+        for source in raw['plan']['items']:
+            if source['fileId'] in successful:
+                item={k:v for k,v in source.items() if k!='sourcePath'};item['guid']=successful[source['fileId']]['guid']
+                path=Path(target['path'])/item['targetRelativePath']
+                if png_snapshot(path)['sha256']!=item['sha256']:raise LibraryError('UNITY_SOURCE_CHANGED')
+                items.append(item)
+        if not items:raise LibraryError('UNITY_IMPORT_REQUIRED')
+        return self._store_plan(dict(action='place',targetId=target['id'],projectPath=target['path'],session=state['session'],editorVersion=state['editorVersion'],
+            scene=state['scene'],sceneHandle=state['sceneHandle'],sceneRevision=state['sceneRevision'],position=params['position'],rotation=params['rotation'],scale=params['scale'],name=name,items=items))
+
+    def execute_place(self,params):return self._execute(params,'place')
+
     def _execute(self,params,action):
         if not isinstance(params,dict) or set(params)!={'plan_id','request_id','confirmed','rights_confirmed','compatibility_confirmed'} or any(params[k] is not True for k in ('confirmed','rights_confirmed','compatibility_confirmed')) or not valid_id(params['request_id']):raise LibraryError('INVALID_PARAMS')
         row=self.db.execute('SELECT id,result_json FROM unity_operations WHERE request_id=?',(params['request_id'],)).fetchone()
@@ -102,6 +130,7 @@ class UnityOperations:
         if plan['action']!=action:raise LibraryError('INVALID_PARAMS')
         target,directory,state=self._target(plan['targetId'])
         if plan['session']!=state['session']:raise LibraryError('UNITY_SESSION_CHANGED')
+        if action=='place' and (any(plan[k]!=state.get(k) for k in ('scene','sceneHandle','sceneRevision')) or state.get('prefabStage')):raise LibraryError('UNITY_SCENE_CHANGED')
         if action=='import':
             # Re-resolve registration/composition and hash before dispatch; Editor hashes again.
             for item in plan['items']:
@@ -129,7 +158,8 @@ class UnityOperations:
         return self.status(dict(operation_id=identifier))
 
     @staticmethod
-    def _fields(plan):return dict(items=plan['items'])
+    def _fields(plan):
+        return dict(items=plan['items'],**({k:plan[k] for k in ('scene','sceneHandle','sceneRevision','position','rotation','scale','name')} if plan['action']=='place' else {}))
 
     def status(self,params):
         if not isinstance(params,dict) or set(params)!={'operation_id'} or not valid_id(params['operation_id']):raise LibraryError('INVALID_PARAMS')
@@ -163,6 +193,17 @@ class UnityOperations:
             if item['status']=='succeeded' and (not isinstance(guid,str) or not re.fullmatch('[a-f0-9]{32}',guid) or item.get('assetPath')!=expected['targetRelativePath']):raise LibraryError('UNITY_INVALID_RESULT')
             safe.append(dict(assetId=item['assetId'],fileId=item['fileId'],status=item['status'],assetPath=item.get('assetPath') or None,guid=guid,
                 copied=item.get('copied') is True,errorCode=None if item['status']=='succeeded' else 'UNITY_ITEM_FAILED'))
+            if plan['action']=='place' and item['status']=='succeeded':
+                entity=item.get('entityId')
+                if (not isinstance(entity,str) or not re.fullmatch('[0-9]{1,20}',entity) or not 0<int(entity)<2**64 or item.get('objectId')!=f"session:{plan['session']}:entity:{entity}" or
+                    item.get('scene')!=plan['scene'] or item.get('sceneHandle')!=plan['sceneHandle'] or item.get('sceneDirty') is not True or item.get('sceneSaved') is not False or
+                    item.get('objectName')!=plan['name']):raise LibraryError('UNITY_INVALID_RESULT')
+                for key in ('position','rotation','scale'):
+                    import math
+                    vector=item.get(key)
+                    if not isinstance(vector,list) or len(vector)!=3 or any(type(x) not in (float,int) or not math.isfinite(x) for x in vector):raise LibraryError('UNITY_INVALID_RESULT')
+                    if key!='rotation' and any(abs(a-b)>max(.0001,abs(b)*1e-5) for a,b in zip(vector,plan[key])):raise LibraryError('UNITY_INVALID_RESULT')
+                safe[-1].update({key:item[key] for key in ('objectId','entityId','objectName','scene','sceneHandle','position','rotation','scale','sceneDirty','sceneSaved')})
         derived='succeeded' if all(i['status']=='succeeded' for i in safe) else 'failed' if all(i['status']=='failed' for i in safe) else 'partial'
         if result['status']!=derived:raise LibraryError('UNITY_INVALID_RESULT')
         return dict(status=derived,items=safe)

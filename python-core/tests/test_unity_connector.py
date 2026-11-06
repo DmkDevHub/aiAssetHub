@@ -18,7 +18,7 @@ class UnityConnectorTests(unittest.TestCase):
         (project/'ProjectSettings/ProjectVersion.txt').write_text('m_EditorVersion: 6000.6.8f1\n')
         directory=project/'Library/AIAssetHub';directory.mkdir(parents=True);private(directory,True)
         state=dict(protocol=1,pid=123,session=str(uuid4()),token='a'*64,project=str(project),editorVersion='6000.6.8f1',
-            updatedAt=datetime.now(timezone.utc).isoformat(),scene='',sceneHandle='1',sceneDirty=False,playing=False,compiling=False,batchMode=True)
+            updatedAt=datetime.now(timezone.utc).isoformat(),scene='',sceneHandle='1',sceneDirty=False,sceneRevision=1,prefabStage=False,playing=False,compiling=False,batchMode=True)
         write_private(directory/'connector.json',state)
         return project,directory,state,EditorMailbox(self.db,[project])
 

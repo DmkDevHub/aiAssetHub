@@ -62,9 +62,19 @@ def main():
         assert imported['status']=='succeeded',imported
         item=imported['result']['items'][0]
         assert (project/item['assetPath']).read_bytes()==(source/'숲.png').read_bytes() and len(item['guid'])==32
+        time.sleep(.3)
+        place_plan=service.preview_place(dict(target_id=target,import_operation_id=imported['operationId'],position=[2,3,0],rotation=[0,0,30],scale=[2,2,1],name='숲 Sprite'))
+        placed_op=service.execute_place(dict(plan_id=place_plan['planId'],request_id=str(uuid4()),confirmed=True,rights_confirmed=True,compatibility_confirmed=True))
+        def placement_completed():
+            status=service.status(dict(operation_id=placed_op['operationId']))
+            return status if status['status'] not in ('queued','unknown') else None
+        placed=await_value(placement_completed,20);assert placed['status']=='succeeded',placed
+        assert placed['result']['items'][0]['position']==[2,3,0] and placed['result']['items'][0]['sceneSaved'] is False
+        (project/'expect-placement.test').write_text('yes')
         (project/'finish.test').write_text('done');assert process.wait(timeout=30)==0
+        editor_assertions=json.loads((project/'editor-assertions.json').read_text())
         report=dict(passed=True,editorVersion=state['editorVersion'],project=str(project),actualEditorPid=state['pid'],pingSucceeded=True,
-            imported=imported,sourcePreserved=True,guiOpened=False,inferenceCalls=0,elapsedSeconds=round(time.monotonic()-started,3),verifiedAt=datetime.now(timezone.utc).isoformat())
+            imported=imported,placed=placed,editorAssertions=editor_assertions,sourcePreserved=True,guiOpened=False,inferenceCalls=0,elapsedSeconds=round(time.monotonic()-started,3),verifiedAt=datetime.now(timezone.utc).isoformat())
         Path(args.report).write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         database.close()

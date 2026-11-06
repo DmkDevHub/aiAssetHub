@@ -65,3 +65,18 @@ class UnityOperationsTests(unittest.TestCase):
         with self.assertRaisesRegex(LibraryError,'UNITY_INVALID_RESULT'):service._validate_result(service._plan(plan['planId']),dict(status='succeeded',items=[]))
         with patch('ai_asset_hub_core.unity_operations.time.time',return_value=plan['expiresAt']+1):
             with self.assertRaisesRegex(LibraryError,'UNITY_PLAN_EXPIRED'):service._plan(plan['planId'])
+
+    def test_placement_requires_actual_import_and_unchanged_scene(self):
+        from ai_asset_hub_core.unity_connector import write_private
+        project,directory,state,target,service=self.ready();plan=service.preview_import(dict(target_id=target,asset_ids=[self.id]))
+        params=dict(plan_id=plan['planId'],request_id=str(uuid4()),confirmed=True,rights_confirmed=True,compatibility_confirmed=True)
+        queued=service.execute_import(params);item=plan['items'][0];destination=project/item['targetRelativePath'];destination.parent.mkdir();destination.write_bytes((self.source/'나무.png').read_bytes())
+        write_private(directory/(queued['operationId']+'.result.json'),dict(id=queued['operationId'],session=state['session'],token=state['token'],status='succeeded',
+            items=[dict(assetId=self.id,fileId=item['fileId'],status='succeeded',assetPath=item['targetRelativePath'],guid='a'*32,copied=True)]))
+        request=dict(target_id=target,import_operation_id=queued['operationId'],position=[2,3,0],rotation=[0,0,0],scale=[1,1,1],name='Sprite')
+        for key,value in (('position',[float('nan'),0,0]),('scale',[0,1,1]),('name','')):
+            with self.assertRaisesRegex(LibraryError,'INVALID_PARAMS'):service.preview_place({**request,key:value})
+        place=service.preview_place(request)
+        (directory/'connector.json').unlink();state['sceneRevision']+=1;write_private(directory/'connector.json',state)
+        with self.assertRaisesRegex(LibraryError,'UNITY_SCENE_CHANGED'):service.execute_place({**params,'plan_id':place['planId'],'request_id':str(uuid4())})
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM unity_operations').fetchone()[0],1)

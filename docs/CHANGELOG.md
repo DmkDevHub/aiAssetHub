@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+### 2026-11-06 — [R09-05] Undo 가능한 Sprite 씬 배치
+- 실제 성공 임포트에서만 배치 계획을 만들고 씬/리비전/세션을 재검증한다. 실제 EntityId·transform·dirty/미저장 상태 반환, 자동 씬 저장 없음. Core5개(0.630초)·실제 Unity Sprite/위치/Undo 독립 assertion(15.836초) 통과. 초기 Unity6.6 InstanceID 컴파일 오류는 EntityId API로 수정 후 통과, GUI 미검증.
+
 ### 2026-11-06 — [R09-04] 실제 PNG 임포트
 - 단일 소비 승인 계획·요청 재사용·Core 영속 작업과 Editor의 원본 해시 재검사/배타 생성·Sprite 임포트·실제 GUID 반환을 연결했다. Core4개(0.490초)·실제 Unity6000.6.8f1 배치 임포트(15.139초) 통과. 원본 보존·GUI/AI 호출 없음, 연결 단절/응답 불명은 성공으로 반환하지 않는다.
 

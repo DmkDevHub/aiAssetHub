@@ -16,22 +16,30 @@ namespace AIAssetHub.Editor
         {
             public int protocol = 1, pid;
             public string session, token, project, editorVersion, scene, sceneHandle, updatedAt;
-            public bool playing, compiling, sceneDirty, batchMode;
+            public int sceneRevision;
+            public bool playing, compiling, sceneDirty, batchMode, prefabStage;
         }
         [Serializable] public class Request
         {
             public string id, session, token, action, expiresAt;
             public Item[] items;
+            public string scene, sceneHandle, name;
+            public int sceneRevision;
+            public float[] position, rotation, scale;
         }
         [Serializable] public class Item
         {
-            public string assetId, fileId, sourcePath, targetRelativePath, mtimeNs, sha256;
+            public string assetId, fileId, sourcePath, targetRelativePath, mtimeNs, sha256, guid;
             public long size;
         }
         [Serializable] public class ItemResult
         {
             public string assetId, fileId, status, errorCode, assetPath, guid;
             public bool copied;
+            public string objectId, objectName, scene, sceneHandle;
+            public string entityId;
+            public float[] position, rotation, scale;
+            public bool sceneDirty, sceneSaved;
         }
         [Serializable] public class Result
         {
@@ -45,6 +53,7 @@ namespace AIAssetHub.Editor
         static readonly string Token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
         static double nextTick;
         static bool reported;
+        static int sceneRevision;
         public static string MailboxPath => DirectoryPath;
 
         static Connector()
@@ -52,6 +61,9 @@ namespace AIAssetHub.Editor
             EditorApplication.update += Tick;
             EditorApplication.quitting += Stop;
             AssemblyReloadEvents.beforeAssemblyReload += Stop;
+            EditorApplication.hierarchyChanged += () => sceneRevision++;
+            Undo.undoRedoPerformed += () => sceneRevision++;
+            Undo.postprocessModifications += modifications => { sceneRevision++; return modifications; };
         }
         public static void NoLinks(string path)
         {
@@ -112,6 +124,7 @@ namespace AIAssetHub.Editor
             return new State { pid = Process.GetCurrentProcess().Id, session = Session, token = Token,
                 project = Project, editorVersion = Application.unityVersion,
                 scene = scene.path, sceneHandle = scene.handle.ToString(), sceneDirty = scene.isDirty,
+                sceneRevision = sceneRevision, prefabStage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage() != null,
                 playing = EditorApplication.isPlayingOrWillChangePlaymode, compiling = EditorApplication.isCompiling,
                 batchMode = Application.isBatchMode, updatedAt = DateTime.UtcNow.ToString("o") };
         }
@@ -142,6 +155,7 @@ namespace AIAssetHub.Editor
                         result.errorCode = "UNITY_REQUEST_EXPIRED";
                     else if (r.action == "ping") { result.status = "succeeded"; result.target = CurrentState(); }
                     else if (r.action == "import") ExecuteImport(r, result);
+                    else if (r.action == "place") ExecutePlace(r, result);
                     else result.errorCode = "UNITY_ACTION_NOT_ALLOWED";
                     WritePrivate(output, result);
                 }
@@ -204,6 +218,71 @@ namespace AIAssetHub.Editor
                 results.Add(value);
             }
             result.items = results.ToArray();
+            int successes = results.FindAll(i => i.status == "succeeded").Count;
+            result.status = successes == results.Count ? "succeeded" : successes == 0 ? "failed" : "partial";
+        }
+        static bool ValidVector(float[] value, float bound, bool scale = false)
+        {
+            if (value == null || value.Length != 3) return false;
+            foreach (var x in value) if (float.IsNaN(x) || float.IsInfinity(x) || Math.Abs(x) > bound || (scale && Math.Abs(x) < .0001f)) return false;
+            return true;
+        }
+        static Vector3 Vector(float[] value) => new Vector3(value[0], value[1], value[2]);
+        static void ExecutePlace(Request request, Result result)
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling ||
+                UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage() != null)
+            { result.errorCode = "UNITY_EDITOR_BUSY"; return; }
+            if (!scene.IsValid() || !scene.isLoaded || scene.path != request.scene || scene.handle.ToString() != request.sceneHandle || sceneRevision != request.sceneRevision)
+            { result.errorCode = "UNITY_SCENE_CHANGED"; return; }
+            if (request.items == null || request.items.Length < 1 || request.items.Length > 20 ||
+                !ValidVector(request.position, 100000) || !ValidVector(request.rotation, 360000) || !ValidVector(request.scale, 1000, true) ||
+                string.IsNullOrWhiteSpace(request.name) || request.name.Length > 80)
+            { result.errorCode = "INVALID_PARAMS"; return; }
+            var started = Path.Combine(DirectoryPath, request.id + ".started.json");
+            if (File.Exists(started)) { result.errorCode = "UNITY_OPERATION_INTERRUPTED"; return; }
+            WritePrivate(started, new Result { id = request.id, session = Session, status = "started" });
+            var results = new System.Collections.Generic.List<ItemResult>();
+            Undo.IncrementCurrentGroup(); int group = Undo.GetCurrentGroup(); Undo.SetCurrentGroupName("AI Asset Hub Sprite placement");
+            foreach (var item in request.items)
+            {
+                var value = new ItemResult { assetId = item.assetId, fileId = item.fileId, status = "failed" };
+                GameObject go = null;
+                try
+                {
+                    if (!Guid.TryParseExact(item.fileId, "D", out _) || item.targetRelativePath != "Assets/AIAssetHub/" + item.fileId + ".png") throw new InvalidDataException();
+                    var destination = Path.Combine(Project, item.targetRelativePath); NoLinks(destination); NoLinks(destination + ".meta");
+                    if (AssetDatabase.AssetPathToGUID(item.targetRelativePath) != item.guid) throw new InvalidDataException();
+                    using (var hash = System.Security.Cryptography.SHA256.Create())
+                    using (var source = new FileStream(destination, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        if (source.Length > 16 * 1024 * 1024 || BitConverter.ToString(hash.ComputeHash(source)).Replace("-", "").ToLowerInvariant() != item.sha256) throw new InvalidDataException();
+                    }
+                    var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(item.targetRelativePath);
+                    if (sprite == null) throw new InvalidDataException();
+                    go = new GameObject(request.name); SceneManager.MoveGameObjectToScene(go, scene);
+                    Undo.RegisterCreatedObjectUndo(go, "AI Asset Hub Sprite");
+                    var renderer = Undo.AddComponent<SpriteRenderer>(go); renderer.sprite = sprite;
+                    go.transform.position = Vector(request.position); go.transform.eulerAngles = Vector(request.rotation); go.transform.localScale = Vector(request.scale);
+                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+                    if (EditorUtility.EntityIdToObject(go.GetEntityId()) != go || renderer.sprite != sprite) throw new InvalidDataException();
+                    value.assetPath = item.targetRelativePath; value.guid = item.guid; value.entityId = EntityId.ToULong(go.GetEntityId()).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    value.objectId = "session:" + Session + ":entity:" + value.entityId;
+                    value.objectName = go.name; value.scene = scene.path; value.sceneHandle = scene.handle.ToString();
+                    value.position = new[] { go.transform.position.x, go.transform.position.y, go.transform.position.z };
+                    value.rotation = new[] { go.transform.eulerAngles.x, go.transform.eulerAngles.y, go.transform.eulerAngles.z };
+                    value.scale = new[] { go.transform.localScale.x, go.transform.localScale.y, go.transform.localScale.z };
+                    value.sceneDirty = scene.isDirty; value.sceneSaved = false; value.status = "succeeded";
+                }
+                catch (Exception)
+                {
+                    if (go != null) Undo.DestroyObjectImmediate(go);
+                    value.errorCode = "UNITY_PLACE_FAILED";
+                }
+                results.Add(value);
+            }
+            Undo.CollapseUndoOperations(group); result.items = results.ToArray();
             int successes = results.FindAll(i => i.status == "succeeded").Count;
             result.status = successes == results.Count ? "succeeded" : successes == 0 ? "failed" : "partial";
         }

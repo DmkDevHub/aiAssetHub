@@ -19,7 +19,19 @@ namespace AIAssetHub.Editor
         static void Wait()
         {
             var root = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, ".."));
-            if (File.Exists(Path.Combine(root, "finish.test"))) EditorApplication.Exit(0);
+            if (File.Exists(Path.Combine(root, "finish.test")))
+            {
+                if (File.Exists(Path.Combine(root, "expect-placement.test")))
+                {
+                    var objects = UnityEngine.Object.FindObjectsByType<UnityEngine.SpriteRenderer>(UnityEngine.FindObjectsSortMode.None);
+                    if (objects.Length != 1 || objects[0].sprite == null || objects[0].transform.position != new UnityEngine.Vector3(2, 3, 0) ||
+                        !UnityEngine.SceneManagement.SceneManager.GetActiveScene().isDirty) { EditorApplication.Exit(3); return; }
+                    Undo.PerformUndo();
+                    if (UnityEngine.Object.FindObjectsByType<UnityEngine.SpriteRenderer>(UnityEngine.FindObjectsSortMode.None).Length != 0) { EditorApplication.Exit(4); return; }
+                    File.WriteAllText(Path.Combine(root, "editor-assertions.json"), "{\"spriteVerified\":true,\"positionVerified\":true,\"undoVerified\":true,\"sceneAutoSaved\":false}");
+                }
+                EditorApplication.Exit(0);
+            }
             if (EditorApplication.timeSinceStartup > deadline) EditorApplication.Exit(2);
         }
     }
