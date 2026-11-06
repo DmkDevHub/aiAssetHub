@@ -130,6 +130,11 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'SCAN_BUSY': '진행 중인 다른 라이브러리 스캔이 있습니다.',
+    'SCAN_FAILED': '스캔을 완료하지 못했습니다. 권한과 라이브러리 상태를 확인하세요.',
+    'SCAN_CANCELLED': '스캔이 중단되었습니다. 이전 DB 상태를 보존합니다.',
+    'SCAN_NOT_FOUND': '스캔 작업을 찾을 수 없습니다.',
+    'ASSET_PAGE_LIMIT': '에셋 목록 항목이 응답 한도를 초과했습니다. 경로·태그 길이를 확인하세요.',
     'BACKUP_FAILED': '백업을 완료하지 못했습니다. 데이터 상태와 디스크 권한/공간을 확인하세요.',
     'BACKUP_INVALID': '백업 무결성·버전·경로를 검증하지 못했습니다. 기존 데이터는 보존됩니다.',
     'BACKUP_LIMIT': '백업 목록 한도를 초과했습니다.',

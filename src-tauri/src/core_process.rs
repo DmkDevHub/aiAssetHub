@@ -223,6 +223,8 @@ impl CoreProcess {
         if !matches!(
             method,
             "library.register"
+                | "library.scan.start"
+                | "library.scan.status"
                 | "diagnostics.read"
                 | "maintenance.backup"
                 | "maintenance.list"

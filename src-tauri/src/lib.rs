@@ -12,6 +12,7 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
         && matches!(
             method,
             "asset.technical"
+                | "library.scan.status"
                 | "diagnostics.read"
                 | "maintenance.backup"
                 | "maintenance.list"
@@ -1206,7 +1207,7 @@ async fn scan_library(
             .lock()
             .map_err(|_| "CORE_UNAVAILABLE")?
             .library_request(
-                "library.scan",
+                "library.scan.start",
                 serde_json::json!({"library_id": library_id}),
             )
     })
@@ -1225,7 +1226,7 @@ async fn list_assets(
         state
             .lock()
             .map_err(|_| "CORE_UNAVAILABLE")?
-            .library_request("asset.list", serde_json::json!({"after_id": after_id}))
+            .library_request("asset.list", serde_json::json!({"after_id": after_id,"limit":50}))
     })
     .await
     .map_err(|_| "CORE_UNAVAILABLE".to_string())?

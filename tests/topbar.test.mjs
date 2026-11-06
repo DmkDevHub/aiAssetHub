@@ -2396,3 +2396,15 @@ test('backup creation is explicit and restore is an app-closed command without I
  dispatch(metaButton('백업 목록·복구 안내 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();const radio=document.querySelector('.maintenance input');radio.checked=true;dispatch(radio,new Event('change',{bubbles:true}));await nextTick();
  assert.match(document.querySelector('.maintenance pre').textContent,/app''s core/);assert.match(document.body.textContent,/앱을 완전히 종료/);assert.ok(calls.every(c=>c.method!=='maintenance.restore'));
 });
+
+test('5000 Unicode assets keep gallery DOM paged and search events usable',async t=>{
+ const started=performance.now();await mountWorkspace(Array.from({length:5000},(_,i)=>({id:`owned-${i}`,name:`한글 에셋 ${String(i).padStart(5,'0')}`,kind:'TXT'})));
+ assert.equal(document.querySelectorAll('.asset-card').length,60);components.setSearchQuery('04999');await nextTick();
+ assert.equal(document.querySelectorAll('.asset-card').length,1);assert.match(document.querySelector('.asset-card').textContent,/04999/);components.setSearchQuery('');await nextTick();assert.equal(document.querySelectorAll('.asset-card').length,60);
+ const elapsed=performance.now()-started;t.diagnostic(`5000-item virtual DOM render/search/reset: ${elapsed.toFixed(3)} ms`);assert.ok(elapsed<10000);
+});
+
+test('explicit scan polls the background job and publishes only actual counts',async()=>{
+ const calls=[];dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='scan_library')return {ok:true,data:{jobId:'actual-scan'}};if(command==='metadata_request'){assert.equal(args.method,'library.scan.status');return {ok:true,data:{status:'completed',result:{processed:5004,errors:0,complete:true,new:5004,changed:0,missing:0}}};}if(command==='list_assets')return {ok:true,data:{items:[],next_cursor:null}};throw new Error('unexpected');}};globalThis.isTauri=true;
+ await components.scanLibrary('owned-library');assert.match(components.assets.notice,/5004개 파일 확인/);assert.deepEqual(calls.map(c=>c[0]),['scan_library','metadata_request','list_assets']);assert.equal(components.assets.busy,false);
+});

@@ -7,6 +7,26 @@ from ai_asset_hub_core.assets import AssetService
 from ai_asset_hub_core.libraries import LibraryService
 
 class AssetTests(unittest.TestCase):
+    def test_bounded_bulk_pages_keep_legacy_default_and_cover_all_unicode_rows(self):
+        from ai_asset_hub_core.libraries import LibraryError
+        import json
+        root=Path(__file__).resolve().parents[2]/'.artifacts/asset-page-tests';root.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=root) as directory:
+            base=Path(directory);source=base/'한글';source.mkdir()
+            for i in range(80):(source/(f'{i:03}_'+('한글'*30)+'.txt')).write_bytes(b'owned')
+            db=Database(base/'db.sqlite')
+            try:
+                service=AssetService(db);library=LibraryService(db).register(dict(path=str(source)))['library']['id'];service.scan(dict(library_id=library))
+                self.assertEqual(len(service.list({})['items']),1);cursor=None;identifiers=[];pages=0
+                while True:
+                    page=service.list(dict(after_id=cursor,limit=100));self.assertLess(len(json.dumps(page).encode()),12000)
+                    identifiers.extend(i['id'] for i in page['items']);cursor=page['next_cursor'];pages+=1
+                    if cursor is None:break
+                self.assertEqual(len(set(identifiers)),80);self.assertEqual(len(identifiers),80);self.assertLess(pages,20)
+                for value in (True,0,101):
+                    with self.assertRaises(LibraryError):service.list(dict(limit=value))
+            finally:db.close()
+
     def test_rescan_tracks_changes_and_does_not_lose_annotations_on_partial_failure(self):
         root=Path(__file__).resolve().parents[2]/'.artifacts'/'scan-tests'; root.mkdir(parents=True,exist_ok=True)
         with tempfile.TemporaryDirectory(dir=root) as directory:

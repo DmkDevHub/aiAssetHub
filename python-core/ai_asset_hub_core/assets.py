@@ -13,7 +13,7 @@ class AssetService:
         self.db = database.connection
         self.database = database
 
-    def scan(self, params):
+    def scan(self, params, cancel=None):
         if not isinstance(params,dict) or set(params) != {'library_id'} or not valid_id(params['library_id']):
             raise LibraryError('INVALID_PARAMS')
         row = self.db.execute('SELECT absolute_path FROM library_roots WHERE id=? AND enabled=1', (params['library_id'],)).fetchone()
@@ -21,7 +21,10 @@ class AssetService:
             raise LibraryError('LIBRARY_NOT_FOUND')
         root = Path(registration_path(row[0])[0])
         found, failures = [], []
+        def check_cancel():
+            if cancel is not None and cancel.is_set():raise LibraryError('SCAN_CANCELLED')
         def visit(directory):
+            check_cancel()
             try:
                 directory_info=directory.lstat()
                 if directory.is_symlink() or getattr(directory_info,'st_file_attributes',0) & 0x400:
@@ -32,6 +35,7 @@ class AssetService:
                     return
                 with os.scandir(directory) as entries:
                     for entry in entries:
+                        check_cancel()
                         info = entry.stat(follow_symlinks=False)
                         if entry.is_symlink() or getattr(info, 'st_file_attributes', 0) & 0x400:
                             continue
@@ -49,6 +53,7 @@ class AssetService:
             except OSError:
                 failures.append('FOLDER_UNAVAILABLE')
         visit(root)
+        check_cancel()
         # Never mark unseen files missing when a subtree could not be read.
         self.db.execute('BEGIN IMMEDIATE')
         try:
@@ -62,6 +67,7 @@ class AssetService:
             if not failures:
                 self.db.execute('UPDATE asset_files SET exists_flag=0 WHERE asset_id IN (SELECT id FROM assets WHERE library_root_id=?)', (params['library_id'],))
             for path, info in found:
+                check_cancel()
                 key = os.path.normcase(str(path))
                 seen.add(key)
                 if key in existing:
@@ -88,22 +94,31 @@ class AssetService:
         return {'processed': len(found), 'errors': len(failures), 'complete': not failures, **counts}
 
     def list(self, params):
-        if not isinstance(params,dict) or set(params) - {'after_id'} or (params.get('after_id') is not None and not valid_id(params['after_id'])):
+        if not isinstance(params,dict) or set(params) - {'after_id','limit'} or (params.get('after_id') is not None and not valid_id(params['after_id'])):
             raise LibraryError('INVALID_PARAMS')
+        limit=params.get('limit',1)
+        if type(limit) is not int or not 1<=limit<=100:raise LibraryError('INVALID_PARAMS')
         rows = self.db.execute('''SELECT a.id,coalesce(u.title_override,a.display_name),f.extension,a.library_root_id,f.relative_path,f.absolute_path,f.size_bytes,f.mtime_ns,f.exists_flag,json_extract(o.metadata_json,'$.scan_change')
             FROM assets a JOIN asset_files f ON f.asset_id=a.id JOIN library_roots l ON l.id=a.library_root_id
             LEFT JOIN asset_observations o ON o.asset_file_id=f.id
             LEFT JOIN asset_user_annotations u ON u.asset_id=a.id
-            WHERE l.enabled=1 AND a.id>? ORDER BY a.id LIMIT 2''', (params.get('after_id') or '',)).fetchall()
-        items = [dict(zip(('id','name','kind','libraryId','relativePath','path','size','mtimeNs','exists','scanChange'), row)) for row in rows[:1]]
-        for item in items:
+            WHERE l.enabled=1 AND a.id>? ORDER BY a.id LIMIT ?''', (params.get('after_id') or '',limit+1)).fetchall()
+        items=[];size=128
+        for row in rows[:limit]:
+            item=dict(zip(('id','name','kind','libraryId','relativePath','path','size','mtimeNs','exists','scanChange'), row))
             from .analysis_state import asset_state
             item.update(asset_state(self.db,item['id']))
             item['userTags'] = [row[0] for row in self.db.execute("SELECT t.label FROM tags t JOIN asset_tags at ON at.tag_id=t.id WHERE at.asset_id=? AND at.source='user' ORDER BY t.normalized_label", (item['id'],))]
             item['kind'] = item['kind'].lstrip('.').upper() or 'FILE'
             item['exists'] = bool(item['exists'])
             item['mtimeNs'] = str(item['mtimeNs']) # Preserve nanoseconds across the JS integer boundary.
-        return {'items': items, 'next_cursor': items[-1]['id'] if len(rows) > 1 else None}
+            import json
+            item_size=len(json.dumps(item,ensure_ascii=True).encode())+2
+            if size+item_size>12000:
+                if not items:raise LibraryError('ASSET_PAGE_LIMIT')
+                break
+            items.append(item);size+=item_size
+        return {'items':items,'next_cursor':items[-1]['id'] if len(rows)>len(items) else None}
 
     def get(self, params):
         if not isinstance(params,dict) or set(params) != {'asset_id'} or not valid_id(params['asset_id']): raise LibraryError('INVALID_PARAMS')

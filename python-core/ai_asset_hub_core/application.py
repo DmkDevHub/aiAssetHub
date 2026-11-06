@@ -17,6 +17,7 @@ class CoreApplication:
         self._embedding = None
         self._broker = None
         self._duplicates = None
+        self._scans = None
 
     def duplicate_jobs(self):
         if self._duplicates is None:
@@ -67,6 +68,7 @@ class CoreApplication:
         return result
 
     def close(self):
+        if self._scans:self._scans.close()
         if self._analysis:self._analysis.close()
         if self._duplicates:self._duplicates.close()
         if self._embedding:self._embedding.close()
@@ -104,6 +106,16 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
+            if method in ('library.scan.start','library.scan.status'):
+                from .scan_jobs import ScanJobs
+                from .libraries import LibraryError,ERROR_MESSAGES
+                if self._scans is None:self._scans=ScanJobs()
+                try:
+                    action=self._scans.start if method.endswith('start') else self._scans.status
+                    return self._response(request_id,data=action(self.database,request.get('params',{})))
+                except LibraryError as error:
+                    code=str(error) if str(error) in ERROR_MESSAGES else 'SCAN_FAILED'
+                    return self.error(request_id,code,ERROR_MESSAGES[code])
             if method.startswith('unity.'):
                 from .unity_api import dispatch
                 from .libraries import LibraryError,ERROR_MESSAGES
