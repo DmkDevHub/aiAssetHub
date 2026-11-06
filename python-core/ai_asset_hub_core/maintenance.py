@@ -129,7 +129,7 @@ def restore(root,environment,identifier,confirmed):
     try:
         lease=DataLease(root,environment);root=Path(root);folder=directory(root);value=manifest_value(root,identifier);source=folder/(identifier+'.sqlite');private(source)
         if source.stat().st_size!=value['sizeBytes'] or digest(source)!=value['sha256']:raise LibraryError('BACKUP_INVALID')
-        validate(source)
+        if validate(source)!=value['schemaVersion']:raise LibraryError('BACKUP_INVALID')
         stage=root/('.restore-'+str(uuid4())+'.sqlite');copy_private(source,stage)
         if digest(stage)!=value['sha256']:raise LibraryError('BACKUP_INVALID')
         validate(stage);current=root/'asset_hub.sqlite';no_links(current)

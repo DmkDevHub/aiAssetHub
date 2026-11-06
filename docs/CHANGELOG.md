@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### 2026-11-06 — [R10-06] v0.5 내부 수용·릴리스 증거
+- 최신 유지보수/비동기 스캔을 동봉하고 미확인 데이터 경로의 lock 생성 전 거부·부모 junction·backup manifest/schema 일치·실제 쓰기 중 스캔 취소 rollback을 보강했다. Node171(7.394초)·Core303(36.428초)·Rust16개(6.62초), 타입/Vite/fmt/Clippy·최신 NSIS 및 실제 설치/이전 M09 갱신/기본 제거·원본/데이터 보존 통과.
+- 설치된5000파일 스캔 시작2.596ms/동시health최대0.679ms·복구/손상 거부13.853초, 실제 Unity Host/Sprite/transform/Undo20.773초와 기존 최신/레거시 MCP/모의 분석10회·교환/스마트 회귀 통과. README/계약/보안/RELEASE·검증 및 바이너리 manifest를 동기화했다. 서명·실사용자 직접 인수/GUI·깨끗한 PC·실모델/특정 제품 Host는 미검증이며 공개 게시·push는 하지 않았다.
+
 ### 2026-11-06 — [R10-05] 실제 이전 설치본 갱신·데이터 유지
 - Windows silent downgrade를 차단하고 실제 보존 M09 설치본의 태그/설명/DB/원본을 신규 설치본으로 갱신·기본 제거 후 유지 검증했다. 합성 구버전/미래 버전 등록으로 버전 분기/거부도 확인했다. 테스트 스크립트의 libraries 응답 필드를 수정 후 통과했으며 AppData fixture는 삭제하지 않고 workspace로 보존했다. 실제 GUI/서명/깨끗한 PC·추가 삭제 체크는 미검증이다.
 

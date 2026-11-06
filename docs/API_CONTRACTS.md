@@ -1,5 +1,14 @@
 # API_CONTRACTS — 내부 유스케이스 계약 초안
 
+## M10 — 데스크톱 유지보수·대량 스캔
+`diagnostics.read({kind:analysis|unity|audit,after_id?})`는 실제 기록을 최신10개/커서로 반환하며 key/path/원문 JSON은 투영하지 않는다. `diagnostics.budget({})`는 모델별 보수적 예약과 한도를 반환하며 공급자 청구 확정이 아니다.
+
+`maintenance.backup({confirmed:true})`는 private SQLite snapshot·SHA256 manifest 생성, `maintenance.list({after_id?})`는 10개 백업 manifest, `maintenance.info({})`는 현재 실행 파일/데이터 환경의 실제 오프라인 복구 명령 재료를 반환한다. 복구는 IPC/MCP에 없고 `--maintenance restore --data-dir <실제 경로> --environment development|production --backup-id <UUID> --confirmed` CLI에서만 OS lease 획득 후 수행한다. 현재 스키마만 허용하며 원본 DB/WAL/SHM을 보존한다. 상세 정책은 [릴리스 안내](RELEASE.md)를 따른다.
+
+`library.scan.start({library_id})`는 명시적 background 작업 jobId/reused를 즉시 반환한다. `library.scan.status({job_id})`는 queued/running/completed/failed/cancelled/interrupted와 실제 완료 result를 반환한다. 같은 진행 라이브러리의 시작 요청은 같은 jobId를 반환한다. 재시작은 작업을 재실행하지 않는다. 기존 `library.scan` 동기 Core 계약은 호환을 위해 유지하지만 데스크톱은 새 작업/status 경로를 사용한다.
+
+`asset.list({after_id?,limit?})`는 이전 기본1개를 보존하고 limit1~100을 받는다. 실제 출력은 ASCII JSON 12KB 예산 안에서 줄여 마지막 반환 UUID를 next_cursor로 사용하며 누락/반복 없이 이어진다. 데스크톱은 최대50개를 요청한다. 단일 항목도 넘치면 ASSET_PAGE_LIMIT로 명시 실패한다. UI의 60개 렌더 페이지와 DB 응답 페이지는 독립적이다.
+
 ## M09 — 실제 Unity 명령 (2026-11-06, D-035)
 앞부분 논리 표의 unity.preview_operation/execute_operation/get_operation은 실제 명령 이름이 아니다. 다음 고정 명령만 구현한다. Tauri metadata_request(main 창)와 CoreProcess의 두 허용 목록을 모두 통과하며 프로젝트 등록/해제·이력 목록은 MCP에 공개하지 않는다.
 

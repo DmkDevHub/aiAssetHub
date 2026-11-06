@@ -23,6 +23,13 @@ class DataLease:
         directory = Path(directory)
         if not directory.is_absolute() or environment not in ('development', 'production') or directory.is_symlink():
             raise DatabaseFailure('DATA_PATH_INVALID')
+        from .session_file import no_links
+        try:
+            no_links(directory);no_links(directory/'.core.lock');no_links(directory/'.ai-asset-hub.json')
+        except (OSError,ValueError):raise DatabaseFailure('DATA_PATH_INVALID') from None
+        # Refuse unrelated folders before creating even a lock file in them.
+        if directory.exists() and not (directory/'.ai-asset-hub.json').exists() and any(path.name!='.core.lock' for path in directory.iterdir()):
+            raise DatabaseFailure('DATA_DIRECTORY_UNKNOWN')
         directory.mkdir(parents=True, exist_ok=True)
         lock_path = directory / '.core.lock'
         if lock_path.is_symlink():

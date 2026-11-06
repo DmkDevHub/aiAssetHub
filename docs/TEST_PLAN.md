@@ -1,5 +1,43 @@
 # TEST_PLAN — 기능 완료와 설치본 수용 테스트
 
+## M10 — 안정화·Windows v0.5 내부 수용 (2026-11-06, D-036)
+
+사용자 지시로 R10-01~06을 순차 진행했다. 변경 파일은 Core diagnostics/maintenance/scan_jobs와 runtime/database/assets/thumbnails/application/CLI, Vue DiagnosticsView/MaintenanceView·assets store/router/상단 링크, Tauri main/내부 명령 허용 목록·다운그레이드 정책, 자동 검증/manifest 스크립트와 README/계약/보안/RELEASE/로드맵이다. 새 제품 의존성·마이그레이션은 없다. 기존 v13 데이터와 실제 ID를 보존하며 실제 사용자 DB/원본이나 개인 Host 설정을 테스트 자료로 쓰지 않았다.
+
+| 검사 | 명령 | 최종 실측 |
+|---|---|---|
+| 렌더/이벤트·Core·타입/Vite | `npm run check` | Node171개 7.394초·Core303개 36.428초·타입/Vite 481ms 통과 |
+| Rust 경계·실제 프로세스/동봉 Core | `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1` | 16개 6.62초, ignored0·실제 diagnostics/maintenance 명령 포함 |
+| 형식/정적 검사 | `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`; `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | 통과, Clippy 1.72초 |
+| 원본/한글/손상/규모 | `python scripts/verify-performance.py --count 5000 --report .artifacts/m10-performance.json` (전용 Python) | 실제5004파일 scan10983.146ms·rescan19598.799ms·목록448.151ms/313페이지·최대11634바이트·검색최대2.991ms·복합368.779ms |
+| 최종 NSIS | `npm run build:installer` | Windows x64 25106791바이트, release37.99초·기존 Korean LangString6040 경고 잔존 |
+| 설치/업데이트/전체 수용 | 아래 최종 PowerShell 명령 | 전부 통과. 설치본5000파일 비동기 스캔·동시health·실제 백업/복구·손상 거부13.853초, 실제 Unity Host 구간20.773초 |
+| 문서/구문/증거 | PowerShell Parser·Python AST·로컬 링크·`git diff --check`; `python scripts/release-manifest.py` | 구문/링크/공백 검사와 현재 바이너리별 증거 일치 검사 후 manifest/체크섬 생성 |
+
+최종 설치 명령:
+```powershell
+./scripts/verify-installer.ps1 -Upgrade -BaselineInstaller <보존한-실제-M09-검증설치본.exe> -ReleaseChecks -Mcp -Multiformat -BulkMetadata -SmartDiscovery -Unity -UnityEditor 'C:\Program Files\Unity\Hub\Editor\6000.6.8f1\Editor\Unity.exe'
+```
+도구 환경은 Node24.22.1·npm11.6.2·CPython3.13.17·Unity6000.6.8f1이다. 세션에서는 기존 `.artifacts/tool-bin/npm.cmd`와 `.cargo/bin` PATH, 기반 Python `C:\Program Files\Python313\python.exe`, Rust의 실제 `AI_ASSET_HUB_SIDECAR_DIR`를 사용했다. runtime dependencies는 기존 전용 site-packages/동봉 패키지이며 전역 도구/모델 설치는 하지 않았다.
+
+### 동작·실패·보안 증거
+- 진단은 분석 실행/Unity/감사의 고정 상태·ID·수치만 투영한다. 원본 JSON·경로·키·임의 예외는 반사하지 않고 공급자 비용 미보고는 null, 모델별 보수적 예약은 청구액과 구분한다. 명시 조회/페이지·HTML 문자·예산 구분 DOM/Core 테스트 통과.
+- private SQLite snapshot은 실제 WAL 상태를 캡처한다. SHA256·정규화 migration checksum·실제 schema/manifest 일치·FK/quick_check를 검사하며 앱이 실행 중이면 OS lease로 거부한다. 교체 실패 시 기존 DB/WAL/SHM 보존·복귀, 해시/스키마 불일치 거부·실제 태그 복원·분석 재개0을 검증했다. UI는 명시 백업/복구 안내만 제공하며 restore는 별도 CLI다.
+- 5004파일 benchmark에서 3초 IPC를 넘는 스캔을 발견해 Core 별도 작업/status로 수정했다. 설치된 실제5000파일 스캔 시작 응답2.596ms, 동시에107회 health 조회 최대0.679ms, 무손실278페이지를 확인했다. 5000개 가상 DOM 검색/초기화는142.433ms·실제 카드60개로 제한했다. 이미 진행 중인 같은 라이브러리 요청 재사용·재시작 interrupted·AI0·DB INSERT 후 중단/전체 rollback·원본 보존을 확인했다. 측정 하드웨어/fixture 기준이며 OS FPS/보편적 SLA가 아니다.
+- network/infer 차단 상태에서 조회/스캔/진단·외부 모델 OFF/미승인·MCP 유지보수 거부를 검증했다. 실제 Windows 원본 루트/캐시·데이터 부모 junction을 거부하고 미확인 원본 폴더에는 lock 파일도 만들지 않는다. migration 백업도 private ACL을 적용했다. 원본 SHA256·분석/임베딩 생성0·감사 문자열 마스킹을 확인했다.
+- 보존한 실제 M09 0.5.0 격리 설치본 SHA256=`c3817b3d34d102d822fa9811e876ce731d912e0e650792d18212ffcf0bbec96a`에 실제 한글 태그/설명/DB를 만들고 최신 동일버전 갱신 후 DB bytes/원본/ID/설명을 확인했다. 합성0.4.9 registry로 업데이트 분기를, 합성0.6.0 registry로 silent downgrade 거부를 검사했다. 실제0.4.9 출시 제품을 시험한 것은 아니다. 기본 silent 제거 후 격리 AppData가 남는 것을 확인했으며 실제 기존 설치 등록은 보존했다.
+- 최종 설치본의 최신/2025-11-25 레거시 SDK Host12도구, 실제 Unity Sprite/GUID·XYZ(2,3,0)/회전30도/크기(2,2,1)·dirty·Undo·부분 실패/취소/재시작/감사/원본·junction, 파서18건/모의 공급자10회·일괄/JSON/CSV/해시·스마트/관계 회귀 통과. 모의10회는 실제 모델이 아니며 실제 외부 유료 요청은0이다.
+
+### 실패 수정과 보존
+최초 snapshot 검증에서 CRLF migration 원문과 정규화된 DB checksum을 혼동해 실패한 것을 현재 Database의 정규화 규칙으로 수정했다. 업데이트 harness의 `library.list`를 items로 읽던 오류는 실제 libraries 계약에 맞춰 수정했다. 백업 manifest 버전 불일치와 unknown/reparse 데이터 경로를 추가 검사했고 전체 회귀를 다시 통과했다. 최초 자동 승인 검토가 설치 제거와 AppData 재귀 정리를 묶은 명령을 거부했으며, 삭제 대신 소유 표식·절대 범위를 검사한 뒤 workspace `.artifacts/m10-retained-*`로 보존 이동하는 안전한 방식으로 완료했다. 사용자 데이터 삭제/승인 우회는 수행하지 않았다.
+
+### 산출물과 한계
+Core SHA256=`361852234a73baa3850901a73e61584e70b28b3581680e4c0bf3b385cc3b9328`, NSIS SHA256=`e2ec6d343ea00e57ea5e36a4591b99f8e2c589beddad7536bb6246a14b7e3c6e`다. 현재 설치/수용 보고서는 `.artifacts/m10-installed-tests.txt`, `m10-installed-acceptance.json`(2026-11-06T08:14:34.681105Z/한국17:14), `m10-upgrade-result.json`, 전체 검사 `m10-check.txt`·`m10-rust-tests.txt`·`m10-installer-build.txt`에 있다. `.artifacts/v0.5.0-release.json`과 `v0.5.0-SHA256SUMS.txt`는 현재 소스 revision/바이너리·각 검증 보고서 일치를 확인한 뒤 생성한다. 바이너리와 보고서는 Git에 넣지 않는다.
+
+실제 UI/OS 시각·설치 마법사/추가 데이터 삭제 체크·깨끗한 PC/WebView2 최초 설치·서명/SmartScreen·다른 OS/Unity 버전·특정 Codex/Claude 개인 설정/LLM·새 실제 모델 품질·실사용자 본인의 데이터/GUI 직접 인수는 미실행/미검증이다. PE 서명 상태는 실제 `NotSigned`다. 내부 수용 통과는 공개 출시/서명 또는 사용자 직접 승인을 대신하지 않는다. [RELEASE](RELEASE.md)를 따른다. 원격 push 요청은 사용자 취소에 따라 수행하지 않았다.
+
+커밋: R10-01 `71c4005`, R10-02 `54ae593`, R10-03 `d0e504b`, R10-04 `4da0b0c`, R10-05 `0d719f6`, R10-06은 본 기록을 포함한 커밋이다. 후속 개발/외부 게시·push는 별도 지시를 따른다.
+
 ## M09 — Unity 실제 실행·설치본 통합 (2026-11-06, D-035)
 
 사용자 요청으로 R09-01~08 전체를 순차 구현했다. 코드 변경은 Core의 unity_connector/targets/operations/api·MCP bridge/broker/query/audit/admin, Tauri의 main 명령/내부 프로세스 두 허용 목록, Vue Unity 연결·갤러리 전송/작업 이력, unity-package Editor 전용 UPM, 패키징·검증 harness와 관련 문서다. 새 제품 의존성·DB 마이그레이션은 없다. 실제 사용자 DB/원본·개인 Host 설정을 읽거나 변경하지 않았으며 격리 fixture만 사용했다.

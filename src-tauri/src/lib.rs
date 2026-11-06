@@ -102,6 +102,12 @@ fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
         "duplicates.start",
         "source.get",
         "unity.targets",
+        "diagnostics.read",
+        "diagnostics.budget",
+        "maintenance.backup",
+        "maintenance.list",
+        "maintenance.info",
+        "library.scan.status",
         "unity.target.save",
         "unity.target.remove",
         "unity.preview_import",
@@ -123,6 +129,7 @@ fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
         "catalog.delete_all",
         "unity.launch_editor",
         "unity.target.delete_all",
+        "maintenance.restore",
     ] {
         assert!(!metadata_allowed("main", method));
     }
@@ -1226,7 +1233,10 @@ async fn list_assets(
         state
             .lock()
             .map_err(|_| "CORE_UNAVAILABLE")?
-            .library_request("asset.list", serde_json::json!({"after_id": after_id,"limit":50}))
+            .library_request(
+                "asset.list",
+                serde_json::json!({"after_id": after_id,"limit":50}),
+            )
     })
     .await
     .map_err(|_| "CORE_UNAVAILABLE".to_string())?

@@ -636,6 +636,12 @@ mod tests {
         let connection = core.library_request("mcp.connection", json!({})).unwrap();
         assert_eq!(connection["data"]["brokerReady"], true);
         assert_eq!(connection["data"]["readOnly"], false);
+        let diagnostics = core
+            .library_request("diagnostics.read", json!({"kind":"analysis"}))
+            .unwrap();
+        assert_eq!(diagnostics["ok"], true);
+        let maintenance = core.library_request("maintenance.info", json!({})).unwrap();
+        assert_eq!(maintenance["data"]["requiresAppClosed"], true);
         let targets = core.library_request("unity.targets", json!({})).unwrap();
         assert_eq!(targets["ok"], true);
         assert_eq!(targets["data"]["items"], json!([]));

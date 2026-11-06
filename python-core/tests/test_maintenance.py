@@ -59,3 +59,10 @@ class MaintenanceTests(unittest.TestCase):
             with self.assertRaises((ValueError,LibraryError)):self.service.create(dict(confirmed=True))
         self.assertTrue(snapshot.is_file())
         with self.assertRaisesRegex(LibraryError,'INVALID_PARAMS'):self.service.create(dict(confirmed=1))
+
+    def test_manifest_schema_mismatch_is_rejected_without_replacing_current_database(self):
+        self.write('keep');backup=self.service.create(dict(confirmed=True));self.runtime.close()
+        path=self.root/'backups'/(backup['id']+'.json');value=json.loads(path.read_text());value['schemaVersion']+=1;path.write_text(json.dumps(value))
+        current=self.root/'asset_hub.sqlite';before=current.read_bytes()
+        with self.assertRaisesRegex(LibraryError,'BACKUP_INVALID'):restore(self.root,'development',backup['id'],True)
+        self.assertEqual(current.read_bytes(),before)

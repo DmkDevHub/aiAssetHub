@@ -51,7 +51,18 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.database.health()['error_code'], 'DATA_DIRECTORY_UNKNOWN')
         self.assertEqual((self.root / 'fixture-original.txt').read_text(encoding='utf-8'), 'fixture original')
         self.assertFalse((self.root / 'asset_hub.sqlite').exists())
+        self.assertFalse((self.root / '.core.lock').exists())
         self.assertEqual(self.runtime('relative-fixture').database.health()['error_code'], 'DATA_PATH_INVALID')
+
+    def test_reparse_parent_is_rejected_before_creating_data_or_locks(self):
+        if os.name!='nt':self.skipTest('Windows junction boundary')
+        outside=self.root/'outside';outside.mkdir();link=self.root/'junction'
+        result=subprocess.run(['cmd','/c','mklink','/J',str(link),str(outside)],capture_output=True,creationflags=subprocess.CREATE_NO_WINDOW)
+        self.assertEqual(result.returncode,0)
+        try:
+            self.assertEqual(self.runtime(link/'data').database.health()['error_code'],'DATA_PATH_INVALID')
+            self.assertEqual(list(outside.iterdir()),[])
+        finally:link.rmdir()
 
     def test_marker_corruption_and_corrupt_database_remain_visible(self):
         directory = self.root / 'data'

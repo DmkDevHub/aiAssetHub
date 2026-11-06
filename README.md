@@ -1,6 +1,6 @@
 # AI Asset Hub v0.5
 
-> 상태: **M00~M09 구현·내부/설치 검증 완료 / M10 후속** · 작성 기준: 2026-11-06 · 언어: 한국어
+> 상태: **M00~M10 구현·내부 수용/설치 검증 완료** · 작성 기준: 2026-11-06 · 언어: 한국어 · 서명/실사용자 직접 인수는 별도
 > 이 문서는 새로운 v0.5 설계의 출발점이다. 별도의 과거 설계 문서를 상속하거나 참조하지 않는다.
 
 ## 프로젝트 한 줄 정의
@@ -52,6 +52,7 @@
 | [SECURITY.md](docs/SECURITY.md) | 로컬 파일·외부 API·실행 권한 |
 | [NEW_PC_SETUP.md](docs/NEW_PC_SETUP.md) | 새 PC 개발 도구 조사·설치·데이터 이전·내부 자동 검증 |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | 개발 실행·Sidecar·Windows 설치 |
+| [RELEASE.md](docs/RELEASE.md) | v0.5 지원·수동 업데이트·백업/복구·수용 및 미검증 범위 |
 | [TEST_PLAN.md](docs/TEST_PLAN.md) | 테스트·UI 수용 기준 |
 | [ROADMAP.md](docs/ROADMAP.md) | 작업 1개씩 완료하는 체크리스트 |
 | [DECISIONS.md](docs/DECISIONS.md) | 확정 결정과 검토 필요 사항 |
@@ -79,7 +80,7 @@ AI-Asset-Hub/
 
 ## 현재 상태와 다음 행동
 
-2026-11-06 현재 M00~M09 및 확장 M08A~I의 구현·내부/설치 검증은 ROADMAP/TEST_PLAN 기록을 따른다. 다음 구현 후보는 R10-01이며 후속 지시를 받기 전 진행하지 않는다. M09는 실제 Unity6000.6.8f1 무화면 Editor와 공식 SDK reference Host에서 PNG 임포트/Sprite 배치·Undo·취소/부분 실패·재시작 보존을 확인했다. 특정 Codex/Claude 제품·LLM 추론·GUI·다른 Unity 버전·대규모 성능은 미검증이다. 아래 개별 단계 설명은 개발 당시 이력으로 보존한다.
+2026-11-06 현재 M00~M10 및 확장 M08A~I의 구현·내부 수용/설치 검증은 ROADMAP/TEST_PLAN 기록을 따른다. 총490개 검사·실제 무화면 Unity/SDK Host·Windows 업데이트/기본 제거·5000파일 비동기 스캔·private DB 백업/복구를 확인했다. [릴리스 안내](docs/RELEASE.md)의 지원 범위와 한도를 따른다. 서명·깨끗한 PC·실사용자 직접 인수·특정 Codex/Claude 제품/LLM·GUI/다른 Unity/OS는 미실행 또는 미검증이다. 후속 기능/공개 게시·push는 별도 지시를 받는다. 아래 개별 단계 설명은 개발 당시 이력으로 보존한다.
 
 - `M00`: Windows 앱·개발 실행, 라이브러리/화면 설정 이동, 다크/라이트 테마 전환과 첫 NSIS 개발 설치본 검증 완료. 에셋 관리·분석 기능은 이후 작업 범위다.
 - `R01-01`: 상단 검색어 입력·초기화, 실제 화면 경로 표시와 설정 이동 구현. 검색어는 화면 이동 중 유지하며 실제 에셋 필터링은 후속 M04 범위다.
@@ -116,3 +117,8 @@ M08I: [스마트 그룹·추천 계약](docs/SMART_DISCOVERY.md)에 따라 저�
 5. 재시작 후에는 Unity 연결의 **작업 기록 조회**를 사용한다. unknown은 이미 적용되었을 수 있고 취소 요청은 완료와 다르므로 실제 항목 결과를 조회한다.
 
 MCP Host는 기존 검색 도구 뒤 `list_unity_targets`→`preview_unity_import`→`import_assets_to_unity`→`get_operation_status`→`preview_unity_placement`→`place_assets_in_unity`를 사용한다. 실제 인자·지원 한도·부분 실패/취소·세션 식별자 정책은 [Unity 계약](docs/UNITY_INTEGRATION.md)과 [MCP 계약](docs/MCP.md)을 따른다. 원본 변경·덮어쓰기·AI 자동 호출은 하지 않는다.
+
+## 진단·백업·복구
+상단 **진단·비용 감사**에서 실제 분석/Unity/감사 기록과 예약 상한·공급자 보고 사용량을 명시 조회한다. 예약은 청구액이 아니며 미보고 비용은 미확인이다. **DB 백업·복구**에서 현재 DB의 private snapshot을 만들고, 복구할 백업을 선택하면 실제 오프라인 명령이 표시된다. 앱을 완전히 종료한 뒤 명시 복구하며 기존 DB/WAL/SHM을 별도로 보존한다. 원본 파일·캐시·OS 자격 증명은 DB 백업에 포함되지 않는다.
+
+릴리스 빌드/검증 뒤 `python scripts/release-manifest.py`(기존 개발 Python 환경 사용)로 현재 바이너리/수용 보고서의 일치를 검증하고 `.artifacts/v0.5.0-release.json`, `.artifacts/v0.5.0-SHA256SUMS.txt`를 생성한다. 설치본은 `src-tauri/target/release/bundle/nsis/AI Asset Hub_0.5.0_x64-setup.exe`다. 자세한 명령과 미검증 범위는 [TEST_PLAN](docs/TEST_PLAN.md), [RELEASE](docs/RELEASE.md)를 따른다.

@@ -35,3 +35,16 @@ class ScanJobTests(unittest.TestCase):
         service=ScanJobs();from uuid import uuid4
         job=str(uuid4());service.write(self.db,job,dict(jobId=job,status='running',result=None))
         self.assertEqual(service.status(self.db,dict(job_id=job))['status'],'interrupted');self.assertIsNone(service.thread)
+
+    def test_cancellation_after_a_real_insert_rolls_back_all_index_changes(self):
+        library=self.db.connection.execute('SELECT id FROM library_roots').fetchone()[0]
+        for i in range(10):(self.source/f'new-{i}.txt').write_bytes(b'owned original')
+        before='\n'.join(self.db.connection.iterdump());cancel=threading.Event();observed=[]
+        def trace(statement):
+            if statement.startswith('INSERT INTO assets('):observed.append(True);cancel.set()
+        self.db.connection.set_trace_callback(trace)
+        try:
+            with self.assertRaisesRegex(LibraryError,'SCAN_CANCELLED'):AssetService(self.db).scan(dict(library_id=library),cancel)
+        finally:self.db.connection.set_trace_callback(None)
+        self.assertTrue(observed);self.assertEqual('\n'.join(self.db.connection.iterdump()),before)
+        self.assertTrue(all((self.source/f'new-{i}.txt').read_bytes()==b'owned original' for i in range(10)))
