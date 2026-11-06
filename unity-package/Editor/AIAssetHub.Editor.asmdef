@@ -1,0 +1,6 @@
+{
+  "name": "AIAssetHub.Editor",
+  "rootNamespace": "AIAssetHub.Editor",
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}
