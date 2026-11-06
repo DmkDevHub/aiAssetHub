@@ -2382,3 +2382,10 @@ test('Unity placement uses the actual import operation and changing transforms r
  await metaField('크기 XYZ','2,2,1');assert.equal(document.querySelector('.unity-plan'),null);assert.equal(calls.filter(c=>c.method==='unity.place').length,0);
  await click('Sprite 배치 미리보기');await approve();await click('검토한 배치 실행');assert.match(document.querySelector('.unity-transfer [role="status"]').textContent,/actual-place.*failed/);assert.match(document.querySelector('.unity-transfer [role="status"]').textContent,/UNITY_SCENE_CHANGED/);
 });
+
+test('diagnostic page reads only on explicit action and pages real records without model calls',async()=>{
+ const calls=[];await mountMetadataComponent('DiagnosticsView',{},async(command,args)=>{calls.push(args);if(args.method==='diagnostics.budget')return {ok:true,data:{items:[],costMeaning:'reservation'}};assert.equal(args.method,'diagnostics.read');return {ok:true,data:{items:[{id:args.params.after_id?'second':'first',status:'failed',errorCode:'<script>literal</script>'}],next_cursor:args.params.after_id?null:'first'}};});
+ assert.equal(calls.length,0);dispatch(metaButton('작업 기록 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(document.querySelector('script'),null);
+ dispatch(metaButton('이전 기록 더 보기'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls[1].params.after_id,'first');assert.equal(document.querySelectorAll('.diagnostics li').length,2);
+ dispatch(metaButton('비용 예약 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.length,3);assert.match(document.body.textContent,/청구액이 아닙니다/);
+});

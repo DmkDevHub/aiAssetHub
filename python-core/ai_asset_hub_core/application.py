@@ -113,6 +113,15 @@ class CoreApplication:
                 except LibraryError as error:
                     code=str(error) if str(error) in ERROR_MESSAGES else 'INVALID_PARAMS'
                     return self.error(request_id,code,ERROR_MESSAGES[code])
+            if method in ('diagnostics.read','diagnostics.budget'):
+                from .diagnostics import Diagnostics
+                from .libraries import LibraryError,ERROR_MESSAGES
+                try:
+                    service=Diagnostics(self.database)
+                    return self._response(request_id,data=(service.read if method=='diagnostics.read' else service.budget)(request.get('params',{})))
+                except LibraryError as error:
+                    code=str(error) if str(error) in ERROR_MESSAGES else 'INVALID_PARAMS'
+                    return self.error(request_id,code,ERROR_MESSAGES[code])
             if method in ('mcp.audit','mcp.connection'):
                 from .libraries import LibraryError,ERROR_MESSAGES
                 from .mcp_audit import read

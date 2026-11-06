@@ -223,6 +223,8 @@ impl CoreProcess {
         if !matches!(
             method,
             "library.register"
+                | "diagnostics.read"
+                | "diagnostics.budget"
                 | "unity.targets"
                 | "unity.target.save"
                 | "unity.target.remove"

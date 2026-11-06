@@ -130,6 +130,7 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'DIAGNOSTIC_LIMIT': '진단 응답 한도를 초과했습니다. 조회 범위를 줄이세요.',
     'UNITY_PROJECT_UNAVAILABLE': 'Unity 프로젝트 경로를 검증하지 못했습니다.',
     'UNITY_PROJECT_NOT_ALLOWED': '허용하지 않은 Unity 프로젝트입니다.',
     'UNITY_TARGET_NOT_ALLOWED': 'Unity 대상이 해제되었거나 존재하지 않습니다.',
