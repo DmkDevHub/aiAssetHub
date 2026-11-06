@@ -26,12 +26,28 @@ def main(argv=None):
     parser.add_argument("--request-id", default=None, metavar="UUID")
     parser.add_argument("--data-dir", default=None)
     parser.add_argument("--environment", choices=['development', 'production'], default=None)
+    parser.add_argument('--maintenance',choices=['restore'],default=None)
+    parser.add_argument('--backup-id',default=None)
+    parser.add_argument('--confirmed',action='store_true')
     application = CoreApplication()
     try:
         args = parser.parse_args(argv)
     except InvalidArguments:
         response = application.error(None, "INVALID_REQUEST", "명령 인자가 올바르지 않습니다.")
     else:
+        if args.maintenance or args.backup_id or args.confirmed:
+            if args.maintenance!='restore' or not args.data_dir or not args.environment or args.serve or args.mcp or args.method or args.request_id:
+                response=application.error(None,'INVALID_REQUEST','복구 인자가 올바르지 않습니다.')
+            else:
+                from .maintenance import restore
+                from .libraries import LibraryError
+                from .database import DatabaseFailure
+                try:response=application._response(None,data=restore(args.data_dir,args.environment,args.backup_id,args.confirmed))
+                except (LibraryError,DatabaseFailure) as error:
+                    code=error.code if isinstance(error,DatabaseFailure) else str(error)
+                    response=application.error(None,code if code in ('DATA_IN_USE','BACKUP_INVALID','INVALID_PARAMS') else 'BACKUP_INVALID','앱을 종료하고 백업·실행 환경을 확인하세요.')
+                except Exception:response=application.error(None,'BACKUP_INVALID','복구를 완료하지 못했습니다.')
+            sys.stdout.write(json.dumps(response,ensure_ascii=True)+'\n');return 0 if response['ok'] else 2
         if args.mcp:
             if args.serve or args.method or args.request_id or args.environment:return 2
             from .mcp_bridge import run_bridge

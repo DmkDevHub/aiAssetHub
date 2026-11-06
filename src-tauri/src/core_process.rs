@@ -224,6 +224,9 @@ impl CoreProcess {
             method,
             "library.register"
                 | "diagnostics.read"
+                | "maintenance.backup"
+                | "maintenance.list"
+                | "maintenance.info"
                 | "diagnostics.budget"
                 | "unity.targets"
                 | "unity.target.save"

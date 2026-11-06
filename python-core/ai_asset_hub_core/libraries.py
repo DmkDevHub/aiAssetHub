@@ -130,6 +130,9 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'BACKUP_FAILED': '백업을 완료하지 못했습니다. 데이터 상태와 디스크 권한/공간을 확인하세요.',
+    'BACKUP_INVALID': '백업 무결성·버전·경로를 검증하지 못했습니다. 기존 데이터는 보존됩니다.',
+    'BACKUP_LIMIT': '백업 목록 한도를 초과했습니다.',
     'DIAGNOSTIC_LIMIT': '진단 응답 한도를 초과했습니다. 조회 범위를 줄이세요.',
     'UNITY_PROJECT_UNAVAILABLE': 'Unity 프로젝트 경로를 검증하지 못했습니다.',
     'UNITY_PROJECT_NOT_ALLOWED': '허용하지 않은 Unity 프로젝트입니다.',

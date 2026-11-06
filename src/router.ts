@@ -5,6 +5,7 @@ import AppearanceView from "./views/AppearanceView.vue";
 import McpView from './views/McpView.vue';
 import UnityView from './views/UnityView.vue';
 import DiagnosticsView from './views/DiagnosticsView.vue';
+import MaintenanceView from './views/MaintenanceView.vue';
 
 export function createAppRouter(history: RouterHistory = createWebHashHistory()) {
   const router = createRouter({
@@ -17,6 +18,7 @@ export function createAppRouter(history: RouterHistory = createWebHashHistory())
       { path: '/settings/mcp', component: McpView, meta: { title: 'MCP 연결·로그' } },
       { path: '/settings/unity', component: UnityView, meta: { title: 'Unity 연결' } },
       { path: '/settings/diagnostics', component: DiagnosticsView, meta: { title: '진단·비용 감사' } },
+      { path: '/settings/maintenance', component: MaintenanceView, meta: { title: 'DB 백업·복구' } },
       { path: "/:pathMatch(.*)*", redirect: "/library" },
     ],
   });

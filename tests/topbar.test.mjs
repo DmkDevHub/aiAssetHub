@@ -2389,3 +2389,10 @@ test('diagnostic page reads only on explicit action and pages real records witho
  dispatch(metaButton('이전 기록 더 보기'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls[1].params.after_id,'first');assert.equal(document.querySelectorAll('.diagnostics li').length,2);
  dispatch(metaButton('비용 예약 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.length,3);assert.match(document.body.textContent,/청구액이 아닙니다/);
 });
+
+test('backup creation is explicit and restore is an app-closed command without IPC restore',async()=>{
+ const calls=[];await mountMetadataComponent('MaintenanceView',{},async(command,args)=>{calls.push(args);if(args.method==='maintenance.backup'){assert.equal(args.params.confirmed,true);return {ok:true,data:{id:'snapshot'}};}if(args.method==='maintenance.info')return {ok:true,data:{command:"C:/owned/app's core.exe",argsPrefix:[],dataDirectory:'C:/owned/data',environment:'production'}};if(args.method==='maintenance.list')return {ok:true,data:{items:[{id:'snapshot',manifestValid:true,createdAt:'actual',sizeBytes:123}],next_cursor:null}};throw new Error('unexpected');});
+ assert.equal(calls.length,0);dispatch(metaButton('현재 DB 백업 생성'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(calls.length,2);
+ dispatch(metaButton('백업 목록·복구 안내 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();const radio=document.querySelector('.maintenance input');radio.checked=true;dispatch(radio,new Event('change',{bubbles:true}));await nextTick();
+ assert.match(document.querySelector('.maintenance pre').textContent,/app''s core/);assert.match(document.body.textContent,/앱을 완전히 종료/);assert.ok(calls.every(c=>c.method!=='maintenance.restore'));
+});

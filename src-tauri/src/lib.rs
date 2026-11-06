@@ -13,6 +13,9 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
             method,
             "asset.technical"
                 | "diagnostics.read"
+                | "maintenance.backup"
+                | "maintenance.list"
+                | "maintenance.info"
                 | "diagnostics.budget"
                 | "unity.targets"
                 | "unity.target.save"
