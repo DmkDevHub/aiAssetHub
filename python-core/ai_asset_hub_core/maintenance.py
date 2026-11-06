@@ -89,15 +89,19 @@ class Backups:
         for path in folder.glob('*.json'):
             if valid_id(path.stem):identifiers.append(path.stem)
             if len(identifiers)>1000:raise LibraryError('BACKUP_LIMIT')
-        identifiers.sort(reverse=True);cursor=params.get('after_id')
+        # UUID4 is random: order by actual recorded creation time, then ID for ties.
+        records=[]
+        for identifier in identifiers:
+            try:
+                value=manifest_value(self.root,identifier)
+                records.append((datetime.fromisoformat(value['createdAt']).timestamp(),identifier,{**value,'manifestValid':True}))
+            except LibraryError:records.append((float('-inf'),identifier,dict(id=identifier,manifestValid=False)))
+        records.sort(key=lambda row:(row[0],row[1]),reverse=True)
+        identifiers=[row[1] for row in records];cursor=params.get('after_id')
         if cursor is not None:
             if cursor not in identifiers:raise LibraryError('INVALID_PARAMS')
-            identifiers=identifiers[identifiers.index(cursor)+1:]
-        items=[]
-        for identifier in identifiers[:10]:
-            try:value=manifest_value(self.root,identifier);items.append({**value,'manifestValid':True})
-            except LibraryError:items.append(dict(id=identifier,manifestValid=False))
-        return dict(items=items,next_cursor=identifiers[9] if len(identifiers)>10 else None)
+            records=records[identifiers.index(cursor)+1:]
+        return dict(items=[row[2] for row in records[:10]],next_cursor=records[9][1] if len(records)>10 else None)
 
     def info(self,params):
         if params!={}:raise LibraryError('INVALID_PARAMS')
@@ -118,6 +122,7 @@ def manifest_value(root,identifier):
         import re
         if not isinstance(value['sha256'],str) or not re.fullmatch('[a-f0-9]{64}',value['sha256']):raise ValueError()
         if type(value['sizeBytes']) is not int or not 0<value['sizeBytes']<=MAX_SIZE or type(value['schemaVersion']) is not int or not isinstance(value['createdAt'],str) or len(value['createdAt'])>40 or value['containsPrivateMetadata'] is not True:raise ValueError()
+        if datetime.fromisoformat(value['createdAt']).tzinfo is None:raise ValueError()
         return value
     except (OSError,ValueError,KeyError,TypeError):raise LibraryError('BACKUP_INVALID') from None
 

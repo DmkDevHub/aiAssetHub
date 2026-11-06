@@ -1,5 +1,23 @@
 # TEST_PLAN — 기능 완료와 설치본 수용 테스트
 
+## R11-01 — 최종 소스·설치 파일 일치 및 배포 전 회귀 (2026-11-06)
+
+사용자 요청에 따라 v0.5 미완료 항목/고정 오류를 점검했다. M00~M10의 기능 체크는 완료되어 있으며 지원 행렬 밖의 형식·다른 OS/Editor·개인 모델 품질을 신규 구현 완료로 확대하지 않는다. 스캔 실패 후 목록 갱신이 오류를 지우고 실행 중 안내를 남기는 문제와, 백업 UUID 정렬이 실제 생성 순서와 다른 문제를 먼저 실패하는 테스트로 재현하고 수정했다. 새 백업은 즉시 선택한다.
+
+- 변경: `src/stores/assets.ts`, `src/views/MaintenanceView.vue`, Core `maintenance.py`, 빌드/설치 검증/릴리스 스크립트, 관련 DOM/Core/배포 증거 테스트와 문서. 새 의존성·DB 마이그레이션은 없다.
+- `npm run check`: Node **173/173** (6.768초), Core **306/306** (37.141초), 타입 검사·Vite (507ms) 통과. 실패/취소/중단 후 오류 보존, 전송 예외 원문 비노출, 12개 백업의 생성일 기준 2페이지 정렬, 소스/프런트엔드/동봉 런타임/3종 EXE/보고서 교체 거부 및 불완전 증거 거부를 포함한다. `.artifacts/m10-check.txt`는 이번 실행 결과로 갱신했다.
+- 최종 지문 대상에 Rust build.rs/권한 JSON/아이콘을 추가한 뒤 배포 증거 테스트 **2/2** (0.103초) 재검증했다. `cargo fmt`·`cargo clippy --all-targets --locked -- -D warnings` 통과(Clippy3.05초), `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1`: **16/16**, 6.54초. 합계 **495개** 내부 테스트다.
+- 빌드 manifest는 소스·빌드 설정·프런트엔드·동봉 payload 해시를 기록한다. 설치 검증 시작/종료에 그 지문과 설치/데스크톱/Core EXE 해시를 비교하고 선택한 실제 통합 보고서/테스트 로그를 연결한다. 전체 7종 설치 검사를 완료한 증거만 release-manifest가 수용한다. 최종 검증 스크립트 변경 전 빌드가 `BUILD_INPUTS_CHANGED`로 설치 전에 실제 거부되어 최종 소스로 재빌드했다. 이는 실패를 무시한 통과 판정이 아니다.
+
+- `npm run build:installer` 최종 통과: PyInstaller·타입/Vite·Rust release38.57초·NSIS **25,110,804바이트**. `.artifacts/r11-installer-build.txt`에 기록. 기존 Korean LangString6040 경고는 남고 설치 UI는 미검증이다.
+- `./scripts/verify-installer.ps1 -Upgrade -BaselineInstaller .artifacts/m10-baseline-setup.exe -ReleaseChecks -Mcp -Multiformat -BulkMetadata -SmartDiscovery -Unity -UnityEditor 'C:\Program Files\Unity\Hub\Editor\6000.6.8f1\Editor\Unity.exe'`: 최종 통과. 실제 보존 M09 설치본→동일 버전 갱신·합성 버전 분기/다운그레이드 거부·기본 제거/DB/한글 태그·설명/원본 보존, Python 없는 PATH에서 설치 데스크톱→Core/SQLite13 및 종료, 최신/레거시 MCP12도구를 확인했다.
+- 실제 Unity6000.6.8f1 SDK Host/Editor 구간 **19.940초**: PNG Sprite 임포트/GUID·transform/Undo·승인/취소·재시작·원본 보존. 파서18건·모의 분석10회/실제 외부 모델0·일괄 교환/중복·스마트 조건/관계 회귀 통과. 설치본5000파일/278페이지·스캔 시작 **2.686ms**·동시 health107회/최대 **0.796ms**·백업/복구/손상 거부 **13.847초**, 원본 SHA256/AI0 통과. `.artifacts/m10-installed-tests.txt` 및 연결된 JSON7개를 이번 결과로 갱신했다. 종료 후 검증용 uninstall 등록/격리 AppData root/잔여 Core 프로세스 없음, 보존 데이터를 workspace의 소유한 archive로 옮겼다.
+- `python scripts/release-manifest.py`: 현재 소스/설정·동봉 payload·프런트엔드·3종 바이너리와 모든 설치 보고서/테스트 로그의 지문이 일치하여 통과. `.artifacts/installer-verification.json`과 `v0.5.0-release.json`, 배포 폴더의 설치본/`release.json`/`SHA256SUMS.txt` 생성. Python AST5개·PowerShell Parser·Node 구문·문서 로컬 링크21개/누락0·`git diff --check` 통과.
+
+최종 설치본 SHA256: `690f1ae509d15a23346e17ed39e903ba0ad4ed7b6cd24cce981643c6cd1f9114`. Core: `a5cc495959d1bf0db3f0ca7594b1e430e7589aee1ab5be84e3c3b696cfbf05e5`. 배포 경로는 `.artifacts/release/AIAssetHub-0.5.0-Windows-x64-setup.exe`다. Git 커밋은 이 기록을 포함한 R11-01 커밋이며 커밋 후 manifest의 sourceRevision을 갱신한다.
+
+GUI/OS 시각 배치·깨끗한 PC/WebView2 신규 설치·서명/SmartScreen·개인 Codex/Claude/실제 유료 모델·다른 Unity/OS·선택 데이터 삭제 UI는 미검증이다. 설치 파일의 실제 서명 상태는 `NotSigned`다. 소유한 임시 fixture와 무화면 프로세스만 사용하며 사용자 원본/DB/설정 변경·실제 AI 호출·원격 push는 하지 않았다.
+
 ## M10 — 안정화·Windows v0.5 내부 수용 (2026-11-06, D-036)
 
 사용자 지시로 R10-01~06을 순차 진행했다. 변경 파일은 Core diagnostics/maintenance/scan_jobs와 runtime/database/assets/thumbnails/application/CLI, Vue DiagnosticsView/MaintenanceView·assets store/router/상단 링크, Tauri main/내부 명령 허용 목록·다운그레이드 정책, 자동 검증/manifest 스크립트와 README/계약/보안/RELEASE/로드맵이다. 새 제품 의존성·마이그레이션은 없다. 기존 v13 데이터와 실제 ID를 보존하며 실제 사용자 DB/원본이나 개인 Host 설정을 테스트 자료로 쓰지 않았다.

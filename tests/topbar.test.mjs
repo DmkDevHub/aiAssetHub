@@ -2408,3 +2408,16 @@ test('explicit scan polls the background job and publishes only actual counts',a
  const calls=[];dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='scan_library')return {ok:true,data:{jobId:'actual-scan'}};if(command==='metadata_request'){assert.equal(args.method,'library.scan.status');return {ok:true,data:{status:'completed',result:{processed:5004,errors:0,complete:true,new:5004,changed:0,missing:0}}};}if(command==='list_assets')return {ok:true,data:{items:[],next_cursor:null}};throw new Error('unexpected');}};globalThis.isTauri=true;
  await components.scanLibrary('owned-library');assert.match(components.assets.notice,/5004개 파일 확인/);assert.deepEqual(calls.map(c=>c[0]),['scan_library','metadata_request','list_assets']);assert.equal(components.assets.busy,false);
 });
+
+test('failed cancelled and interrupted scans keep an error after list refresh and stop the running notice',async()=>{
+ for(const status of ['failed','cancelled','interrupted']){
+  components.resetAssets();globalThis.isTauri=true;
+  dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{if(command==='scan_library')return {ok:true,data:{jobId:'owned-scan'}};if(command==='metadata_request')return {ok:true,data:{status,result:null}};if(command==='list_assets')return {ok:true,data:{items:[],next_cursor:null}};throw new Error('unexpected');}};
+  await components.scanLibrary('owned-library');assert.match(components.assets.error,/폴더 확인/);assert.doesNotMatch(components.assets.notice,/실행 중/);assert.equal(components.assets.busy,false);
+ }
+});
+
+test('scan and refresh transport failures are both retained without exposing exception text',async()=>{
+ components.resetAssets();globalThis.isTauri=true;dom.window.__TAURI_INTERNALS__={invoke:async()=>{throw new Error('PRIVATE-TRANSPORT-SECRET');}};
+ await components.scanLibrary('owned-library');assert.match(components.assets.error,/폴더 확인/);assert.match(components.assets.error,/파일 목록/);assert.doesNotMatch(components.assets.error,/PRIVATE/);assert.equal(components.assets.notice,'');
+});

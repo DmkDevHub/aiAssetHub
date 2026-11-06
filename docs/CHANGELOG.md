@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### 2026-11-06 — [R11-01] 배포 전 수정·최종 설치 파일
+- 스캔 실패/취소/중단 오류가 목록 갱신으로 지워지는 문제와 백업 UUID 정렬을 수정하고 새 백업을 자동 선택한다. 소스/설정·동봉 payload·프런트엔드·3종 EXE와 설치 보고서/테스트 로그를 연결해 오래되거나 교체된 증거를 거부한다.
+- Node173·Core306·Rust16개(495개)·타입/Vite/fmt/Clippy·최종 NSIS·전체 설치/갱신/제거·MCP/실제 Unity·5000파일/복구 통과. 체크섬/manifest와 배포용 `.artifacts/release/AIAssetHub-0.5.0-Windows-x64-setup.exe` 생성. GUI/깨끗한 PC/서명·실제 유료 모델은 미검증, 사용자 데이터 변경·push 없음.
+
 ### 2026-11-06 — [R10-06] v0.5 내부 수용·릴리스 증거
 - 최신 유지보수/비동기 스캔을 동봉하고 미확인 데이터 경로의 lock 생성 전 거부·부모 junction·backup manifest/schema 일치·실제 쓰기 중 스캔 취소 rollback을 보강했다. Node171(7.394초)·Core303(36.428초)·Rust16개(6.62초), 타입/Vite/fmt/Clippy·최신 NSIS 및 실제 설치/이전 M09 갱신/기본 제거·원본/데이터 보존 통과.
 - 설치된5000파일 스캔 시작2.596ms/동시health최대0.679ms·복구/손상 거부13.853초, 실제 Unity Host/Sprite/transform/Undo20.773초와 기존 최신/레거시 MCP/모의 분석10회·교환/스마트 회귀 통과. README/계약/보안/RELEASE·검증 및 바이너리 manifest를 동기화했다. 서명·실사용자 직접 인수/GUI·깨끗한 PC·실모델/특정 제품 Host는 미검증이며 공개 게시·push는 하지 않았다.

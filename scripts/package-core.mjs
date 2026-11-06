@@ -14,9 +14,15 @@ function run(program, args) {
     timeout: 300_000, env: { ...process.env, PYTHONUTF8: '1', PYTHONDONTWRITEBYTECODE: '1' } });
   if (result.error || result.status !== 0) throw new Error('Core packaging failed. See the build output.');
 }
+function proof(phase) {
+  const result=spawnSync(python,[join(root,'scripts','artifact_proof.py'),'--phase',phase],{cwd:root,encoding:'utf8',windowsHide:true,timeout:30000});
+  if(result.error||result.status!==0)throw new Error('Build fingerprint failed.');
+  return JSON.parse(result.stdout);
+}
 mkdirSync(artifacts, { recursive: true });
 if (!existsSync(python)) run(process.env.AI_ASSET_HUB_PYTHON || 'python', ['-m', 'venv', venv]);
 run(python, ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', join(root, 'python-core', 'requirements-build.txt')]);
+const inputs=proof('sources');
 const binaries = join(root, 'src-tauri', 'binaries');
 run(python, ['-m', 'PyInstaller', '--noconfirm', '--onedir', '--console', '--noupx',
   '--name', 'ai-asset-hub-core', '--distpath', join(binaries, 'core'),
@@ -38,7 +44,10 @@ for (const module of ['metadata_store', 'metadata_values', 'classification_axes'
 const source = join(binaries, 'core', 'ai-asset-hub-core', 'ai-asset-hub-core.exe');
 const target = join(binaries, 'ai-asset-hub-core-x86_64-pc-windows-msvc.exe');
 copyFileSync(source, target);
+const fingerprints=proof('build');
+if(JSON.stringify(inputs)!==JSON.stringify(fingerprints.sourceSha256))throw new Error('Source changed while packaging Core; rebuild before release.');
 writeFileSync(join(artifacts, 'core-build-manifest.json'), JSON.stringify({
   target: 'x86_64-pc-windows-msvc', pyinstaller: '6.22.3',
   sha256: createHash('sha256').update(readFileSync(target)).digest('hex'),
+  ...fingerprints,
 }, null, 2) + '\n');

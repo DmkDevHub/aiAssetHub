@@ -52,7 +52,7 @@
 
 
 ## D-029 — 통합 에셋 관리 확장 요구사항
-[사용자 원문](ASSET_MANAGEMENT_REQUIREMENTS.md)과 [상세 설계](ASSET_METADATA.md)를 신규 요구의 기준으로 반영한다. 아래 기능은 요구사항이며 아직 구현되지 않았다.
+[사용자 원문](ASSET_MANAGEMENT_REQUIREMENTS.md)과 [상세 설계](ASSET_METADATA.md)를 신규 요구의 기준으로 반영한다. 아래는 D-029 당시 추가한 요구사항이며, 현재 구현·검증 상태는 [로드맵](ROADMAP.md)과 [배포 지원 범위](RELEASE.md)를 따른다.
 
 | ID | 기능 | 합격 기준 |
 |---|---|---|

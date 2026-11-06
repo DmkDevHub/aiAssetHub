@@ -42,6 +42,7 @@ export async function scanLibrary(id: string) {
   state.busy = true;
   const token=epoch;
   state.error = state.notice = '';
+  let scanError='';
   try {
     type ScanResult={processed:number;errors:number;complete:boolean;new:number;changed:number;missing:number};
     const started = await invoke<{ok:boolean; data:ScanResult|{jobId:string}}>('scan_library', {libraryId:id});
@@ -65,7 +66,10 @@ export async function scanLibrary(id: string) {
     }else result={ok:true,data:started.data}; // Legacy responses remain readable during an app update.
     if (!result.ok || !Number.isSafeInteger(result.data?.processed)) throw new Error();
     state.notice = `${result.data.processed}개 파일 확인 · 신규 ${result.data.new} · 변경 ${result.data.changed} · 누락 ${result.data.missing} · 오류 ${result.data.errors}건`;
-  } catch { if(token===epoch)state.error = '폴더 확인을 완료하지 못했습니다. 연결과 권한을 확인하세요.'; }
+  } catch { if(token===epoch){scanError='폴더 확인을 완료하지 못했습니다. 연결과 권한을 확인하세요.';state.error=scanError;state.notice='';} }
   finally { if(token===epoch)state.busy = false; }
-  if(token===epoch)await refreshAssets();
+  if(token===epoch){
+    await refreshAssets();
+    if(token===epoch&&scanError)state.error=state.error?`${scanError} ${state.error}`:scanError;
+  }
 }

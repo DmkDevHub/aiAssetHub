@@ -1,6 +1,16 @@
 param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat, [switch]$BulkMetadata, [switch]$SmartDiscovery, [switch]$Unity, [string]$UnityEditor = '', [switch]$Upgrade, [string]$BaselineInstaller = '', [switch]$ReleaseChecks)
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$taskProofPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+$taskChecks = @()
+if ($Mcp) { $taskChecks += 'mcp' }; if ($Unity) { $taskChecks += 'unity' }; if ($Multiformat) { $taskChecks += 'multiformat' }
+if ($BulkMetadata) { $taskChecks += 'bulk' }; if ($SmartDiscovery) { $taskChecks += 'smart' }; if ($Upgrade) { $taskChecks += 'upgrade' }; if ($ReleaseChecks) { $taskChecks += 'release' }
+if ($taskChecks.Count) {
+    & $taskProofPython -B (Join-Path $taskRoot 'scripts/artifact_proof.py') --phase begin --checks ($taskChecks -join ',')
+} else {
+    & $taskProofPython -B (Join-Path $taskRoot 'scripts/artifact_proof.py') --phase begin
+}
+if ($LASTEXITCODE -ne 0) { throw 'Build/artifact proof failed before installation.' }
 $taskNsis = Join-Path $taskRoot 'src-tauri/target/release/nsis/x64'
 $taskProduct = 'AI Asset Hub M02 Verification'
 $taskKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$taskProduct"
@@ -149,4 +159,6 @@ if ($taskOriginal) {
     $taskAfter = Get-ItemProperty -LiteralPath $taskOriginalKey
     if ($taskAfter.InstallLocation -ne $taskOriginal.InstallLocation -or $taskAfter.DisplayVersion -ne $taskOriginal.DisplayVersion) { throw 'Original installation registration changed.' }
 }
+& $taskProofPython -B (Join-Path $taskRoot 'scripts/artifact_proof.py') --phase finish
+if ($LASTEXITCODE -ne 0) { throw 'Artifacts changed during installation verification.' }
 Write-Output 'Installed headless Core/SQLite verification passed; original installation preserved.'

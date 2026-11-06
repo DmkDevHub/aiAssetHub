@@ -66,3 +66,15 @@ class MaintenanceTests(unittest.TestCase):
         current=self.root/'asset_hub.sqlite';before=current.read_bytes()
         with self.assertRaisesRegex(LibraryError,'BACKUP_INVALID'):restore(self.root,'development',backup['id'],True)
         self.assertEqual(current.read_bytes(),before)
+
+    def test_backups_are_newest_first_by_creation_time_across_pages_not_random_uuid(self):
+        from datetime import datetime,timezone,timedelta
+        from uuid import UUID
+        identifiers=[]
+        for index in range(12):
+            with patch('ai_asset_hub_core.maintenance.uuid4',return_value=UUID(int=2**128-1-index)):
+                value=self.service.create(dict(confirmed=True))
+            identifiers.append(value['id']);path=self.root/'backups'/(value['id']+'.json')
+            value['createdAt']=(datetime(2026,11,1,tzinfo=timezone.utc)+timedelta(seconds=index)).isoformat();path.write_text(json.dumps(value))
+        first=self.service.list({});second=self.service.list(dict(after_id=first['next_cursor']))
+        self.assertEqual([v['id'] for v in first['items']+second['items']],list(reversed(identifiers)));self.assertIsNone(second['next_cursor'])

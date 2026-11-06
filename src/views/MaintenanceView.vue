@@ -7,7 +7,7 @@ const items=ref<Backup[]>([]),cursor=ref<string|null>(null),info=ref<Info|null>(
 let alive=true;onBeforeUnmount(()=>{alive=false;});
 async function list(more=false){const r=await metadata<{items:Backup[];next_cursor:string|null}>('maintenance.list',{after_id:more?cursor.value:null});if(alive){items.value=more?[...items.value,...r.items]:r.items;cursor.value=r.next_cursor;}}
 async function act(action:()=>Promise<void>){if(busy.value)return;busy.value=true;error.value='';notice.value='';try{await action();}catch{if(alive)error.value='백업 정보를 처리하지 못했습니다. 경로·권한·데이터 상태를 확인하세요.';}finally{if(alive)busy.value=false;}}
-async function create(){await metadata('maintenance.backup',{confirmed:true});if(alive)notice.value='DB 백업을 생성했습니다. 원본 에셋과 OS 자격 증명은 백업에 포함되지 않습니다.';await list();}
+async function create(){const r=await metadata<{id:string}>('maintenance.backup',{confirmed:true});if(alive){chosen.value=r.id;notice.value=`DB 백업 ${r.id}을 생성했습니다. 원본 에셋과 OS 자격 증명은 백업에 포함되지 않습니다.`;}await list();}
 async function load(){const r=await metadata<Info>('maintenance.info',{});if(alive)info.value=r;await list();}
 function command(){if(!info.value||!chosen.value)return '';const i=info.value;return ['&',...[i.command,...i.argsPrefix,'--maintenance','restore','--data-dir',i.dataDirectory,'--environment',i.environment??'','--backup-id',chosen.value,'--confirmed'].map(s=>"'"+s.replaceAll("'","''")+"'")].join(' ');}
 </script>
