@@ -19,6 +19,9 @@ class AssetService:
         row = self.db.execute('SELECT absolute_path FROM library_roots WHERE id=? AND enabled=1', (params['library_id'],)).fetchone()
         if not row:
             raise LibraryError('LIBRARY_NOT_FOUND')
+        from .session_file import no_links
+        try:no_links(Path(row[0]))
+        except (OSError,ValueError):raise LibraryError('LIBRARY_FOLDER_UNAVAILABLE') from None
         root = Path(registration_path(row[0])[0])
         found, failures = [], []
         def check_cancel():
@@ -127,6 +130,8 @@ class AssetService:
         if not row: return {'availability':'unavailable'}
         path, root = Path(row[0]), Path(row[1])
         try:
+            from .session_file import no_links
+            no_links(path);no_links(root)
             if path.is_symlink() or not path.resolve(strict=True).is_relative_to(root.resolve(strict=True)): return {'availability':'unavailable'}
             info = path.stat()
             if not stat.S_ISREG(info.st_mode) or getattr(info,'st_file_attributes',0) & 0x400: return {'availability':'unavailable'}
@@ -137,4 +142,4 @@ class AssetService:
                 if image['status'] == 'ready': result.update(width=image['width'],height=image['height'])
             return result
         except FileNotFoundError: return {'availability':'missing','path':str(path)}
-        except OSError: return {'availability':'unavailable'}
+        except (OSError,ValueError): return {'availability':'unavailable'}

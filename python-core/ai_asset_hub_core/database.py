@@ -30,6 +30,8 @@ class Database:
         if not path.is_absolute():
             raise DatabaseFailure('DB_PATH_INVALID')
         try:
+            from .session_file import no_links,private
+            no_links(path)
             scripts = []
             for file in sorted(Path(migrations or migration_directory()).glob('*.sql')):
                 match = re.fullmatch(r'(\d{3})_[a-z_]+\.sql', file.name)
@@ -57,8 +59,11 @@ class Database:
             if len(applied) < len(scripts):
                 if existed:
                     backup_dir = path.parent / 'backups'
+                    no_links(backup_dir)
                     backup_dir.mkdir(exist_ok=True)
+                    private(backup_dir,True)
                     backup_path = backup_dir / f'pre-migration-{uuid4()}.sqlite'
+                    with backup_path.open('xb'):private(backup_path,True)
                     backup = sqlite3.connect(backup_path)
                     deadline = time.monotonic() + 3
                     def check_backup(status, remaining, total):
@@ -76,7 +81,7 @@ class Database:
         except DatabaseFailure:
             self.close()
             raise
-        except (OSError, UnicodeError, sqlite3.Error):
+        except (OSError, ValueError, UnicodeError, sqlite3.Error):
             self.close()
             raise DatabaseFailure() from None
 

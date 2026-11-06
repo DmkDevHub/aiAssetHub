@@ -15,6 +15,8 @@ def thumbnail(database, params):
     if not row: return {'status':'unavailable'}
     path, root = Path(row[0]), Path(row[1])
     try:
+        from .session_file import no_links
+        no_links(path);no_links(root)
         if not path.resolve(strict=True).is_relative_to(root.resolve(strict=True)) or path.is_symlink(): return {'status':'unavailable'}
         for parent in path.parents:
             if parent == root: break
@@ -25,8 +27,10 @@ def thumbnail(database, params):
         if info.st_size > 50_000_000: return {'status':'too_large'}
         from PIL import Image, ImageOps
         cache = database.path.parent / 'thumbnails'
+        no_links(cache)
         cache.mkdir(exist_ok=True)
         target = cache / (hashlib.sha256(f'{params["asset_id"]}:{info.st_size}:{info.st_mtime_ns}:v1'.encode()).hexdigest() + '.jpg')
+        no_links(target)
         if cache.is_symlink() or target.is_symlink(): return {'status':'unavailable'}
         with warnings.catch_warnings():
             warnings.simplefilter('error', Image.DecompressionBombWarning)
