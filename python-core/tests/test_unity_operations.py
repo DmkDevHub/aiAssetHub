@@ -39,3 +39,29 @@ class UnityOperationsTests(unittest.TestCase):
         with self.assertRaisesRegex(LibraryError,'UNITY_SOURCE_INVALID'):service.preview_import(request)
         with patch('ai_asset_hub_core.unity_operations.MAX_BYTES',1):
             with self.assertRaisesRegex(LibraryError,'UNITY_SOURCE_INVALID'):service.preview_import(request)
+
+    def test_execution_requires_approval_rechecks_source_and_deduplicates_requests(self):
+        from ai_asset_hub_core.unity_connector import write_private
+        project,directory,state,target,service=self.ready()
+        plan=service.preview_import(dict(target_id=target,asset_ids=[self.id]))
+        params=dict(plan_id=plan['planId'],request_id=str(uuid4()),confirmed=True,rights_confirmed=True,compatibility_confirmed=True)
+        with self.assertRaisesRegex(LibraryError,'INVALID_PARAMS'):service.execute_import({**params,'confirmed':False})
+        original=(self.source/'나무.png').read_bytes();(self.source/'나무.png').write_bytes(original+b'change')
+        with self.assertRaisesRegex(LibraryError,'UNITY_SOURCE_CHANGED'):service.execute_import(params)
+        plan=service.preview_import(dict(target_id=target,asset_ids=[self.id]));params['plan_id']=plan['planId']
+        queued=service.execute_import(params);self.assertEqual(queued['status'],'queued')
+        self.assertEqual(service.execute_import(params)['operationId'],queued['operationId'])
+        with self.assertRaisesRegex(LibraryError,'UNITY_PLAN_EXPIRED'):service.execute_import({**params,'request_id':str(uuid4())})
+        expected=plan['items'][0]
+        write_private(directory/(queued['operationId']+'.result.json'),dict(id=queued['operationId'],session=state['session'],token=state['token'],status='succeeded',
+            items=[dict(assetId=self.id,fileId=expected['fileId'],status='succeeded',assetPath=expected['targetRelativePath'],guid='a'*32,copied=True)]))
+        result=service.status(dict(operation_id=queued['operationId']))
+        self.assertEqual(result['status'],'succeeded');self.assertNotIn('token',json.dumps(result));self.assertNotIn('sourcePath',json.dumps(result))
+        (directory/'connector.json').unlink()
+        self.assertEqual(service.status(dict(operation_id=queued['operationId'])),result)
+
+    def test_expired_plan_and_fabricated_editor_result_are_rejected(self):
+        project,directory,state,target,service=self.ready();plan=service.preview_import(dict(target_id=target,asset_ids=[self.id]))
+        with self.assertRaisesRegex(LibraryError,'UNITY_INVALID_RESULT'):service._validate_result(service._plan(plan['planId']),dict(status='succeeded',items=[]))
+        with patch('ai_asset_hub_core.unity_operations.time.time',return_value=plan['expiresAt']+1):
+            with self.assertRaisesRegex(LibraryError,'UNITY_PLAN_EXPIRED'):service._plan(plan['planId'])

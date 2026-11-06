@@ -21,11 +21,23 @@ namespace AIAssetHub.Editor
         [Serializable] public class Request
         {
             public string id, session, token, action, expiresAt;
+            public Item[] items;
+        }
+        [Serializable] public class Item
+        {
+            public string assetId, fileId, sourcePath, targetRelativePath, mtimeNs, sha256;
+            public long size;
+        }
+        [Serializable] public class ItemResult
+        {
+            public string assetId, fileId, status, errorCode, assetPath, guid;
+            public bool copied;
         }
         [Serializable] public class Result
         {
             public string id, session, token, status, errorCode;
             public State target;
+            public ItemResult[] items;
         }
         static readonly string Project = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
         static readonly string DirectoryPath = Path.Combine(Project, "Library", "AIAssetHub");
@@ -117,7 +129,6 @@ namespace AIAssetHub.Editor
                 int processed = 0;
                 foreach (var path in requests)
                 {
-                    if (++processed > 20) break;
                     NoLinks(path);
                     if (new FileInfo(path).Length > 16384) continue;
                     var r = JsonUtility.FromJson<Request>(File.ReadAllText(path));
@@ -125,10 +136,12 @@ namespace AIAssetHub.Editor
                         Path.GetFileName(path) != r.id + ".request.json" || r.session != Session || r.token != Token) continue;
                     var output = Path.Combine(DirectoryPath, r.id + ".result.json");
                     if (File.Exists(output)) continue; // At most once in this Editor session.
+                    if (++processed > 20) break;
                     var result = new Result { id = r.id, session = Session, token = Token, status = "failed" };
                     if (!DateTime.TryParse(r.expiresAt, null, System.Globalization.DateTimeStyles.RoundtripKind, out var deadline) || deadline.ToUniversalTime() < DateTime.UtcNow)
                         result.errorCode = "UNITY_REQUEST_EXPIRED";
                     else if (r.action == "ping") { result.status = "succeeded"; result.target = CurrentState(); }
+                    else if (r.action == "import") ExecuteImport(r, result);
                     else result.errorCode = "UNITY_ACTION_NOT_ALLOWED";
                     WritePrivate(output, result);
                 }
@@ -138,6 +151,61 @@ namespace AIAssetHub.Editor
                 if (!reported) UnityEngine.Debug.LogError("AIAssetHub channel unavailable: " + error.GetType().Name);
                 reported = true; // Never log paths, secrets, arguments or raw exception messages.
             }
+        }
+        static void ExecuteImport(Request request, Result result)
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling)
+            { result.errorCode = "UNITY_EDITOR_BUSY"; return; }
+            if (request.items == null || request.items.Length < 1 || request.items.Length > 20)
+            { result.errorCode = "INVALID_PARAMS"; return; }
+            var started = Path.Combine(DirectoryPath, request.id + ".started.json");
+            if (File.Exists(started)) { result.errorCode = "UNITY_OPERATION_INTERRUPTED"; return; }
+            WritePrivate(started, new Result { id = request.id, session = Session, status = "started" });
+            var results = new System.Collections.Generic.List<ItemResult>();
+            foreach (var item in request.items)
+            {
+                var value = new ItemResult { assetId = item.assetId, fileId = item.fileId, status = "failed" };
+                try
+                {
+                    if (!Guid.TryParseExact(item.assetId, "D", out _) || !Guid.TryParseExact(item.fileId, "D", out _) ||
+                        item.targetRelativePath != "Assets/AIAssetHub/" + item.fileId + ".png" || item.size < 1 || item.size > 16 * 1024 * 1024)
+                        throw new InvalidDataException();
+                    NoLinks(item.sourcePath);
+                    var source = Path.GetFullPath(item.sourcePath);
+                    if (source.StartsWith(Project + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException();
+                    byte[] bytes;
+                    using (var stream = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        if (stream.Length != item.size) throw new InvalidDataException();
+                        bytes = new byte[(int)item.size]; int offset = 0;
+                        while (offset < bytes.Length) { int count = stream.Read(bytes, offset, bytes.Length - offset); if (count == 0) throw new InvalidDataException(); offset += count; }
+                    }
+                    using (var hash = System.Security.Cryptography.SHA256.Create())
+                        if (BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant() != item.sha256) throw new InvalidDataException();
+                    byte[] signature = { 137, 80, 78, 71, 13, 10, 26, 10 };
+                    if (bytes.Length < 24) throw new InvalidDataException();
+                    for (int index = 0; index < signature.Length; index++) if (bytes[index] != signature[index]) throw new InvalidDataException();
+                    var destination = Path.Combine(Project, item.targetRelativePath); NoLinks(destination); NoLinks(destination + ".meta");
+                    if (File.Exists(destination) || File.Exists(destination + ".meta")) { value.errorCode = "UNITY_TARGET_CONFLICT"; throw new IOException(); }
+                    Directory.CreateDirectory(Path.GetDirectoryName(destination)); NoLinks(destination);
+                    using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    { value.copied = true; value.assetPath = item.targetRelativePath; output.Write(bytes, 0, bytes.Length); }
+                    AssetDatabase.ImportAsset(item.targetRelativePath, ImportAssetOptions.ForceSynchronousImport);
+                    var importer = AssetImporter.GetAtPath(item.targetRelativePath) as TextureImporter;
+                    if (importer == null) throw new InvalidDataException();
+                    importer.textureType = TextureImporterType.Sprite; importer.spriteImportMode = SpriteImportMode.Single;
+                    importer.SaveAndReimport();
+                    if (AssetDatabase.LoadAssetAtPath<Sprite>(item.targetRelativePath) == null) throw new InvalidDataException();
+                    value.guid = AssetDatabase.AssetPathToGUID(item.targetRelativePath);
+                    if (string.IsNullOrEmpty(value.guid)) throw new InvalidDataException();
+                    value.status = "succeeded";
+                }
+                catch (Exception) { value.errorCode = value.errorCode ?? "UNITY_IMPORT_FAILED"; }
+                results.Add(value);
+            }
+            result.items = results.ToArray();
+            int successes = results.FindAll(i => i.status == "succeeded").Count;
+            result.status = successes == results.Count ? "succeeded" : successes == 0 ? "failed" : "partial";
         }
         static void Stop()
         {

@@ -80,3 +80,89 @@ class UnityOperations:
             if total>64*1024*1024:raise LibraryError('UNITY_LIMIT')
             items.append(dict(assetId=asset,fileId=file['id'],sourcePath=file['path'],targetRelativePath=relative,**snapshot))
         return self._store_plan(dict(action='import',targetId=target['id'],projectPath=target['path'],session=state['session'],editorVersion=state['editorVersion'],items=items))
+
+    def _plan(self,identifier):
+        if not valid_id(identifier):raise LibraryError('INVALID_PARAMS')
+        row=self.db.execute('SELECT value_json FROM settings WHERE key=?',('unity.plan.'+identifier,)).fetchone()
+        if not row:raise LibraryError('UNITY_PLAN_EXPIRED')
+        value=json.loads(row[0])
+        if value['expiresAt']<time.time() or value.get('consumed'):raise LibraryError('UNITY_PLAN_EXPIRED')
+        return value
+
+    def execute_import(self,params):return self._execute(params,'import')
+
+    def _execute(self,params,action):
+        if not isinstance(params,dict) or set(params)!={'plan_id','request_id','confirmed','rights_confirmed','compatibility_confirmed'} or any(params[k] is not True for k in ('confirmed','rights_confirmed','compatibility_confirmed')) or not valid_id(params['request_id']):raise LibraryError('INVALID_PARAMS')
+        row=self.db.execute('SELECT id,result_json FROM unity_operations WHERE request_id=?',(params['request_id'],)).fetchone()
+        if row:
+            stored=json.loads(row[1])
+            if stored['plan']['id']!=params['plan_id'] or stored['plan']['action']!=action:raise LibraryError('INVALID_PARAMS')
+            return self.status(dict(operation_id=row[0]))
+        plan=self._plan(params['plan_id'])
+        if plan['action']!=action:raise LibraryError('INVALID_PARAMS')
+        target,directory,state=self._target(plan['targetId'])
+        if plan['session']!=state['session']:raise LibraryError('UNITY_SESSION_CHANGED')
+        if action=='import':
+            # Re-resolve registration/composition and hash before dispatch; Editor hashes again.
+            for item in plan['items']:
+                current=McpFiles(self.database,McpQueries.safe_path).get(item['assetId'])['files']
+                file=next((f for f in current if f['id']==item['fileId'] and 'source' in f['roles']),None)
+                if not file or file.get('path')!=item['sourcePath'] or png_snapshot(item['sourcePath'])!={k:item[k] for k in ('size','mtimeNs','sha256')}:raise LibraryError('UNITY_SOURCE_CHANGED')
+                destination=Path(target['path'])/item['targetRelativePath']
+                try:
+                    no_links(destination);no_links(Path(str(destination)+'.meta'))
+                    if destination.exists() or Path(str(destination)+'.meta').exists():raise LibraryError('UNITY_TARGET_CONFLICT')
+                except (OSError,ValueError):raise LibraryError('UNITY_TARGET_CONFLICT') from None
+        identifier=str(uuid4());stored=dict(plan=plan,session=state['session'],deadline=time.time()+60,result=None)
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            self._plan(params['plan_id'])
+            plan['consumed']=True
+            self.db.execute('UPDATE settings SET value_json=? WHERE key=?',(json.dumps(plan),'unity.plan.'+plan['id']))
+            self.db.execute("INSERT INTO unity_operations VALUES (?,?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",(identifier,params['request_id'],plan['items'][0]['assetId'],target['path'],action,'queued',json.dumps(stored)))
+            self.db.execute('COMMIT')
+        except Exception:self.db.execute('ROLLBACK');raise
+        try:self.targets.mailbox().send(target['path'],action,self._fields(plan),identifier)
+        except LibraryError:
+            self.db.execute("UPDATE unity_operations SET status='unknown' WHERE id=?",(identifier,))
+            raise
+        return self.status(dict(operation_id=identifier))
+
+    @staticmethod
+    def _fields(plan):return dict(items=plan['items'])
+
+    def status(self,params):
+        if not isinstance(params,dict) or set(params)!={'operation_id'} or not valid_id(params['operation_id']):raise LibraryError('INVALID_PARAMS')
+        row=self.db.execute('SELECT id,status,result_json FROM unity_operations WHERE id=?',(params['operation_id'],)).fetchone()
+        if not row:raise LibraryError('UNITY_OPERATION_NOT_FOUND')
+        stored=json.loads(row[2]);plan=stored['plan'];status=row[1];error=None
+        if status in ('queued','unknown'):
+            try:
+                self.targets.target(plan['targetId'])
+                result=self.targets.mailbox().result(plan['projectPath'],row[0],stored['session'])
+                if result:
+                    stored['result']=self._validate_result(plan,result);status=result['status']
+                    self.db.execute('UPDATE unity_operations SET status=?,result_json=? WHERE id=?',(status,json.dumps(stored),row[0]))
+            except LibraryError as failure:error=str(failure)
+            if status=='queued' and time.time()>stored['deadline']:
+                status='unknown';self.db.execute("UPDATE unity_operations SET status='unknown' WHERE id=?",(row[0],))
+        return dict(operationId=row[0],targetId=plan['targetId'],action=plan['action'],status=status,
+            result=stored['result'],errorCode=error,mayHaveSideEffects=status=='unknown',modelCalled=False)
+
+    @staticmethod
+    def _validate_result(plan,result):
+        import re
+        items=result.get('items') or []
+        if not items and result['status']=='failed':return dict(status='failed',errorCode='UNITY_EDITOR_REJECTED',items=[])
+        if len(items)!=len(plan['items']):raise LibraryError('UNITY_INVALID_RESULT')
+        safe=[]
+        for item,expected in zip(items,plan['items']):
+            if item.get('assetId')!=expected['assetId'] or item.get('fileId')!=expected['fileId'] or item.get('status') not in ('succeeded','failed','cancelled'):raise LibraryError('UNITY_INVALID_RESULT')
+            if item.get('assetPath') and item['assetPath']!=expected['targetRelativePath']:raise LibraryError('UNITY_INVALID_RESULT')
+            guid=item.get('guid') or None
+            if item['status']=='succeeded' and (not isinstance(guid,str) or not re.fullmatch('[a-f0-9]{32}',guid) or item.get('assetPath')!=expected['targetRelativePath']):raise LibraryError('UNITY_INVALID_RESULT')
+            safe.append(dict(assetId=item['assetId'],fileId=item['fileId'],status=item['status'],assetPath=item.get('assetPath') or None,guid=guid,
+                copied=item.get('copied') is True,errorCode=None if item['status']=='succeeded' else 'UNITY_ITEM_FAILED'))
+        derived='succeeded' if all(i['status']=='succeeded' for i in safe) else 'failed' if all(i['status']=='failed' for i in safe) else 'partial'
+        if result['status']!=derived:raise LibraryError('UNITY_INVALID_RESULT')
+        return dict(status=derived,items=safe)

@@ -14,6 +14,10 @@ sys.path.insert(0,str(ROOT/'python-core'))
 from ai_asset_hub_core.database import Database
 from ai_asset_hub_core.unity_connector import EditorMailbox
 from ai_asset_hub_core.libraries import LibraryError
+from ai_asset_hub_core.libraries import LibraryService
+from ai_asset_hub_core.assets import AssetService
+from ai_asset_hub_core.unity_targets import UnityTargets
+from ai_asset_hub_core.unity_operations import UnityOperations
 
 
 def await_value(action,timeout=120):
@@ -44,9 +48,23 @@ def main():
         result=await_value(lambda:mailbox.result(str(project),identifier,session),15)
         assert result['status']=='succeeded' and state['pid']==process.pid and state['batchMode']
         assert 'token' not in mailbox.public(state)
+        from PIL import Image
+        source=root/'source';source.mkdir();Image.new('RGBA',(4,4),(12,100,44,255)).save(source/'숲.png')
+        library=LibraryService(database).register(dict(path=str(source)))['library']['id'];AssetService(database).scan(dict(library_id=library))
+        asset=AssetService(database).list({})['items'][0]['id']
+        target=UnityTargets(database).save(dict(project_path=str(project),confirmed=True))['id']
+        service=UnityOperations(database);plan=service.preview_import(dict(target_id=target,asset_ids=[asset]))
+        operation=service.execute_import(dict(plan_id=plan['planId'],request_id=str(uuid4()),confirmed=True,rights_confirmed=True,compatibility_confirmed=True))
+        def completed():
+            status=service.status(dict(operation_id=operation['operationId']))
+            return status if status['status'] not in ('queued','unknown') else None
+        imported=await_value(completed,30)
+        assert imported['status']=='succeeded',imported
+        item=imported['result']['items'][0]
+        assert (project/item['assetPath']).read_bytes()==(source/'숲.png').read_bytes() and len(item['guid'])==32
         (project/'finish.test').write_text('done');assert process.wait(timeout=30)==0
         report=dict(passed=True,editorVersion=state['editorVersion'],project=str(project),actualEditorPid=state['pid'],pingSucceeded=True,
-            guiOpened=False,inferenceCalls=0,elapsedSeconds=round(time.monotonic()-started,3),verifiedAt=datetime.now(timezone.utc).isoformat())
+            imported=imported,sourcePreserved=True,guiOpened=False,inferenceCalls=0,elapsedSeconds=round(time.monotonic()-started,3),verifiedAt=datetime.now(timezone.utc).isoformat())
         Path(args.report).write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         database.close()

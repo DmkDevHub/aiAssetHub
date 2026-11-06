@@ -19,6 +19,7 @@ def read_private(path, limit=16384):
 
 def write_private(path, value):
     path=Path(path);no_links(path)
+    if len(json.dumps(value,ensure_ascii=False,allow_nan=False).encode('utf-8'))>16384:raise ValueError()
     temporary=path.with_name('.'+str(uuid4())+'.tmp')
     try:
         with temporary.open('x',encoding='utf-8') as output:
@@ -65,7 +66,9 @@ class EditorMailbox:
             if result['id']!=identifier or result['session']!=session or not secrets.compare_digest(result['token'],state['token']):raise ValueError()
             if result['status'] not in ('succeeded','failed','partial','cancelled'):raise ValueError()
             # Only known public fields leave the mailbox; never forward token or descriptor.
-            return dict(status=result['status'],errorCode=result.get('errorCode') or None)
+            public=dict(status=result['status'],errorCode=result.get('errorCode') or None)
+            if result.get('items') is not None:public['items']=result['items']
+            return public
         except (OSError,ValueError,KeyError,TypeError):raise LibraryError('UNITY_INVALID_RESULT') from None
 
     @staticmethod
