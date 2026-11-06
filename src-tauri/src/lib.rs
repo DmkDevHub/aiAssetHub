@@ -12,6 +12,9 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
         && matches!(
             method,
             "asset.technical"
+                | "unity.targets"
+                | "unity.target.save"
+                | "unity.target.remove"
                 | "catalog.smart.list"
                 | "catalog.smart.get"
                 | "catalog.smart.save"

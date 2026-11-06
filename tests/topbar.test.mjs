@@ -2335,3 +2335,13 @@ test('late recommendation responses cannot leak old-owner candidates and missing
  finish({ok:true,data:{items:[{id:'old-target',name:'OLD-CANDIDATE',score:1,confirmed:false,reasons:[]}],vectorStatus:'ready',inferenceCalled:false,relationshipCreated:false}});await new Promise(r=>setImmediate(r));await nextTick();
  assert.doesNotMatch(document.body.textContent,/OLD-CANDIDATE/);assert.match(document.body.textContent,/유효한 저장 벡터가 없습니다/);assert.equal(calls.length,2);
 });
+
+test('Unity targets require explicit registration and removal and render untrusted paths as text',async()=>{
+ const calls=[];let rows=[];
+ await mountMetadataComponent('UnityView',{},async(command,args)=>{calls.push(args);assert.equal(command,'metadata_request');if(args.method==='unity.targets')return {ok:true,data:{items:rows}};if(args.method==='unity.target.save'){assert.equal(args.params.confirmed,true);rows=[{id:'target',projectPath:'<script>project</script>',connected:true,editorVersion:'6000.6.8f1',scene:''}];return {ok:true,data:{id:'target'}};}if(args.method==='unity.target.remove'){assert.equal(args.params.confirmed,true);rows=[];return {ok:true,data:{}};}throw new Error('unexpected');});
+ assert.deepEqual(calls.map(c=>c.method),['unity.targets']);await metaField('Unity 프로젝트 경로','D:\\OwnedProject');
+ dispatch(document.querySelector('.unity-settings form'),new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.match(document.querySelector('.unity-settings').textContent,/연결됨/);assert.equal(document.querySelector('script'),null);
+ dispatch(metaButton('프로젝트 접근 해제'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.match(document.querySelector('.unity-settings').textContent,/허용한 Unity 프로젝트가 없습니다/);assert.equal(calls.length,5);
+});

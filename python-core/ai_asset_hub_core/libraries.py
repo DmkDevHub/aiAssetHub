@@ -130,6 +130,11 @@ class LibraryService:
 
 
 ERROR_MESSAGES = {
+    'UNITY_PROJECT_UNAVAILABLE': 'Unity 프로젝트 경로를 검증하지 못했습니다.',
+    'UNITY_PROJECT_NOT_ALLOWED': '허용하지 않은 Unity 프로젝트입니다.',
+    'UNITY_TARGET_NOT_ALLOWED': 'Unity 대상이 해제되었거나 존재하지 않습니다.',
+    'UNITY_NOT_CONNECTED': 'Unity Editor Connector 연결을 확인하세요.',
+    'UNITY_LIMIT': 'Unity 작업 한도를 초과했습니다.',
     'HASH_BUSY': '대기/실행 중인 해시 작업을 먼저 끝내거나 취소하세요.',
     'HASH_NOT_FOUND': '저장된 해시 작업을 찾을 수 없습니다.',
     'BULK_LIMIT': '일괄 작업 크기 또는 응답 한도를 초과했습니다. 대상·필드를 줄이세요.',

@@ -206,7 +206,7 @@
 
 ## M09 — Unity Editor 실제 개발 자동화
 - [x] **R09-01** Unity Editor C# 패키지 최소 연결. **검증:** Editor 전용 로컬 UPM·현재 사용자 ACL mailbox·세션/토큰/기한/크기 검증. `verify-unity.py` 실제 Unity6000.6.8f1 batchmode/nographics PID·버전·프로젝트·ping 성공(15.878초). 초기 Mono ACL/replace 플래그 문제 수정 후 재검증. GUI 미실행/시각 미검증.
-- [ ] **R09-02** `list_unity_targets` 및 프로젝트 허용 목록. **화면:** 대상 선택/연결 상태.
+- [x] **R09-02** 프로젝트 허용 목록·현재 연결 조회와 설정 UI. **검증:** Core4개(0.460초)·가상 DOM1개(18.794초) 통과. 등록/중복/해제·ACL/만료/세션/위조 응답·원본 보존 확인. MCP list_unity_targets 공개는 R09-06에서 연결, GUI는 미검증.
 - [ ] **R09-03** PNG 임포트 계획/경로 충돌 검사. **화면:** 대상 파일 및 경로 미리보기.
 - [ ] **R09-04** 실제 PNG를 Unity `Assets/AIAssetHub/`에 복사·임포트. **확인:** Project 창에 파일.
 - [ ] **R09-05** Sprite GameObject 생성 및 씬 위치 배치. **확인:** Hierarchy/Scene 창에서 객체 확인.
