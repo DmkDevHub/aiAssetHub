@@ -70,11 +70,36 @@ def main():
             return status if status['status'] not in ('queued','unknown') else None
         placed=await_value(placement_completed,20);assert placed['status']=='succeeded',placed
         assert placed['result']['items'][0]['position']==[2,3,0] and placed['result']['items'][0]['sceneSaved'] is False
+        extra={}
+        for name in ('batch-ok','batch-conflict','cancel-a','cancel-b'):
+            Image.new('RGBA',(4,4),(77,33,88,255)).save(source/(name+'.png'))
+        AssetService(database).scan(dict(library_id=library))
+        extra={};cursor=None
+        while True:
+            page=AssetService(database).list(dict(after_id=cursor));extra.update({Path(a['path']).stem:a['id'] for a in page['items']});cursor=page['next_cursor']
+            if cursor is None:break
+        def terminal(identifier):
+            status=service.status(dict(operation_id=identifier))
+            return status if status['status'] not in ('queued','unknown') else None
+        (project/'pause.test').write_text('pause');await_value(lambda:(project/'paused.test').exists(),5)
+        batch_plan=service.preview_import(dict(target_id=target,asset_ids=[extra['batch-ok'],extra['batch-conflict']]))
+        batch=service.execute_import(dict(plan_id=batch_plan['planId'],request_id=str(uuid4()),confirmed=True,rights_confirmed=True,compatibility_confirmed=True))
+        conflict=project/batch_plan['items'][1]['targetRelativePath'];conflict.write_bytes(b'owned existing conflict')
+        (project/'pause.test').unlink();partial=await_value(lambda:terminal(batch['operationId']),20)
+        assert partial['status']=='partial' and [i['status'] for i in partial['result']['items']]==['succeeded','failed'],partial
+        assert partial['result']['items'][1]['errorCode']=='UNITY_TARGET_CONFLICT' and conflict.read_bytes()==b'owned existing conflict'
+        (project/'pause.test').write_text('pause');await_value(lambda:(project/'paused.test').exists(),5)
+        cancel_plan=service.preview_import(dict(target_id=target,asset_ids=[extra['cancel-a'],extra['cancel-b']]))
+        cancel_op=service.execute_import(dict(plan_id=cancel_plan['planId'],request_id=str(uuid4()),confirmed=True,rights_confirmed=True,compatibility_confirmed=True))
+        requested=service.cancel(dict(operation_id=cancel_op['operationId'],confirmed=True));assert requested['cancelRequested'] and requested['status']=='queued'
+        (project/'pause.test').unlink();cancelled=await_value(lambda:terminal(cancel_op['operationId']),20)
+        assert cancelled['status']=='cancelled' and all(i['status']=='cancelled' for i in cancelled['result']['items']),cancelled
+        assert all(not (project/i['targetRelativePath']).exists() for i in cancel_plan['items'])
         (project/'expect-placement.test').write_text('yes')
         (project/'finish.test').write_text('done');assert process.wait(timeout=30)==0
         editor_assertions=json.loads((project/'editor-assertions.json').read_text())
         report=dict(passed=True,editorVersion=state['editorVersion'],project=str(project),actualEditorPid=state['pid'],pingSucceeded=True,
-            imported=imported,placed=placed,editorAssertions=editor_assertions,sourcePreserved=True,guiOpened=False,inferenceCalls=0,elapsedSeconds=round(time.monotonic()-started,3),verifiedAt=datetime.now(timezone.utc).isoformat())
+            imported=imported,placed=placed,partial=partial,cancelled=cancelled,editorAssertions=editor_assertions,sourcePreserved=True,guiOpened=False,inferenceCalls=0,elapsedSeconds=round(time.monotonic()-started,3),verifiedAt=datetime.now(timezone.utc).isoformat())
         Path(args.report).write_text(json.dumps(report,indent=2));print(json.dumps(report))
     finally:
         database.close()

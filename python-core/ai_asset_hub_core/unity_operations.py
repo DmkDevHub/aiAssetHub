@@ -43,11 +43,14 @@ class UnityOperations:
         return target,directory,state
 
     def _store_plan(self,value):
+        identifier=str(uuid4());value.update(id=identifier,expiresAt=time.time()+300)
+        public=self.public_plan(value)
+        if len(json.dumps(public,ensure_ascii=True).encode())>12000:raise LibraryError('UNITY_LIMIT')
+        if value['action']=='place' and len(value['items'])*(900+len(json.dumps([value['name'],value['scene']],ensure_ascii=True)))>11500:raise LibraryError('UNITY_LIMIT')
         rows=self.db.execute("SELECT key FROM settings WHERE key LIKE 'unity.plan.%' ORDER BY updated_at DESC,key DESC").fetchall()
         for row in rows[19:]:self.db.execute('DELETE FROM settings WHERE key=?',(row[0],))
-        identifier=str(uuid4());value.update(id=identifier,expiresAt=time.time()+300)
         self.db.execute("INSERT INTO settings VALUES (?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",('unity.plan.'+identifier,json.dumps(value,ensure_ascii=False)))
-        return self.public_plan(value)
+        return public
 
     @staticmethod
     def public_plan(value):
@@ -66,7 +69,7 @@ class UnityOperations:
             metadata.describe(asset)
             files=McpFiles(self.database,McpQueries.safe_path).get(asset)['files']
             sources=[f for f in files if set(f['roles'])&{'source','dependency'}]
-            if len(sources)!=1 or sources[0]['kind']!='PNG':raise LibraryError('UNITY_FORMAT_UNSUPPORTED')
+            if len(sources)!=1 or sources[0]['kind']!='PNG' or 'source' not in sources[0]['roles']:raise LibraryError('UNITY_FORMAT_UNSUPPORTED')
             file=sources[0]
             if file['availability']!='present' or not file.get('path'):raise LibraryError('UNITY_SOURCE_INVALID')
             if file['dependencies']['items'] or file['dependencies']['unresolvedDeclarationCount']:raise LibraryError('UNITY_FORMAT_UNSUPPORTED')
@@ -131,6 +134,7 @@ class UnityOperations:
         target,directory,state=self._target(plan['targetId'])
         if plan['session']!=state['session']:raise LibraryError('UNITY_SESSION_CHANGED')
         if action=='place' and (any(plan[k]!=state.get(k) for k in ('scene','sceneHandle','sceneRevision')) or state.get('prefabStage')):raise LibraryError('UNITY_SCENE_CHANGED')
+        if len(json.dumps(self._fields(plan),ensure_ascii=False).encode('utf-8'))>15500:raise LibraryError('UNITY_LIMIT')
         if action=='import':
             # Re-resolve registration/composition and hash before dispatch; Editor hashes again.
             for item in plan['items']:
@@ -177,13 +181,45 @@ class UnityOperations:
             if status=='queued' and time.time()>stored['deadline']:
                 status='unknown';self.db.execute("UPDATE unity_operations SET status='unknown' WHERE id=?",(row[0],))
         return dict(operationId=row[0],targetId=plan['targetId'],action=plan['action'],status=status,
-            result=stored['result'],errorCode=error,mayHaveSideEffects=status=='unknown',modelCalled=False)
+            result=stored['result'],errorCode=error,cancelRequested=stored.get('cancelRequested',False),mayHaveSideEffects=status=='unknown',modelCalled=False)
+
+    def cancel(self,params):
+        from .unity_connector import write_private
+        if not isinstance(params,dict) or set(params)!={'operation_id','confirmed'} or params['confirmed'] is not True:raise LibraryError('INVALID_PARAMS')
+        status=self.status(dict(operation_id=params['operation_id']))
+        if status['status'] not in ('queued','unknown'):return status
+        stored=json.loads(self.db.execute('SELECT result_json FROM unity_operations WHERE id=?',(params['operation_id'],)).fetchone()[0]);plan=stored['plan']
+        self.targets.target(plan['targetId']);directory,state=self.targets.mailbox().connect(plan['projectPath'])
+        if state['session']!=stored['session']:raise LibraryError('UNITY_SESSION_CHANGED')
+        path=directory/(params['operation_id']+'.cancel.json')
+        if not path.exists():
+            try:write_private(path,dict(id=params['operation_id'],session=state['session'],token=state['token'],action='cancel'))
+            except (OSError,ValueError):raise LibraryError('UNITY_CHANNEL_UNAVAILABLE') from None
+        stored['cancelRequested']=True
+        self.db.execute('UPDATE unity_operations SET result_json=? WHERE id=?',(json.dumps(stored),params['operation_id']))
+        return self.status(dict(operation_id=params['operation_id']))
+
+    def list(self,params):
+        if not isinstance(params,dict) or set(params)-{'after_id'} or params.get('after_id') is not None and not valid_id(params['after_id']):raise LibraryError('INVALID_PARAMS')
+        cursor=params.get('after_id');values=[];condition=''
+        if cursor:
+            row=self.db.execute('SELECT rowid FROM unity_operations WHERE id=?',(cursor,)).fetchone()
+            if not row:raise LibraryError('INVALID_PARAMS')
+            condition='WHERE rowid<?';values=[row[0]]
+        rows=self.db.execute('SELECT id,status,action,result_json,created_at FROM unity_operations '+condition+' ORDER BY rowid DESC LIMIT 11',values).fetchall()
+        items=[]
+        for row in rows[:10]:
+            value=json.loads(row[3]);plan=value.get('plan')
+            if plan:items.append(dict(operationId=row[0],targetId=plan['targetId'],status=row[1],action=row[2],createdAt=row[4]))
+        return dict(items=items,next_cursor=rows[9][0] if len(rows)>10 else None)
 
     @staticmethod
     def _validate_result(plan,result):
         import re
         items=result.get('items') or []
-        if not items and result['status']=='failed':return dict(status='failed',errorCode='UNITY_EDITOR_REJECTED',items=[])
+        errors={'UNITY_EDITOR_BUSY','UNITY_SCENE_CHANGED','UNITY_REQUEST_EXPIRED','UNITY_OPERATION_INTERRUPTED','INVALID_PARAMS','UNITY_ACTION_NOT_ALLOWED',
+            'UNITY_TARGET_CONFLICT','UNITY_SOURCE_INVALID','UNITY_SOURCE_CHANGED','UNITY_IMPORT_FAILED','UNITY_PLACE_FAILED','UNITY_CANCELLED'}
+        if not items and result['status']=='failed':return dict(status='failed',errorCode=result.get('errorCode') if result.get('errorCode') in errors else 'UNITY_EDITOR_REJECTED',items=[])
         if len(items)!=len(plan['items']):raise LibraryError('UNITY_INVALID_RESULT')
         safe=[]
         for item,expected in zip(items,plan['items']):
@@ -192,7 +228,7 @@ class UnityOperations:
             guid=item.get('guid') or None
             if item['status']=='succeeded' and (not isinstance(guid,str) or not re.fullmatch('[a-f0-9]{32}',guid) or item.get('assetPath')!=expected['targetRelativePath']):raise LibraryError('UNITY_INVALID_RESULT')
             safe.append(dict(assetId=item['assetId'],fileId=item['fileId'],status=item['status'],assetPath=item.get('assetPath') or None,guid=guid,
-                copied=item.get('copied') is True,errorCode=None if item['status']=='succeeded' else 'UNITY_ITEM_FAILED'))
+                copied=item.get('copied') is True,errorCode=None if item['status']=='succeeded' else item.get('errorCode') if item.get('errorCode') in errors else 'UNITY_ITEM_FAILED'))
             if plan['action']=='place' and item['status']=='succeeded':
                 entity=item.get('entityId')
                 if (not isinstance(entity,str) or not re.fullmatch('[0-9]{1,20}',entity) or not 0<int(entity)<2**64 or item.get('objectId')!=f"session:{plan['session']}:entity:{entity}" or
@@ -204,6 +240,6 @@ class UnityOperations:
                     if not isinstance(vector,list) or len(vector)!=3 or any(type(x) not in (float,int) or not math.isfinite(x) for x in vector):raise LibraryError('UNITY_INVALID_RESULT')
                     if key!='rotation' and any(abs(a-b)>max(.0001,abs(b)*1e-5) for a,b in zip(vector,plan[key])):raise LibraryError('UNITY_INVALID_RESULT')
                 safe[-1].update({key:item[key] for key in ('objectId','entityId','objectName','scene','sceneHandle','position','rotation','scale','sceneDirty','sceneSaved')})
-        derived='succeeded' if all(i['status']=='succeeded' for i in safe) else 'failed' if all(i['status']=='failed' for i in safe) else 'partial'
+        derived='succeeded' if all(i['status']=='succeeded' for i in safe) else 'partial' if any(i['status']=='succeeded' for i in safe) else 'cancelled' if any(i['status']=='cancelled' for i in safe) else 'failed'
         if result['status']!=derived:raise LibraryError('UNITY_INVALID_RESULT')
         return dict(status=derived,items=safe)

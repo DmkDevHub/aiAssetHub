@@ -14,11 +14,15 @@ namespace AIAssetHub.Editor
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             deadline = EditorApplication.timeSinceStartup + 240;
             EditorApplication.update += Wait;
+            EditorApplication.update -= Connector.Tick;
             Connector.Tick();
         }
         static void Wait()
         {
             var root = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, ".."));
+            // Pause is test-harness-only and never checked by production Connector code.
+            if (File.Exists(Path.Combine(root, "pause.test"))) File.WriteAllText(Path.Combine(root, "paused.test"), "paused");
+            else { if (File.Exists(Path.Combine(root, "paused.test"))) File.Delete(Path.Combine(root, "paused.test")); Connector.Tick(); }
             if (File.Exists(Path.Combine(root, "finish.test")))
             {
                 if (File.Exists(Path.Combine(root, "expect-placement.test")))

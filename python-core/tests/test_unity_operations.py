@@ -80,3 +80,31 @@ class UnityOperationsTests(unittest.TestCase):
         (directory/'connector.json').unlink();state['sceneRevision']+=1;write_private(directory/'connector.json',state)
         with self.assertRaisesRegex(LibraryError,'UNITY_SCENE_CHANGED'):service.execute_place({**params,'plan_id':place['planId'],'request_id':str(uuid4())})
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM unity_operations').fetchone()[0],1)
+
+    def test_cancellation_is_a_request_until_editor_ack_and_survives_reopen(self):
+        from ai_asset_hub_core.unity_connector import write_private
+        from ai_asset_hub_core.database import Database
+        project,directory,state,target,service=self.ready();plan=service.preview_import(dict(target_id=target,asset_ids=[self.id]))
+        queued=service.execute_import(dict(plan_id=plan['planId'],request_id=str(uuid4()),confirmed=True,rights_confirmed=True,compatibility_confirmed=True))
+        operation=queued['operationId']
+        with self.assertRaisesRegex(LibraryError,'INVALID_PARAMS'):service.cancel(dict(operation_id=operation,confirmed=False))
+        cancelled=service.cancel(dict(operation_id=operation,confirmed=True));self.assertEqual(cancelled['status'],'queued');self.assertTrue(cancelled['cancelRequested'])
+        self.assertEqual(service.cancel(dict(operation_id=operation,confirmed=True)),cancelled)
+        request=json.loads((directory/(operation+'.cancel.json')).read_text());self.assertEqual(request['session'],state['session'])
+        item=plan['items'][0]
+        write_private(directory/(operation+'.result.json'),dict(id=operation,session=state['session'],token=state['token'],status='cancelled',
+            items=[dict(assetId=self.id,fileId=item['fileId'],status='cancelled',copied=False,errorCode='UNITY_CANCELLED')]))
+        result=service.status(dict(operation_id=operation));self.assertEqual(result['status'],'cancelled');self.assertFalse(result['result']['items'][0]['copied'])
+        self.db.close();self.db=Database(self.base/'db.sqlite');service=UnityOperations(self.db)
+        self.assertEqual(service.status(dict(operation_id=operation)),result);self.assertEqual(service.list({})['items'][0]['operationId'],operation)
+        self.assertFalse((project/item['targetRelativePath']).exists())
+
+    def test_mixed_results_retain_fixed_item_errors_and_unknown_never_becomes_success(self):
+        project,directory,state,target,service=self.ready();plan=service.preview_import(dict(target_id=target,asset_ids=[self.id]));internal=service._plan(plan['planId'])
+        item=internal['items'][0]
+        result=service._validate_result(internal,dict(status='failed',items=[dict(assetId=self.id,fileId=item['fileId'],status='failed',errorCode='PRIVATE-PATH')]))
+        self.assertEqual(result['items'][0]['errorCode'],'UNITY_ITEM_FAILED');self.assertNotIn('PRIVATE',json.dumps(result))
+        queued=service.execute_import(dict(plan_id=plan['planId'],request_id=str(uuid4()),confirmed=True,rights_confirmed=True,compatibility_confirmed=True))
+        with patch('ai_asset_hub_core.unity_operations.time.time',return_value=plan['expiresAt']+100):
+            status=service.status(dict(operation_id=queued['operationId']))
+        self.assertEqual(status['status'],'unknown');self.assertTrue(status['mayHaveSideEffects']);self.assertIsNone(status['result'])

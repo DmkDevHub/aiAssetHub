@@ -56,6 +56,7 @@ MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만
 | `preview_unity_placement` | target_id, import_operation_id, position/rotation/scale(XYZ), name | 활성 씬/리비전·배치 계획 | 계획 저장 |
 | `place_assets_in_unity` | plan_id, request_id(UUID), confirmed, rights_confirmed, compatibility_confirmed | operationId·status | 승인 쓰기 |
 | `get_operation_status` | operation_id | 실제 항목별 GUID·EntityId·transform/오류 | 결과 조회·Core 기록 갱신 |
+| `cancel_unity_operation` | operation_id, confirmed | 취소 요청·실제 작업 상태 | 승인 취소 요청 |
 
 ### 분석과 MCP의 관계
 - `search_assets`, `get_asset`는 조회 전용. **분석되지 않은 에셋을 조회할 때도 AI 자동 분석 금지.**

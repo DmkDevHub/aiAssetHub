@@ -46,6 +46,7 @@ class UnityTargets:
         return dict(id=row['id'],registered=False)
 
     def _write(self,rows):
+        if len(json.dumps(rows,ensure_ascii=True).encode())>8000:raise LibraryError('UNITY_LIMIT')
         self.db.execute("INSERT INTO settings VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at",(KEY,json.dumps(rows)))
 
     def list(self,params):
@@ -54,7 +55,9 @@ class UnityTargets:
         for row in self.records():
             item=dict(id=row['id'],projectPath=row['path'],connected=False,errorCode=None)
             try:
-                _,state=mailbox.connect(row['path']);item.update(connected=True,**mailbox.public(state))
+                _,state=mailbox.connect(row['path']);public=mailbox.public(state);public.pop('project',None);item.update(connected=True,**public)
             except LibraryError as error:item['errorCode']=str(error)
             items.append(item)
-        return dict(items=items,modelCalled=False)
+        result=dict(items=items,modelCalled=False)
+        if len(json.dumps(result,ensure_ascii=True).encode())>12000:raise LibraryError('UNITY_LIMIT')
+        return result

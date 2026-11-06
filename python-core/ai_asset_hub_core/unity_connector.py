@@ -14,7 +14,7 @@ def read_private(path, limit=16384):
     private(path)
     with Path(path).open('rb') as source:raw=source.read(limit+1)
     if len(raw)>limit:raise ValueError()
-    return json.loads(raw,object_pairs_hook=_unique_object)
+    return json.loads(raw,object_pairs_hook=_unique_object,parse_constant=lambda _:(_ for _ in ()).throw(ValueError()))
 
 
 def write_private(path, value):
@@ -41,9 +41,12 @@ class EditorMailbox:
             private(directory)
             state=read_private(directory/'connector.json')
             age=(datetime.now(timezone.utc)-datetime.fromisoformat(state['updatedAt'])).total_seconds()
-            if not 0<=age<10 or state['protocol']!=1 or Path(state['project'])!=path or state['editorVersion']!=version:raise ValueError()
-            if not valid_id(state['session']) or not isinstance(state['token'],str) or len(state['token'])!=64:raise ValueError()
+            if not 0<=age<10 or type(state['protocol']) is not int or state['protocol']!=1 or Path(state['project'])!=path or state['editorVersion']!=version:raise ValueError()
+            import re
+            if not valid_id(state['session']) or not isinstance(state['token'],str) or not re.fullmatch('[0-9a-f]{64}',state['token']):raise ValueError()
             if type(state['pid']) is not int or state['pid']<=0:raise ValueError()
+            if any(type(state.get(k)) is not bool for k in ('playing','compiling','sceneDirty','batchMode')):raise ValueError()
+            if not isinstance(state.get('scene'),str) or len(state['scene'])>2048 or not isinstance(state.get('sceneHandle'),str) or len(state['sceneHandle'])>80:raise ValueError()
             return directory,state
         except (OSError,ValueError,KeyError,TypeError):raise LibraryError('UNITY_NOT_CONNECTED') from None
 

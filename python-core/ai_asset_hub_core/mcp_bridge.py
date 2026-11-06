@@ -84,6 +84,11 @@ def create_server(directory):
     async def get_operation_status(operation_id:str,ctx:Context)->dict[str,Any]:
         """Reconcile and persist actual Editor results. Reports each imported path/GUID or created object/transform. Unknown may have side effects: inspect before retrying. Does not dispatch/retry writes or call AI."""
         return await call('get_operation_status',dict(operation_id=operation_id),ctx)
+
+    @server.tool(annotations=writes,structured_output=True)
+    async def cancel_unity_operation(operation_id:str,confirmed:StrictBool,ctx:Context)->dict[str,Any]:
+        """Explicitly request cancellation before the next item. Already copied/imported files or placed objects remain and are reported. cancelRequested is not cancellation success; poll actual terminal results. No auto cleanup, deletion or scene save."""
+        return await call('cancel_unity_operation',dict(operation_id=operation_id,confirmed=confirmed),ctx)
     return server
 
 

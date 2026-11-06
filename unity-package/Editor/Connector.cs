@@ -97,6 +97,7 @@ namespace AIAssetHub.Editor
         [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
         [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
         [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr handle);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "MoveFileExW")] static extern bool MoveFileEx(string source, string target, uint flags);
         [DllImport("advapi32.dll")] static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
         [DllImport("advapi32.dll")] static extern bool GetTokenInformation(IntPtr token, int kind, IntPtr buffer, uint size, out uint required);
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode, EntryPoint = "ConvertSidToStringSidW")] static extern bool ConvertSidToStringSid(IntPtr sid, out IntPtr text);
@@ -113,8 +114,9 @@ namespace AIAssetHub.Editor
                     var bytes = System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(value));
                     stream.Write(bytes, 0, bytes.Length); stream.Flush(true);
                 }
-                if (File.Exists(path)) File.Replace(temp, path, null); else File.Move(temp, path);
-                Protect(path, false);
+                // ReplaceFile merges destination ACL flags, creating an authentication race.
+                // MoveFileEx atomically keeps the already protected temporary file's DACL.
+                if (!MoveFileEx(temp, path, 9)) throw new IOException();
             }
             finally { if (File.Exists(temp)) File.Delete(temp); }
         }
@@ -179,8 +181,10 @@ namespace AIAssetHub.Editor
             foreach (var item in request.items)
             {
                 var value = new ItemResult { assetId = item.assetId, fileId = item.fileId, status = "failed" };
+                if (Cancelled(request)) { value.status = "cancelled"; value.errorCode = "UNITY_CANCELLED"; results.Add(value); continue; }
                 try
                 {
+                    value.errorCode = "UNITY_SOURCE_INVALID";
                     if (!Guid.TryParseExact(item.assetId, "D", out _) || !Guid.TryParseExact(item.fileId, "D", out _) ||
                         item.targetRelativePath != "Assets/AIAssetHub/" + item.fileId + ".png" || item.size < 1 || item.size > 16 * 1024 * 1024)
                         throw new InvalidDataException();
@@ -195,12 +199,13 @@ namespace AIAssetHub.Editor
                         while (offset < bytes.Length) { int count = stream.Read(bytes, offset, bytes.Length - offset); if (count == 0) throw new InvalidDataException(); offset += count; }
                     }
                     using (var hash = System.Security.Cryptography.SHA256.Create())
-                        if (BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant() != item.sha256) throw new InvalidDataException();
+                        if (BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant() != item.sha256) { value.errorCode = "UNITY_SOURCE_CHANGED"; throw new InvalidDataException(); }
                     byte[] signature = { 137, 80, 78, 71, 13, 10, 26, 10 };
                     if (bytes.Length < 24) throw new InvalidDataException();
                     for (int index = 0; index < signature.Length; index++) if (bytes[index] != signature[index]) throw new InvalidDataException();
                     var destination = Path.Combine(Project, item.targetRelativePath); NoLinks(destination); NoLinks(destination + ".meta");
                     if (File.Exists(destination) || File.Exists(destination + ".meta")) { value.errorCode = "UNITY_TARGET_CONFLICT"; throw new IOException(); }
+                    value.errorCode = "UNITY_IMPORT_FAILED";
                     Directory.CreateDirectory(Path.GetDirectoryName(destination)); NoLinks(destination);
                     using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                     { value.copied = true; value.assetPath = item.targetRelativePath; output.Write(bytes, 0, bytes.Length); }
@@ -213,13 +218,13 @@ namespace AIAssetHub.Editor
                     value.guid = AssetDatabase.AssetPathToGUID(item.targetRelativePath);
                     if (string.IsNullOrEmpty(value.guid)) throw new InvalidDataException();
                     value.status = "succeeded";
+                    value.errorCode = null;
                 }
                 catch (Exception) { value.errorCode = value.errorCode ?? "UNITY_IMPORT_FAILED"; }
                 results.Add(value);
             }
             result.items = results.ToArray();
-            int successes = results.FindAll(i => i.status == "succeeded").Count;
-            result.status = successes == results.Count ? "succeeded" : successes == 0 ? "failed" : "partial";
+            result.status = Aggregate(results);
         }
         static bool ValidVector(float[] value, float bound, bool scale = false)
         {
@@ -248,6 +253,7 @@ namespace AIAssetHub.Editor
             foreach (var item in request.items)
             {
                 var value = new ItemResult { assetId = item.assetId, fileId = item.fileId, status = "failed" };
+                if (Cancelled(request)) { value.status = "cancelled"; value.errorCode = "UNITY_CANCELLED"; results.Add(value); continue; }
                 GameObject go = null;
                 try
                 {
@@ -283,8 +289,24 @@ namespace AIAssetHub.Editor
                 results.Add(value);
             }
             Undo.CollapseUndoOperations(group); result.items = results.ToArray();
-            int successes = results.FindAll(i => i.status == "succeeded").Count;
-            result.status = successes == results.Count ? "succeeded" : successes == 0 ? "failed" : "partial";
+            result.status = Aggregate(results);
+        }
+        static string Aggregate(System.Collections.Generic.List<ItemResult> items)
+        {
+            int successes = items.FindAll(i => i.status == "succeeded").Count;
+            return successes == items.Count ? "succeeded" : successes > 0 ? "partial" : items.Exists(i => i.status == "cancelled") ? "cancelled" : "failed";
+        }
+        static bool Cancelled(Request request)
+        {
+            var path = Path.Combine(DirectoryPath, request.id + ".cancel.json");
+            try
+            {
+                NoLinks(path); if (!File.Exists(path)) return false;
+                if (new FileInfo(path).Length > 1024) return false;
+                var value = JsonUtility.FromJson<Request>(File.ReadAllText(path));
+                return value.id == request.id && value.session == Session && value.token == Token && value.action == "cancel";
+            }
+            catch (Exception) { return false; }
         }
         static void Stop()
         {

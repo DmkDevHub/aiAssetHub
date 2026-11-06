@@ -3,7 +3,7 @@ import {computed,onBeforeUnmount,ref,watch} from 'vue';
 import {metadata} from '../services/metadata';
 type Target={id:string;projectPath:string;connected:boolean;playing?:boolean;compiling?:boolean};
 type Plan={planId:string;targetId:string;action:'import'|'place';projectPath:string;expiresAt:number;items:{assetId:string;fileId:string;targetRelativePath:string;sha256:string}[];issues:string[];scene?:string;position?:number[];rotation?:number[];scale?:number[]};
-type Operation={operationId:string;targetId:string;action:string;status:string;result:unknown;errorCode?:string;mayHaveSideEffects?:boolean};
+type Operation={operationId:string;targetId:string;action:string;status:string;result:unknown;errorCode?:string;mayHaveSideEffects?:boolean;cancelRequested?:boolean};
 const props=defineProps<{assetIds:readonly string[]}>();
 const targets=ref<Target[]>([]),target=ref(''),plan=ref<Plan|null>(null),operation=ref<Operation|null>(null),imported=ref<Operation|null>(null);
 const position=ref('0,0,0'),rotation=ref('0,0,0'),scale=ref('1,1,1'),name=ref('AI Asset Hub Sprite');
@@ -26,6 +26,7 @@ async function poll(){
  }catch{if(alive)error.value='Unity 작업 결과를 확인하지 못했습니다. 성공으로 간주하지 말고 상태를 다시 조회하세요.';if(timer)clearInterval(timer);timer=undefined;}
  finally{polling=false;}
 }
+function cancel(){if(!operation.value)return;const id=operation.value.operationId;return act(()=>metadata<Operation>('unity.cancel',{operation_id:id,confirmed:true}),r=>{if(operation.value?.operationId===id)operation.value=r;});}
 async function execute(){if(busy.value||!plan.value||!rights.value||!compatibility.value||plan.value.expiresAt*1000<Date.now())return;
  const reviewed=plan.value;busy.value=true;writing=true;error.value='';
  try{const r=await metadata<Operation>(reviewed.action==='import'?'unity.import':'unity.place',{plan_id:reviewed.planId,request_id:crypto.randomUUID(),confirmed:true,rights_confirmed:true,compatibility_confirmed:true});if(!alive)return;
@@ -56,7 +57,7 @@ async function execute(){if(busy.value||!plan.value||!rights.value||!compatibili
    <button type="button" :disabled="busy" @click="invalidate">Unity 계획 취소</button>
   </div>
   <p v-if="error" role="alert">{{error}}</p>
-  <div v-if="operation" role="status"><p>Unity 작업 {{operation.operationId}} · {{operation.status}}</p><p v-if="operation.mayHaveSideEffects">응답을 확정하지 못했습니다. 이미 적용되었을 수 있으므로 결과를 확인한 뒤 다시 계획하세요.</p><pre>{{JSON.stringify(operation.result,null,2)}}</pre><button type="button" @click="poll">Unity 작업 상태 조회</button></div>
+  <div v-if="operation" role="status"><p>Unity 작업 {{operation.operationId}} · {{operation.status}}</p><p v-if="operation.errorCode">{{operation.errorCode}}</p><p v-if="operation.cancelRequested">취소를 요청했습니다. 이미 처리한 항목은 유지되며 Editor 결과를 기다립니다.</p><p v-if="operation.mayHaveSideEffects">응답을 확정하지 못했습니다. 이미 적용되었을 수 있으므로 결과를 확인한 뒤 다시 계획하세요.</p><pre>{{JSON.stringify(operation.result,null,2)}}</pre><button type="button" @click="poll">Unity 작업 상태 조회</button><button v-if="['queued','unknown'].includes(operation.status)" type="button" :disabled="busy" @click="cancel">Unity 작업 취소 요청</button></div>
  </details>
 </template>
 <style scoped>.unity-transfer{margin-block:.5rem;overflow-wrap:anywhere}.unity-transfer label{display:block;margin:.4rem}fieldset{margin-block:.5rem}pre{white-space:pre-wrap}button{margin:.25rem}</style>

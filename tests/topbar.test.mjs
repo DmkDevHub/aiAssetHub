@@ -2363,3 +2363,11 @@ test('Unity stale preview is discarded when asset selection changes and failures
  props.value={assetIds:['new']};await nextTick();finish({ok:true,data:{planId:'OLD',items:[],action:'import',expiresAt:Date.now()/1000+300}});await new Promise(r=>setImmediate(r));await nextTick();
  assert.equal(document.querySelector('.unity-plan'),null);assert.equal(metaButton('검토한 임포트 실행'),undefined);assert.equal(calls.length,2);
 });
+
+test('Unity history recovers queued operations and cancellation stays requested until an actual result',async()=>{
+ const calls=[];const queued={operationId:'owned-operation',targetId:'target',action:'import',status:'queued',result:null};
+ await mountMetadataComponent('UnityView',{},async(command,args)=>{calls.push(args);if(args.method==='unity.targets')return {ok:true,data:{items:[]}};if(args.method==='unity.operations')return {ok:true,data:{items:[{...queued,createdAt:'actual-time'}],next_cursor:null}};if(args.method==='unity.cancel'){assert.equal(args.params.confirmed,true);return {ok:true,data:{...queued,cancelRequested:true}};}if(args.method==='unity.status')return {ok:true,data:{...queued,cancelRequested:true}};throw new Error('unexpected');});
+ dispatch(metaButton('Unity 작업 기록 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.body.textContent,/owned-operation/);
+ dispatch(metaButton('이 작업 취소 요청'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.match(document.querySelector('.unity-settings pre').textContent,/"status": "queued"/);assert.match(document.querySelector('.unity-settings pre').textContent,/"cancelRequested": true/);assert.equal(calls.length,4);
+});

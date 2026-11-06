@@ -211,7 +211,7 @@
 - [x] **R09-04** 실제 PNG를 Unity `Assets/AIAssetHub/`에 복사·임포트. **검증:** Core4개(0.490초)·실제 Unity batchmode 임포트(15.139초) 통과. 명시 승인/권리·호환 재확인·실행 직전 등록/해시/충돌·중복 요청/계획 소비·Core 작업 영속화·AssetDatabase Sprite/GUID 및 원본 바이트 보존 확인. 화면 미검증.
 - [x] **R09-05** Sprite GameObject 생성 및 씬 위치 배치. **검증:** Core5개(0.630초)·실제 Unity 배치 임포트→Sprite 생성/XYZ·회전/스케일·dirty·Undo 삭제(15.836초) 통과. 활성 씬/리비전/세션 변경·플레이/Prefab 차단·자동 저장 없음. Unity6.6 obsolete InstanceID 대신 64비트 EntityId 사용, 식별자는 세션 한정. GUI 미검증.
 - [x] **R09-06** MCP `list_unity_targets/preview/import/place/get_operation_status` 연동. **검증:** Node165개·Core285개(33.805초)·타입/Vite/fmt 통과. 공식 SDK 별도 stdio Host의 도구/승인 누락 거부·기존5도구/버전 회귀, 갤러리 미리보기→권리/호환 검토→명시 실행·선택 변경/늦은 응답 차단 DOM 검증. 실제 Host→Editor 통합은 R09-08, 특정 제품 Host/GUI 미검증.
-- [ ] **R09-07** 다건 선택/취소/충돌·실패 상세 처리. **확인:** 일부 실패 정확히 보고.
+- [x] **R09-07** 다건 선택/취소/충돌·실패 상세 처리. **검증:** Node166개(7.880초)·Core287개(35.768초), 타입/Vite/fmt 및 실제 Unity 다건 부분 성공/충돌 보존·2개 취소/미복사·Undo(16.757초) 통과. 취소 요청/실제 취소 분리·불명 상태/재시작 이력·응답 상한·원자 ACL 교체 확인. 실제 GUI·장시간/대량 성능은 미검증.
 - [ ] **R09-08** Unity + 설치본 통합 시연. **확인:** 자연어 명령→에셋 검색→임포트→배치까지 완료.
 
 **마일스톤 J:** **최상위 목적 2** — 자연어 명령으로 실제 Unity Editor 개발 작업 수행.

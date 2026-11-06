@@ -20,6 +20,8 @@ fn metadata_allowed(label: &str, method: &str) -> bool {
                 | "unity.import"
                 | "unity.place"
                 | "unity.status"
+                | "unity.cancel"
+                | "unity.operations"
                 | "catalog.smart.list"
                 | "catalog.smart.get"
                 | "catalog.smart.save"
