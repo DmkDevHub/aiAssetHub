@@ -1,6 +1,6 @@
 # AI Asset Hub v0.5
 
-> 상태: **M00~M08·M08A~E 완료 / M08F 이후 후속** · 작성 기준: 2026-10-30 · 언어: 한국어
+> 상태: **M00~M09 구현·내부/설치 검증 완료 / M10 후속** · 작성 기준: 2026-11-06 · 언어: 한국어
 > 이 문서는 새로운 v0.5 설계의 출발점이다. 별도의 과거 설계 문서를 상속하거나 참조하지 않는다.
 
 ## 프로젝트 한 줄 정의
@@ -71,15 +71,15 @@ AI-Asset-Hub/
 ├─ src/                    # Vue 화면·테마·라우터
 ├─ src-tauri/              # Tauri 셸·NSIS 설치 설정
 ├─ python-core/            # Python Core 진입점·health 조회
-├─ unity-package/          # Unity Editor 패키지 (향후 구현)
-├─ db/                     # 스키마·마이그레이션 (향후 구현)
+├─ unity-package/          # Unity 6000.6 Editor 로컬 UPM 커넥터
+├─ db/                     # Python Core 소유 스키마·마이그레이션
 ├─ scripts/                # 개발 실행 사전 검사
 └─ tests/                  # 개발 명령·내부 컴포넌트 테스트
 ```
 
 ## 현재 상태와 다음 행동
 
-2026-11-05 현재 M00~M08 및 확장 M08A~I의 구현·내부/설치 검증은 ROADMAP/TEST_PLAN 기록을 따른다. 다음 구현 후보는 R09-01 Unity Editor 최소 연결이며 D-030에 따라 M09→M10 순서로 진행한다. 아래 개별 단계 설명은 개발 당시 이력으로 보존한다.
+2026-11-06 현재 M00~M09 및 확장 M08A~I의 구현·내부/설치 검증은 ROADMAP/TEST_PLAN 기록을 따른다. 다음 구현 후보는 R10-01이며 후속 지시를 받기 전 진행하지 않는다. M09는 실제 Unity6000.6.8f1 무화면 Editor와 공식 SDK reference Host에서 PNG 임포트/Sprite 배치·Undo·취소/부분 실패·재시작 보존을 확인했다. 특정 Codex/Claude 제품·LLM 추론·GUI·다른 Unity 버전·대규모 성능은 미검증이다. 아래 개별 단계 설명은 개발 당시 이력으로 보존한다.
 
 - `M00`: Windows 앱·개발 실행, 라이브러리/화면 설정 이동, 다크/라이트 테마 전환과 첫 NSIS 개발 설치본 검증 완료. 에셋 관리·분석 기능은 이후 작업 범위다.
 - `R01-01`: 상단 검색어 입력·초기화, 실제 화면 경로 표시와 설정 이동 구현. 검색어는 화면 이동 중 유지하며 실제 에셋 필터링은 후속 M04 범위다.
@@ -106,3 +106,13 @@ M08G: [일괄·교환·중복 계약](docs/BATCH_METADATA.md) 기준 전후 검�
 M08H: [MCP 공개 계약](docs/MCP.md)의 선택 버전·분류/그룹/패키지/제작 필터·실제 구성/기술/종속 조회와 [Unity 계획 메타데이터](docs/UNITY_INTEGRATION.md)를 구현했다. 내부438개 검사와 새 NSIS/격리 무화면 설치의 최신·레거시 reference Host/인증·감사·종료·재시작·원본 보존/제거 검증을 통과했다. 라이선스/호환은 미확인을 유지하고 실제 열린 Editor 연결·복사·임포트/배치는 M09 범위다. GUI·특정 제품 Host·대규모 성능은 미검증이다.
 
 M08I: [스마트 그룹·추천 계약](docs/SMART_DISCOVERY.md)에 따라 저장 조건/참조 교집합·동적 탐색과 공개 메타데이터/유효 저장 벡터 기반 추천을 제공한다. 추천은 미확정이며 관계 초안 추가 뒤 명시 저장으로 확정한다. 내부454개 검사와 무화면 설치/Core/MCP·동적 결과/관계/재시작/원본 보존·제거 검증을 통과했다. 실제 모델 추천 품질·시각·대규모 성능은 미검증이며 새 모델/임베딩을 자동 실행하지 않는다.
+
+## Unity 사용
+
+1. 앱 상단 **Unity 연결**에 표시된 실제 `unity-package/package.json`을 Unity Package Manager의 **Add package from disk**로 등록한다. 현재 검증 대상은 Windows Unity6000.6.8f1이다.
+2. 프로젝트를 열고 앱의 **프로젝트 접근 허용**으로 프로젝트 루트를 등록한다. MCP는 프로젝트를 등록하거나 Editor를 열 수 없다.
+3. 갤러리에서 단일 PNG 에셋을 선택하고 **Unity 임포트·배치**에서 연결 대상을 조회한다. 임포트 미리보기의 파일ID·목적지를 확인하고 권리/호환 검토를 승인해 실행한다.
+4. 실제 임포트 결과를 받은 뒤 위치/회전/크기와 이름을 지정해 Sprite 배치 미리보기·승인을 진행한다. **씬은 자동 저장하지 않는다.** Editor에서 확인·저장하며 씬 배치는 Undo를 지원한다.
+5. 재시작 후에는 Unity 연결의 **작업 기록 조회**를 사용한다. unknown은 이미 적용되었을 수 있고 취소 요청은 완료와 다르므로 실제 항목 결과를 조회한다.
+
+MCP Host는 기존 검색 도구 뒤 `list_unity_targets`→`preview_unity_import`→`import_assets_to_unity`→`get_operation_status`→`preview_unity_placement`→`place_assets_in_unity`를 사용한다. 실제 인자·지원 한도·부분 실패/취소·세션 식별자 정책은 [Unity 계약](docs/UNITY_INTEGRATION.md)과 [MCP 계약](docs/MCP.md)을 따른다. 원본 변경·덮어쓰기·AI 자동 호출은 하지 않는다.

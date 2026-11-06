@@ -30,7 +30,7 @@ def png_snapshot(path):
         after=path.stat()
         if (before.st_size,before.st_mtime_ns,before.st_ino)!=(after.st_size,after.st_mtime_ns,after.st_ino):raise ValueError()
         return dict(size=before.st_size,mtimeNs=str(before.st_mtime_ns),sha256=hashlib.sha256(raw).hexdigest())
-    except (OSError,ValueError,Image.DecompressionBombError,Image.DecompressionBombWarning):raise LibraryError('UNITY_SOURCE_INVALID') from None
+    except (OSError,ValueError,SyntaxError,Image.DecompressionBombError,Image.DecompressionBombWarning):raise LibraryError('UNITY_SOURCE_INVALID') from None
 
 
 class UnityOperations:
@@ -181,7 +181,8 @@ class UnityOperations:
             if status=='queued' and time.time()>stored['deadline']:
                 status='unknown';self.db.execute("UPDATE unity_operations SET status='unknown' WHERE id=?",(row[0],))
         return dict(operationId=row[0],targetId=plan['targetId'],action=plan['action'],status=status,
-            result=stored['result'],errorCode=error,cancelRequested=stored.get('cancelRequested',False),mayHaveSideEffects=status=='unknown',modelCalled=False)
+            result=stored['result'],errorCode=error,cancelRequested=stored.get('cancelRequested',False),
+            mayHaveSideEffects=status in ('queued','unknown') or bool(stored['result'] and any(i.get('copied') or i.get('objectId') for i in stored['result'].get('items',[]))),modelCalled=False)
 
     def cancel(self,params):
         from .unity_connector import write_private
@@ -226,6 +227,8 @@ class UnityOperations:
             if item.get('assetId')!=expected['assetId'] or item.get('fileId')!=expected['fileId'] or item.get('status') not in ('succeeded','failed','cancelled'):raise LibraryError('UNITY_INVALID_RESULT')
             if item.get('assetPath') and item['assetPath']!=expected['targetRelativePath']:raise LibraryError('UNITY_INVALID_RESULT')
             guid=item.get('guid') or None
+            if guid is not None and (not isinstance(guid,str) or not re.fullmatch('[a-f0-9]{32}',guid)):raise LibraryError('UNITY_INVALID_RESULT')
+            if item.get('copied') is True and item.get('assetPath')!=expected['targetRelativePath']:raise LibraryError('UNITY_INVALID_RESULT')
             if item['status']=='succeeded' and (not isinstance(guid,str) or not re.fullmatch('[a-f0-9]{32}',guid) or item.get('assetPath')!=expected['targetRelativePath']):raise LibraryError('UNITY_INVALID_RESULT')
             safe.append(dict(assetId=item['assetId'],fileId=item['fileId'],status=item['status'],assetPath=item.get('assetPath') or None,guid=guid,
                 copied=item.get('copied') is True,errorCode=None if item['status']=='succeeded' else item.get('errorCode') if item.get('errorCode') in errors else 'UNITY_ITEM_FAILED'))
@@ -238,6 +241,7 @@ class UnityOperations:
                     import math
                     vector=item.get(key)
                     if not isinstance(vector,list) or len(vector)!=3 or any(type(x) not in (float,int) or not math.isfinite(x) for x in vector):raise LibraryError('UNITY_INVALID_RESULT')
+                    if key=='rotation' and any(x<-.001 or x>360.001 for x in vector):raise LibraryError('UNITY_INVALID_RESULT')
                     if key!='rotation' and any(abs(a-b)>max(.0001,abs(b)*1e-5) for a,b in zip(vector,plan[key])):raise LibraryError('UNITY_INVALID_RESULT')
                 safe[-1].update({key:item[key] for key in ('objectId','entityId','objectName','scene','sceneHandle','position','rotation','scale','sceneDirty','sceneSaved')})
         derived='succeeded' if all(i['status']=='succeeded' for i in safe) else 'partial' if any(i['status']=='succeeded' for i in safe) else 'cancelled' if any(i['status']=='cancelled' for i in safe) else 'failed'

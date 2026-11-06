@@ -55,3 +55,27 @@ Unity를 1차 구현하고 Godot/Unreal/Blender 등은 **확장 가능성만 확
 
 ## 실증 시나리오
 - 실제 로컬 PNG가 분석·검색되며 Codex가 MCP로 선택 → 지정된 Unity 프로젝트에 임포트 → 씬에 배치 → Unity Editor UI에서 오브젝트 확인 → MCP 결과에 같은 파일과 오브젝트가 표시된다.
+
+## M09 구현 계약 (D-035, 2026-11-06)
+
+### 설치와 연결
+Windows Unity6000.6.8f1에서 실제 검증하며 패키지의 최소 버전은 6000.6이다. 다른 Unity 버전·OS는 미검증이다. 설치본은 `unity-package/package.json`과 Editor 코드를 동봉한다. 앱 상단 **Unity 연결**에 표시한 실제 package.json을 Unity Package Manager의 **Add package from disk**로 등록하고 프로젝트를 연다. 앱에서 프로젝트 루트 경로를 입력해 **프로젝트 접근 허용**을 실행한다. 프로젝트나 패키지를 자동 설치·열기·수정하지 않는다. 연결 조회는 허용한 최대10개 프로젝트만 탐색하며 최근10초 이내 Editor heartbeat를 확인한다. 상태의 PID·버전·프로젝트·씬은 Editor가 게시한 실제 값이다.
+
+`Library/AIAssetHub`의 디렉터리/각 JSON 파일은 현재 Windows 사용자와 SYSTEM만 허용한 보호 DACL을 사용한다. Editor 세션마다 새 UUID/256비트 토큰을 생성하며 Core는 허용 프로젝트·전체 부모의 리파스/링크·프로젝트 버전·DACL·시각/세션을 검증한다. 파일 이름은 실제 요청 UUID만 사용한다. request/result 최대16KiB, 요청 실행 기한60초, 메인 스레드 tick은0.1초 간격이다. 기존 결과/started 표식은 재실행하지 않는다. descriptor는 보호된 임시 파일을 MoveFileEx로 원자 교체해 ACL 병합 경합을 피한다. 네트워크 포트·Editor 프로세스 시작 API·외부 URL 접속은 없다. 같은 OS 사용자 권한으로 이미 실행되는 악성 프로그램을 격리하는 별도 보안 경계는 아니다.
+
+### 임포트와 배치
+미리보기는 최대20개의 **source 역할 파일이 하나인 단일 PNG 에셋**만 받는다. 다른 형식/다중 구성/의존성/애니메이션 PNG·프로젝트 내부 원본은 거부한다. 파일당16MiB·작업당64MiB·이미지16777216픽셀 한도다. 실제 fileId로 `Assets/AIAssetHub/<fileId>.png`를 구성하며 파일·`.meta`·디렉터리/리파스 충돌을 거부한다. 명시적 계획에서만 PNG를 읽어 검증·해시하고 카탈로그/원본/AI를 변경하지 않는다. 검토 계획은 Core settings에 최대20개, 5분간 보존한다. Core 응답 예상 크기가12KB를 넘으면 대상을 줄이도록 UNITY_LIMIT를 반환한다. 긴 씬 경로/이름의 다건 배치는 이 응답 한도로20개보다 적게 제한될 수 있다.
+
+실행은 `confirmed`, `rights_confirmed`, `compatibility_confirmed`가 모두 true여야 한다. unknown 권리/호환을 허가/실제 성공으로 바꾸지 않는다. 세션·등록/구성·원본 해시·목적지를 재검사하고 하나의 계획은 한 번만 소비한다. 호출자 request_id 재사용은 같은 작업을 반환하며 다른 계획에 재사용할 수 없다. Core가 기존 unity_operations 테이블에 첫 에셋ID와 배치 전체 계획/결과 snapshot을 영속 기록한다. 새 DB 마이그레이션이나 Unity의 SQLite 쓰기는 없다. Editor는 원본을 다시 해시하고 FileMode.CreateNew로 복사한 뒤 AssetDatabase 동기 임포트·Sprite 모드 재임포트·실제 Sprite/GUID를 검증한다. 기존 파일/.meta를 덮어쓰거나 원본을 이동/삭제하지 않는다.
+
+배치는 **현재 같은 Editor 세션에서 성공한 임포트 항목**만 사용한다. 미리보기 시 활성 씬 경로/handle/변경 revision을 묶고 실행 시 Core와 Editor 양쪽에서 확인한다. 플레이/컴파일/Prefab stage·씬 변경 시 거부한다. XYZ 위치/도 단위 Euler 회전/로컬 크기·객체 이름을 받고 현재 활성 씬 루트에 SpriteRenderer GameObject를 만든다. 부모 지정/프리팹/3D는 이 P0에 없다. Undo 그룹을 등록하고 씬을 dirty로 남긴다. **씬 저장은 구현하지 않으며 사용자가 Editor에서 저장한다.** 실제 `EntityId.ToULong`의 64비트 값을 손실 없는 문자열로 반환하며 `session:<uuid>:entity:<id>`는 해당 Editor 세션의 식별자다. 저장된 영구 씬 오브젝트 ID나 재시작 후 객체 존재 보장이 아니다. [Unity EntityId 이전 안내](https://docs.unity.com/en-us/engine/6000.6/manual/scripting/get-started/instanceid-to-entityid-migration).
+
+### 상태·취소·재시작
+MCP의 실제 이름/인자는 [MCP](MCP.md)의 표를 따른다. 갤러리에서 선택→Unity 대상 조회→미리보기→권리/호환 검토→실행, 결과 조회 후 Sprite 배치 미리보기/승인을 제공한다. Core의 `unity.*`는 Tauri main 창 고정 허용 목록으로 제한하고 MCP에는 프로젝트 등록/해제를 공개하지 않는다.
+
+`queued`는 승인 요청 전달, `succeeded/failed/partial/cancelled`는 검증한 Editor 결과다. 항목별 복사 여부·실제 assetPath/GUID·객체ID/transform·고정 오류를 반환한다. 전송/프로세스 단절·기한 초과의 `unknown`은 이미 적용되었을 수 있으며 자동 재전송/재분석/삭제하지 않는다. `cancelRequested`는 다음 항목부터 중지하는 요청이며 실제 취소 성공과 구분한다. 이미 임포트/배치한 항목은 남고, 실패 복사 흔적은 `copied=true`와 경로로 보고한다. 에셋 파일 임포트 자체의 Undo 삭제는 하지 않으며 씬 배치는 Unity Undo를 지원한다.
+
+앱 재시작 후 Unity 연결의 **작업 기록 조회**에서 실제 작업ID를 다시 조회한다. terminal 결과는 Core DB에서 보존하며 새 Core 세션에서도 읽을 수 있다. 진행 요청을 자동 재실행하지 않는다. Editor 종료/도메인 reload는 새 세션이므로 기존 미완료 요청 결과가 확인되지 않으면 unknown이다. 프로젝트 접근 해제는 신규 계획/실행/채널 접근을 차단하며 이미 승인·전달된 작업을 되돌리거나 자동 삭제하지 않는다. 해당 작업의 종료 결과를 먼저 조회하거나 취소한 뒤 해제해야 한다.
+
+### 자동 검증 경계
+`scripts/verify-unity.py`는 소스 Core+실제 batchmode Editor, `scripts/verify-unity-host.py`는 설치된 Core·stdio Bridge·공식 SDK reference Host·동봉 패키지·실제 batchmode Editor를 검사한다. 테스트 전용 harness만 격리 프로젝트에 복사하며 pause/finish 표식은 제품 코드에서 읽지 않는다. 합성 PNG 검색→명시 계획/승인→실제 임포트/GUID→Sprite/위치·회전·크기/dirty→Undo, 부분 실패/충돌 보존·다건 취소·Core 재시작/감사/원본 SHA256을 검증한다. [batchmode 공식 문서](https://docs.unity.com/en-us/engine/6000.6/manual/unity-editor/command-line-arguments/editor). 특정 Codex/Claude 제품의 개인 설정·LLM 추론·사용자 씬·GUI/OS 배치/다른 Unity 버전·대규모 성능은 검증하지 않는다. 위 과거 UI 실증 문구보다 D-019의 내부 자동화를 우선한다.

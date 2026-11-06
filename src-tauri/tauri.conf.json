@@ -30,7 +30,11 @@
     "targets": ["nsis"],
     "icon": ["icons/icon.ico"],
     "externalBin": ["binaries/ai-asset-hub-core"],
-    "resources": { "binaries/core/ai-asset-hub-core/_internal/": "_internal/" },
+    "resources": {
+      "binaries/core/ai-asset-hub-core/_internal/": "_internal/",
+      "../unity-package/package.json": "unity-package/package.json",
+      "../unity-package/Editor/": "unity-package/Editor/"
+    },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
       "nsis": {

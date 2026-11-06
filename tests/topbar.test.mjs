@@ -2371,3 +2371,14 @@ test('Unity history recovers queued operations and cancellation stays requested 
  dispatch(metaButton('이 작업 취소 요청'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.match(document.querySelector('.unity-settings pre').textContent,/"status": "queued"/);assert.match(document.querySelector('.unity-settings pre').textContent,/"cancelRequested": true/);assert.equal(calls.length,4);
 });
+
+test('Unity placement uses the actual import operation and changing transforms requires renewed review',async()=>{
+ const calls=[];const plan={planId:'plan',targetId:'target',action:'import',projectPath:'owned',expiresAt:Date.now()/1000+300,items:[],issues:[]};
+ await mountMetadataComponent('UnityTransfer',{assetIds:['asset']},async(command,args)=>{calls.push(args);if(args.method==='unity.targets')return {ok:true,data:{items:[{id:'target',projectPath:'owned',connected:true}]}};if(args.method==='unity.preview_import')return {ok:true,data:plan};if(args.method==='unity.import')return {ok:true,data:{operationId:'actual-import',targetId:'target',action:'import',status:'succeeded',result:{}}};if(args.method==='unity.preview_place'){assert.equal(args.params.import_operation_id,'actual-import');return {ok:true,data:{...plan,planId:'place',action:'place',position:args.params.position,rotation:args.params.rotation,scale:args.params.scale,scene:''}};}if(args.method==='unity.place')return {ok:true,data:{operationId:'actual-place',targetId:'target',action:'place',status:'failed',result:{errorCode:'UNITY_SCENE_CHANGED'}}};throw new Error('unexpected');});
+ const click=async text=>{dispatch(metaButton(text),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();};
+ const approve=async()=>{for(const checkbox of document.querySelectorAll('.unity-plan input[type="checkbox"]')){checkbox.checked=true;dispatch(checkbox,new Event('change',{bubbles:true}));}await nextTick();};
+ await click('Unity 대상 조회');await metaField('Unity 대상','target');await click('PNG 임포트 미리보기');await approve();await click('검토한 임포트 실행');
+ await metaField('위치 XYZ','2,3,0');await click('Sprite 배치 미리보기');assert.equal(metaButton('검토한 배치 실행').disabled,true);await approve();
+ await metaField('크기 XYZ','2,2,1');assert.equal(document.querySelector('.unity-plan'),null);assert.equal(calls.filter(c=>c.method==='unity.place').length,0);
+ await click('Sprite 배치 미리보기');await approve();await click('검토한 배치 실행');assert.match(document.querySelector('.unity-transfer [role="status"]').textContent,/actual-place.*failed/);assert.match(document.querySelector('.unity-transfer [role="status"]').textContent,/UNITY_SCENE_CHANGED/);
+});

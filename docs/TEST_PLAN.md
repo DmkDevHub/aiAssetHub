@@ -1,5 +1,33 @@
 # TEST_PLAN — 기능 완료와 설치본 수용 테스트
 
+## M09 — Unity 실제 실행·설치본 통합 (2026-11-06, D-035)
+
+사용자 요청으로 R09-01~08 전체를 순차 구현했다. 코드 변경은 Core의 unity_connector/targets/operations/api·MCP bridge/broker/query/audit/admin, Tauri의 main 명령/내부 프로세스 두 허용 목록, Vue Unity 연결·갤러리 전송/작업 이력, unity-package Editor 전용 UPM, 패키징·검증 harness와 관련 문서다. 새 제품 의존성·DB 마이그레이션은 없다. 실제 사용자 DB/원본·개인 Host 설정을 읽거나 변경하지 않았으며 격리 fixture만 사용했다.
+
+| 검사 | 실제 명령 | 최종 결과 |
+|---|---|---|
+| Node/Core/타입/Vite | `npm run check` | Node167개 6.538초·Core288개 33.975초·타입/Vite 481ms 통과 |
+| Rust 형식/정적 검사 | `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`; `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | 통과, Clippy 1.70초 |
+| 실제 파이프/동봉 Core | `cargo test --manifest-path src-tauri/Cargo.toml --lib --locked -- --include-ignored --test-threads=1` | 16개 6.48초, ignored0·실제 unity.targets 및 승인 없는 unity.import 거부 포함 |
+| 설치본 빌드 | `npm run build:installer` | Python/SQLite/MCP·Unity 패키지 동봉 NSIS, release 컴파일49.30초·설치 파일25091542바이트 |
+| 설치·reference Host·실제 Editor·기존 회귀·제거 | `./scripts/verify-installer.ps1 -Mcp -Multiformat -BulkMetadata -SmartDiscovery -Unity -UnityEditor 'C:\Program Files\Unity\Hub\Editor\6000.6.8f1\Editor\Unity.exe'` | 최종 전부 통과. 실제 Host/Editor 구간19.347초, 기존 설치 보존 |
+| 보조 검증 | PowerShell Parser·Python AST·변경 문서 로컬 링크·`git diff --check` | PS 오류0·harness2개 구문 통과·로컬 링크47개 누락0·공백 오류0 |
+
+환경은 Node24.22.1·npm11.6.2·CPython3.13.17·Unity6000.6.8f1이다. 세션 PATH에 npm/Python이 없어서 Store alias를 실행하지 않고 `.artifacts`에 npm CLI만 준비했다(제품 의존성 변경 없음). `AI_ASSET_HUB_PYTHON='C:\Program Files\Python313\python.exe'`, Rust 패키지 검사의 `AI_ASSET_HUB_SIDECAR_DIR`는 실제 `src-tauri/binaries/core/ai-asset-hub-core` 절대 경로다. Python unittest는 기본 CPython에 기존 전용 site-packages를 로드한다.
+
+### 실제 동작 증거와 격리 경계
+- 새 설치본 Core→별도 stdio Bridge→공식 Python SDK Client(협상2026-07-28, 12개 도구)→동봉 C# 패키지→실제 배치 Editor 프로세스로 검증했다. Host의 scripted 시나리오는 “숲 배경 에셋을 (2,3,0)에 배치”이며 실제 검색 결과 UUID를 사용한다. 외부 제품의 자연어 모델을 실행한 시험은 아니다.
+- 합성 PNG 5개를 등록/명시 스캔한 뒤 숲 검색/메타데이터/권리 unknown 확인→미승인 거부→5분 계획 승인→실제 AssetDatabase Sprite/GUID→XYZ(2,3,0), 회전Z30도, 크기(2,2,1) 배치를 확인했다. 별도 Editor harness가 Sprite 참조/transform·dirty·Undo 후 객체0개를 직접 assertion하며 씬을 저장하지 않았다.
+- 같은 프로세스에서 다건 성공1/충돌1과 기존 목적지 SHA256 보존, 2개 취소 후 파일 미생성, 취소 요청/완료 분리, 만료/세션/씬 revision·재분석 없는 상태 조회, Core 재시작 뒤 4개 실제 작업 결과/대상 등록 보존을 검증했다. 끊어진 실제 Windows junction을 Editor의 NoLinks가 거부했다. 모든 원본 fixture SHA256·분석 job/임베딩 상태를 보존하고 감사에 경로/토큰/명령 원문이 없는 것을 확인했다.
+- 기존 최신/2025-11-25 레거시 MCP의 공개/개인정보·인증/쓰기 거부, 다중형식 파서18건/모의 loopback 공급자10회, 일괄·JSON/CSV·해시·스마트 그룹/추천/관계·재시작 검증도 최종 설치본에서 통과했다. 이 모의10회는 실제 모델이 아니며 실제 외부/유료 호출은0이다. NSIS의 기존 Korean LangString6040 경고는 남아 있고 실제 설치 마법사 배치는 미검증이다.
+
+산출 증거는 `.artifacts/m09-final-check.txt`, `m09-rust-tests.txt`, `m09-installer-build-final.txt`, `m09-installed-verification.txt`, `m09-installed-unity-host.json`이다. 마지막 Host 보고 시각은 2026-11-06T02:38:01.686502Z(한국11:38)이며 Core SHA256=`c0c7ada5caeeab88b9939c900444bda75f2c4a6f52e15f415304a4dfbd12fe21`, 동봉 Connector SHA256=`0e9f95a03dc154e3f2339b59475a4a4d8711b074e0ec20acce6021a5694ef883`, NSIS SHA256=`aa27bb8d03d634b5d916f00dec115f9a529c8f36e19949f3a371f29c2d4fde1c`다.
+
+### 실패 수정 이력·미검증 범위
+초기 Mono ACL API/파일 Replace의 ACL 플래그 때문에 연결이 거부되어 Win32 DACL·소유자 설정/MoveFileEx 원자 교체로 수정했다. Unity6.6의 obsolete InstanceID 컴파일 오류는 EntityId API로 교체했다. 다건 harness의 asset.list 첫 페이지만 읽던 문제는 모든 커서 순회로 수정했다. Node/Core의 예전 읽기 전용 기대와 Rust의 readOnly=true 기대를 실제 승인 쓰기 계약으로 갱신했고, 추가 실프로세스 검증에서 발견한 CoreProcess Unity 명령 누락도 고정 허용 목록에 연결한 뒤16개 전부 재통과했다. 손상 PNG CRC·result GUID/복사 흔적/회전 수치 투영도 검증한다. 초기 실패를 통과로 취급하지 않았으며 최종 설치본은 소유자 보강까지 재빌드/재검증했다.
+
+실제 GUI/OS 시각 배치·개인 Codex/Claude 설정/LLM 추론·일반 사용자 프로젝트/씬·다른 Unity 버전/OS·대량/장시간 성능·깨끗한 PC/정식 서명/기존 설치 업그레이드는 미검증이다. PNG 외 임포트/프리팹/부모 지정·씬 자동 저장은 구현 범위가 아니다. 장기 객체 ID를 주장하지 않으며 EntityId는 Editor 세션에 한정한다. M10은 진행하지 않았다. 작업 커밋은 R09-01 `e8d0c5f`, R09-02 `85e4eb8`, R09-03 `fae0775`, R09-04 `e1c3512`, R09-05 `5fa33d1`, R09-06 `dda9811`, R09-07 `9671f7e`, R09-08은 이 기록과 함께 생성한 커밋을 따른다. 원격 push 없음.
+
 ## 검증 정책 (D-019, 2026-10-28 변경)
 
 - 테스트는 내부 자동화로 수행한다. 실제 앱·브라우저 화면을 열어 직접 조작하거나 Computer Use/브라우저 제어 도구로 클릭·키보드 입력·화면 캡처 검증을 하지 않는다. 사용자 화면의 포커스를 변경하지 않는다.

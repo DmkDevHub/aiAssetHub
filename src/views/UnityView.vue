@@ -3,10 +3,11 @@ import {onBeforeUnmount,onMounted,ref} from 'vue';
 import {metadata} from '../services/metadata';
 type Target={id:string;projectPath:string;connected:boolean;editorVersion?:string;scene?:string;playing?:boolean;compiling?:boolean;errorCode?:string};
 const targets=ref<Target[]>([]),path=ref(''),busy=ref(false),error=ref('');
+const packagePath=ref<string|null>(null);
 type Operation={operationId:string;status:string;action:string;createdAt:string};
 const operations=ref<Operation[]>([]),cursor=ref<string|null>(null),result=ref<unknown>(null);
 let alive=true;onBeforeUnmount(()=>{alive=false;});
-async function load(){const r=await metadata<{items:Target[]}>('unity.targets',{});if(alive)targets.value=r.items;}
+async function load(){const r=await metadata<{items:Target[];connectorPackagePath?:string|null}>('unity.targets',{});if(alive){targets.value=r.items;packagePath.value=r.connectorPackagePath??null;}}
 async function act(action:()=>Promise<void>){if(busy.value)return;busy.value=true;error.value='';try{await action();}catch{if(alive)error.value='Unity 대상 정보를 처리하지 못했습니다. 프로젝트 경로와 연결 상태를 확인하세요.';}finally{if(alive)busy.value=false;}}
 async function register(){await metadata('unity.target.save',{project_path:path.value,confirmed:true});if(alive)path.value='';await load();}
 async function remove(id:string){await metadata('unity.target.remove',{target_id:id,confirmed:true});await load();}
@@ -19,6 +20,7 @@ onMounted(()=>{void act(load);});
  <section class="unity-settings" aria-labelledby="unity-title">
   <h1 id="unity-title">Unity 연결</h1>
   <p>Unity Package Manager에서 AI Asset Hub Editor Connector의 package.json을 로컬 패키지로 추가하세요. 현재 열린 프로젝트를 아래 허용 목록에 등록하면 연결 상태를 조회합니다.</p>
+  <p v-if="packagePath">로컬 패키지: <code>{{packagePath}}</code></p>
   <form @submit.prevent="act(register)"><label>Unity 프로젝트 경로 <input v-model="path" :disabled="busy" required maxlength="2048"></label><button :disabled="busy||!path.trim()">프로젝트 접근 허용</button></form>
   <button type="button" :disabled="busy" @click="act(load)">Unity 대상 새로 조회</button>
   <p v-if="error" role="alert">{{ error }}</p>

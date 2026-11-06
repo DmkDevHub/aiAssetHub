@@ -108,3 +108,9 @@ class UnityOperationsTests(unittest.TestCase):
         with patch('ai_asset_hub_core.unity_operations.time.time',return_value=plan['expiresAt']+100):
             status=service.status(dict(operation_id=queued['operationId']))
         self.assertEqual(status['status'],'unknown');self.assertTrue(status['mayHaveSideEffects']);self.assertIsNone(status['result'])
+
+    def test_broken_png_crc_is_a_redacted_source_error_without_operation(self):
+        project,directory,state,target,service=self.ready()
+        path=self.source/'나무.png';raw=bytearray(path.read_bytes());raw[raw.index(b'IDAT')+4]^=1;path.write_bytes(raw)
+        with self.assertRaisesRegex(LibraryError,'UNITY_SOURCE_INVALID'):service.preview_import(dict(target_id=target,asset_ids=[self.id]))
+        self.assertEqual(self.db.connection.execute('SELECT count(*) FROM unity_operations').fetchone()[0],0)

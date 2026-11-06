@@ -64,12 +64,14 @@ MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만
 - 응답에 분석 없음과 원본 파일 없음 상태를 구분해 제공. 임의 태그/설명을 생성해 사실처럼 반환하지 않는다.
 
 ## 실행 도구 계약
+M09에서는 기존5개 카탈로그 조회 응답/버전을 유지하고 별도7개 Unity 도구를 추가한다. list_unity_targets만 읽기 힌트이며 계획은 검토 상태 저장, get_operation_status는 Core 결과 기록 조정, import/place/cancel은 명시 승인 실행이다. 이 도구들의 readOnlyHint=false는 실제 기록/동작과 일치한다. 프로젝트 경로를 Host 인자로 받거나 등록하는 도구는 없다. 대상 allowlist는 데스크톱에서만 설정한다. 프로토콜·한도·실행/복구 경계는 [Unity 계약](UNITY_INTEGRATION.md)의 M09를 따른다.
+
 1. 자연어 명령 → AI Host가 `search_assets`로 후보를 검색.
 2. Host가 사용자 의도에 맞는 에셋 ID를 선택하며 필요 시 `get_asset` 호출.
 3. `preview_unity_import`에서 경로·타깃·지원·충돌·의존성 검사.
 4. 쓰기 작업은 Host/사용자 승인 정책을 통과한 `plan_id`로만 실행.
 5. Unity Editor가 작업 수행 → `get_operation_status`에서 **실제 결과** 수신.
-6. 성공 보고에는 `project`, `imported_asset_paths`, `created_object_ids`, `scene`, `warnings` 포함.
+6. 계획의 projectPath·실제 result.items의 assetPath/guid 또는 objectId/entityId/scene/transform·오류를 함께 보고한다. queued/unknown이나 cancelRequested만으로 성공/취소 완료를 주장하지 않는다.
 
 ## 보안·오류·권한
 - 읽기/쓰기 도구 구분; 디스크의 무제한 경로 접근 허용 금지.

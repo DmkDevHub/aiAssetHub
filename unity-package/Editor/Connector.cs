@@ -50,11 +50,17 @@ namespace AIAssetHub.Editor
         static readonly string Project = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
         static readonly string DirectoryPath = Path.Combine(Project, "Library", "AIAssetHub");
         static readonly string Session = Guid.NewGuid().ToString();
-        static readonly string Token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+        static readonly string Token = CreateToken();
         static double nextTick;
         static bool reported;
         static int sceneRevision;
         public static string MailboxPath => DirectoryPath;
+        static string CreateToken()
+        {
+            var bytes = new byte[32];
+            using (var random = System.Security.Cryptography.RandomNumberGenerator.Create()) random.GetBytes(bytes);
+            return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+        }
 
         static Connector()
         {
@@ -68,8 +74,15 @@ namespace AIAssetHub.Editor
         public static void NoLinks(string path)
         {
             for (var item = new DirectoryInfo(Path.GetFullPath(path)); item != null; item = item.Parent)
-                if ((item.Exists || File.Exists(item.FullName)) && (File.GetAttributes(item.FullName) & FileAttributes.ReparsePoint) != 0)
-                    throw new IOException("UNSAFE_PATH");
+            {
+                try
+                {
+                    // Existence helpers hide dangling reparse points; inspect attributes directly.
+                    if ((File.GetAttributes(item.FullName) & FileAttributes.ReparsePoint) != 0) throw new IOException("UNSAFE_PATH");
+                }
+                catch (FileNotFoundException) { }
+                catch (DirectoryNotFoundException) { }
+            }
         }
         static void Protect(string path, bool directory)
         {
@@ -84,7 +97,7 @@ namespace AIAssetHub.Editor
                 var sid = Marshal.PtrToStringUni(text);
                 var sddl = "O:" + sid + "D:P(A;;FA;;;SY)(A;;FA;;;" + sid + ")";
                 if (!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, 1, out descriptor, IntPtr.Zero) ||
-                    !SetFileSecurity(path, 0x80000004, descriptor)) throw new IOException();
+                    !SetFileSecurity(path, 0x80000004, descriptor) || !SetFileSecurity(path, 1, descriptor)) throw new IOException();
             }
             finally
             {

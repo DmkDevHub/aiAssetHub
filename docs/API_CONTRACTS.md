@@ -1,5 +1,22 @@
 # API_CONTRACTS — 내부 유스케이스 계약 초안
 
+## M09 — 실제 Unity 명령 (2026-11-06, D-035)
+앞부분 논리 표의 unity.preview_operation/execute_operation/get_operation은 실제 명령 이름이 아니다. 다음 고정 명령만 구현한다. Tauri metadata_request(main 창)와 CoreProcess의 두 허용 목록을 모두 통과하며 프로젝트 등록/해제·이력 목록은 MCP에 공개하지 않는다.
+
+| Core 명령 | 입력 | 결과/부작용 |
+|---|---|---|
+| unity.targets | 없음 | 허용 대상의 최근 Editor 상태·실재 connectorPackagePath |
+| unity.target.save | project_path, confirmed=true | 최대10개 프로젝트 접근 허용·중복ID 재사용 |
+| unity.target.remove | target_id, confirmed=true | 허용 해제, 원본/기존 결과/Unity 파일 삭제 없음 |
+| unity.preview_import | target_id, asset_ids | PNG 계획·해시·고유 목적지·5분 planId 저장 |
+| unity.preview_place | target_id, import_operation_id, position/rotation/scale, name | 실제 임포트 기반 활성 씬/리비전 계획 저장 |
+| unity.import / unity.place | plan_id, request_id, confirmed/rights_confirmed/compatibility_confirmed=true | 단일 계획 소비·영속 operationId·인증 Editor 요청 |
+| unity.status | operation_id | 실제 결과 검증/DB 보존, unknown을 성공으로 승격하지 않음 |
+| unity.cancel | operation_id, confirmed=true | 다음 항목 중단 요청·현재 실제 상태 |
+| unity.operations | after_id? | 최신10개 기록·다음 UUID 커서, 재실행 없음 |
+
+새 스키마 없이 settings의 unity.targets.v1·unity.plan.<UUID>와 기존 unity_operations를 사용한다. 작업 result_json은 plan/session/deadline/result/cancelRequested를 가진 Core 전용 snapshot이며 직접 외부 반환하지 않는다. 외부 결과는 operationId/targetId/action/status/result/errorCode/cancelRequested/mayHaveSideEffects/modelCalled만 투영한다. 원본 경로·토큰·예외 원문을 외부 결과나 감사에 포함하지 않으며, 실행에 필요한 sourcePath는 Core 내부 계획에만 보존한다. 경로/PNG/용량·권리/호환/응답 한도·Undo·부분 실패/미저장/취소 정책은 [Unity 계약](UNITY_INTEGRATION.md), MCP의 실제 도구/인자는 [MCP](MCP.md)를 따른다.
+
 > 앞부분 표는 최초 논리 설계이며 작업별 구현 계약은 뒤의 절을 따른다. M08E까지의 실제 UI 경계는 아래 catalog/metadata_request 절에 기록한다.
 
 ## Core 명령 (논리 API)

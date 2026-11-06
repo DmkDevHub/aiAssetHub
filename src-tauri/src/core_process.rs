@@ -223,6 +223,16 @@ impl CoreProcess {
         if !matches!(
             method,
             "library.register"
+                | "unity.targets"
+                | "unity.target.save"
+                | "unity.target.remove"
+                | "unity.preview_import"
+                | "unity.preview_place"
+                | "unity.import"
+                | "unity.place"
+                | "unity.status"
+                | "unity.cancel"
+                | "unity.operations"
                 | "library.unregister"
                 | "library.list"
                 | "library.scan"
@@ -618,7 +628,14 @@ mod tests {
     fn verify_model_registry(core: &mut CoreProcess) {
         let connection = core.library_request("mcp.connection", json!({})).unwrap();
         assert_eq!(connection["data"]["brokerReady"], true);
-        assert_eq!(connection["data"]["readOnly"], true);
+        assert_eq!(connection["data"]["readOnly"], false);
+        let targets = core.library_request("unity.targets", json!({})).unwrap();
+        assert_eq!(targets["ok"], true);
+        assert_eq!(targets["data"]["items"], json!([]));
+        let unapproved_unity = core
+            .library_request("unity.import", json!({"confirmed":false}))
+            .unwrap();
+        assert_eq!(unapproved_unity["error"]["code"], "INVALID_PARAMS");
         let audit = core.library_request("mcp.audit", json!({})).unwrap();
         assert_eq!(audit["data"]["items"], json!([]));
         let embedding = core.library_request("embedding.status", json!({})).unwrap();

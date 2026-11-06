@@ -1,4 +1,4 @@
-param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat, [switch]$BulkMetadata, [switch]$SmartDiscovery)
+param([string]$AnalysisModel = '', [switch]$Mcp, [switch]$Multiformat, [switch]$BulkMetadata, [switch]$SmartDiscovery, [switch]$Unity, [string]$UnityEditor = '')
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskNsis = Join-Path $taskRoot 'src-tauri/target/release/nsis/x64'
@@ -65,6 +65,14 @@ if ($Mcp) {
     $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
     & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-mcp.py') --core $taskInstalledCore --report (Join-Path $taskRoot '.artifacts/m08-installed-host.json')
     if ($LASTEXITCODE -ne 0) { throw 'Installed MCP reference Host verification failed.' }
+}
+if ($Unity) {
+    if (!(Test-Path -LiteralPath $UnityEditor -PathType Leaf)) { throw 'An explicit installed Unity Editor executable is required for headless verification.' }
+    $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'
+    $taskUnityPackage = Join-Path $taskInstallDir 'unity-package'
+    if ((Get-FileHash -LiteralPath (Join-Path $taskRoot 'unity-package/Editor/Connector.cs')).Hash -ne (Get-FileHash -LiteralPath (Join-Path $taskUnityPackage 'Editor/Connector.cs')).Hash) { throw 'Installed Unity connector hash mismatch.' }
+    & $taskHarnessPython -B (Join-Path $taskRoot 'scripts/verify-unity-host.py') --editor $UnityEditor --core $taskInstalledCore --package $taskUnityPackage --report (Join-Path $taskRoot '.artifacts/m09-installed-unity-host.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Installed Core/Host/Unity headless verification failed.' }
 }
 if ($Multiformat) {
     $taskHarnessPython = Join-Path $taskRoot '.artifacts/core-build-venv/Scripts/python.exe'

@@ -95,6 +95,16 @@ fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
         "exchange.apply",
         "duplicates.start",
         "source.get",
+        "unity.targets",
+        "unity.target.save",
+        "unity.target.remove",
+        "unity.preview_import",
+        "unity.preview_place",
+        "unity.import",
+        "unity.place",
+        "unity.status",
+        "unity.cancel",
+        "unity.operations",
     ] {
         assert!(metadata_allowed("main", method));
         assert!(!metadata_allowed("helper", method));
@@ -105,6 +115,8 @@ fn metadata_ipc_only_allows_main_window_and_fixed_metadata_methods() {
         "library.scan",
         "sql.execute",
         "catalog.delete_all",
+        "unity.launch_editor",
+        "unity.target.delete_all",
     ] {
         assert!(!metadata_allowed("main", method));
     }

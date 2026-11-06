@@ -57,7 +57,7 @@ async function execute(){if(busy.value||!plan.value||!rights.value||!compatibili
    <button type="button" :disabled="busy" @click="invalidate">Unity 계획 취소</button>
   </div>
   <p v-if="error" role="alert">{{error}}</p>
-  <div v-if="operation" role="status"><p>Unity 작업 {{operation.operationId}} · {{operation.status}}</p><p v-if="operation.errorCode">{{operation.errorCode}}</p><p v-if="operation.cancelRequested">취소를 요청했습니다. 이미 처리한 항목은 유지되며 Editor 결과를 기다립니다.</p><p v-if="operation.mayHaveSideEffects">응답을 확정하지 못했습니다. 이미 적용되었을 수 있으므로 결과를 확인한 뒤 다시 계획하세요.</p><pre>{{JSON.stringify(operation.result,null,2)}}</pre><button type="button" @click="poll">Unity 작업 상태 조회</button><button v-if="['queued','unknown'].includes(operation.status)" type="button" :disabled="busy" @click="cancel">Unity 작업 취소 요청</button></div>
+  <div v-if="operation" role="status"><p>Unity 작업 {{operation.operationId}} · {{operation.status}}</p><p v-if="operation.errorCode">{{operation.errorCode}}</p><p v-if="operation.cancelRequested">취소를 요청했습니다. 이미 처리한 항목은 유지되며 Editor 결과를 기다립니다.</p><p v-if="operation.status==='unknown'">응답을 확정하지 못했습니다. 이미 적용되었을 수 있으므로 결과를 확인한 뒤 다시 계획하세요.</p><pre>{{JSON.stringify(operation.result,null,2)}}</pre><button type="button" @click="poll">Unity 작업 상태 조회</button><button v-if="['queued','unknown'].includes(operation.status)" type="button" :disabled="busy" @click="cancel">Unity 작업 취소 요청</button></div>
  </details>
 </template>
 <style scoped>.unity-transfer{margin-block:.5rem;overflow-wrap:anywhere}.unity-transfer label{display:block;margin:.4rem}fieldset{margin-block:.5rem}pre{white-space:pre-wrap}button{margin:.25rem}</style>

@@ -58,6 +58,8 @@ class UnityTargets:
                 _,state=mailbox.connect(row['path']);public=mailbox.public(state);public.pop('project',None);item.update(connected=True,**public)
             except LibraryError as error:item['errorCode']=str(error)
             items.append(item)
-        result=dict(items=items,modelCalled=False)
+        import sys
+        package=(Path(sys.executable).parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parents[2])/'unity-package'/'package.json'
+        result=dict(items=items,modelCalled=False,connectorPackagePath=str(package) if package.is_file() else None)
         if len(json.dumps(result,ensure_ascii=True).encode())>12000:raise LibraryError('UNITY_LIMIT')
         return result
