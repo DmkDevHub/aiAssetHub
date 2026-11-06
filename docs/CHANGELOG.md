@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+### 2026-11-06 — [R09-06] MCP·갤러리 Unity 승인 실행
+- 기존5도구를 유지하고 Unity 대상/계획/승인 임포트·배치/상태 도구와 감사·Tauri 허용 명령·갤러리 검토 UI를 연결했다. Node165·Core285개(33.805초), 타입/Vite/fmt 통과. 예전 쓰기 전면 거부 테스트는 승인 누락 거부로 갱신했으며 특정 제품 Host·실제 GUI는 미검증이다.
+
 ### 2026-11-06 — [R09-05] Undo 가능한 Sprite 씬 배치
 - 실제 성공 임포트에서만 배치 계획을 만들고 씬/리비전/세션을 재검증한다. 실제 EntityId·transform·dirty/미저장 상태 반환, 자동 씬 저장 없음. Core5개(0.630초)·실제 Unity Sprite/위치/Undo 독립 assertion(15.836초) 통과. 초기 Unity6.6 InstanceID 컴파일 오류는 EntityId API로 수정 후 통과, GUI 미검증.
 

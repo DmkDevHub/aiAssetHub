@@ -10,6 +10,7 @@ import BulkMetadata from './BulkMetadata.vue';
 import MetadataExchange from './MetadataExchange.vue';
 import MetadataImport from './MetadataImport.vue';
 import DuplicateCandidates from './DuplicateCandidates.vue';
+import UnityTransfer from './UnityTransfer.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, toRef, watch } from 'vue';
 import {catalogFilters} from '../stores/catalogFilters';
@@ -90,7 +91,7 @@ function moveAssetFocus(event: KeyboardEvent) {
       <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
     </div>
 
-    <MetadataExchange v-if="selection.size" :asset-ids="[...selection]" /><BulkMetadata v-if="selection.size" :asset-ids="[...selection]" />
+    <MetadataExchange v-if="selection.size" :asset-ids="[...selection]" /><BulkMetadata v-if="selection.size" :asset-ids="[...selection]" /><UnityTransfer v-if="selection.size" :asset-ids="[...selection]" />
 
     <div v-if="items.length === 0" class="gallery-empty" role="status">
       <span class="gallery-empty-mark" aria-hidden="true">◇</span>

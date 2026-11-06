@@ -7,10 +7,12 @@ from pathlib import Path
 import time
 import hashlib
 import atexit
+import sys
 from uuid import uuid4
 from importlib.util import spec_from_file_location,module_from_spec
 
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'python-core'))
 spec=spec_from_file_location('local_verification',ROOT/'scripts/verify-local-analysis.py')
 helper=module_from_spec(spec);spec.loader.exec_module(helper)
 
@@ -115,8 +117,9 @@ def main():
         parameters=StdioServerParameters(command=str(executable),args=['--mcp','--data-dir',str(data)],cwd=executable.parent,env=environment)
         async with Client(parameters,read_timeout_seconds=10,client_info=Implementation(name='AIAssetHub-MCP-Verification',version='0.5.0')) as client:
             tools=await client.list_tools()
-            assert {t.name for t in tools.tools}=={'list_libraries','search_assets','get_asset','get_asset_files','get_analysis_status'}
-            assert all(t.annotations.read_only_hint and not t.annotations.destructive_hint for t in tools.tools)
+            from ai_asset_hub_core.unity_api import HOST_METHODS
+            assert {t.name for t in tools.tools}=={'list_libraries','search_assets','get_asset','get_asset_files','get_analysis_status',*HOST_METHODS}
+            assert all(t.annotations.read_only_hint and not t.annotations.destructive_hint for t in tools.tools if t.name not in HOST_METHODS or t.name=='list_unity_targets')
             libraries=await client.call_tool('list_libraries',{});assert not libraries.is_error and libraries.structured_content['items']
             extension_result=await check_extensions(client,extension) if extension else None
             if extension:

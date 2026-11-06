@@ -14,5 +14,5 @@ def connection(database,broker,params):
         bootstrap='import site,runpy;site.addsitedir('+repr(str(packages))+');runpy.run_module("ai_asset_hub_core",run_name="__main__")'
         args=['-B','-c',bootstrap]
     args+=['--mcp','--data-dir',str(database.path.parent)]
-    return {'brokerReady':bool(broker and broker.thread.is_alive() and not broker.failed),'transport':'stdio','readOnly':True,
+    return {'brokerReady':bool(broker and broker.thread.is_alive() and not broker.failed),'transport':'stdio','readOnly':False,
             'configuration':{'command':str(executable),'args':args,'cwd':str(directory)}}

@@ -14,6 +14,8 @@ class McpQueries:
     def __init__(self,database,application=None):self.database=database;self.db=database.connection;self.application=application
 
     def dispatch(self,name,params):
+        from .unity_api import HOST_METHODS,dispatch
+        if name in HOST_METHODS:return dispatch(self.database,HOST_METHODS[name],params)
         actions={'list_libraries':self.libraries,'search_assets':self.search,'get_asset':self.detail,'get_asset_files':self.files,'get_analysis_status':self.status}
         if name not in actions:raise LibraryError('MCP_TOOL_NOT_ALLOWED')
         if not isinstance(params,dict):raise LibraryError('INVALID_PARAMS')

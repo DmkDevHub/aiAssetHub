@@ -75,7 +75,9 @@ class Broker:
         import sqlite3
         try:return McpQueries(database,self.application).dispatch(tool,arguments)
         except LibraryError as error:
-            raise BrokerError(str(error) if str(error) in ('INVALID_PARAMS','MCP_TOOL_NOT_ALLOWED','MCP_ASSET_NOT_FOUND','MCP_SEARCH_LIMIT') else 'CORE_UNAVAILABLE') from None
+            from .libraries import ERROR_MESSAGES
+            safe=str(error) in ('INVALID_PARAMS','MCP_TOOL_NOT_ALLOWED','MCP_ASSET_NOT_FOUND','MCP_SEARCH_LIMIT') or str(error).startswith('UNITY_') and str(error) in ERROR_MESSAGES
+            raise BrokerError(str(error) if safe else 'CORE_UNAVAILABLE') from None
         except sqlite3.Error:raise BrokerError('CORE_UNAVAILABLE') from None
 
     def run(self):

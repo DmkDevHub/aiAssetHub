@@ -40,7 +40,13 @@ class McpTests(unittest.TestCase):
             async with Client(config,read_timeout_seconds=5) as client:
                 self.assertEqual(client.server_info.name,'AI Asset Hub')
                 self.assertEqual(client.server_info.version,'0.5.0')
-                self.assertEqual({t.name for t in (await client.list_tools()).tools},{'list_libraries','search_assets','get_asset','get_asset_files','get_analysis_status'})
+                from ai_asset_hub_core.unity_api import HOST_METHODS
+                tools=(await client.list_tools()).tools
+                self.assertEqual({t.name for t in tools},{'list_libraries','search_assets','get_asset','get_asset_files','get_analysis_status',*HOST_METHODS})
+                targets=await client.call_tool('list_unity_targets',{});self.assertFalse(targets.is_error);self.assertEqual(targets.structured_content['items'],[])
+                denied=await client.call_tool('import_assets_to_unity',dict(plan_id=identifier,request_id=identifier,confirmed=False,rights_confirmed=True,compatibility_confirmed=True));self.assertTrue(denied.is_error)
+                for tool in tools:
+                    if tool.name in ('import_assets_to_unity','place_assets_in_unity'):self.assertFalse(tool.annotations.read_only_hint)
                 self.assertTrue(client.protocol_version)
                 libraries=await client.call_tool('list_libraries',{})
                 self.assertFalse(libraries.is_error);self.assertEqual(libraries.structured_content['items'][0]['id'],library)
@@ -221,8 +227,10 @@ class McpTests(unittest.TestCase):
         old=dict(self.broker.session);self.broker.close();self.broker=Broker(self.db)
         request['mac']=signature(request,old['token']);self.assertEqual(self.raw(request)['error'],'AUTH_DENIED')
         self.assertNotEqual(old['token'],self.broker.session['token'])
-        for tool in ('analysis.start','embedding.query','library.scan','asset.annotate','import_assets_to_unity'):
+        for tool in ('analysis.start','embedding.query','library.scan','asset.annotate','unity.target.save'):
             with self.assertRaisesRegex(BrokerError,'MCP_TOOL_NOT_ALLOWED'):self.client.call(tool,{'confirmed':True})
+        for tool in ('import_assets_to_unity','place_assets_in_unity'):
+            with self.assertRaisesRegex(BrokerError,'INVALID_PARAMS'):self.client.call(tool,{'confirmed':True})
         self.assertEqual(self.db.connection.execute('SELECT count(*) FROM analysis_jobs').fetchone()[0],0)
 
     def test_fake_server_cannot_forge_responses_or_obtain_the_session_secret(self):

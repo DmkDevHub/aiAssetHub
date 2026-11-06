@@ -6,6 +6,8 @@ from uuid import uuid4
 from .libraries import LibraryError,valid_id
 
 TOOLS={'list_libraries','search_assets','get_asset','get_asset_files','get_analysis_status'}
+from .unity_api import HOST_METHODS
+TOOLS.update(HOST_METHODS)
 HOSTS={'mcp','mcp-client','reference-host','AIAssetHub-MCP-Verification','Codex','Claude Code','Claude Desktop'}
 
 

@@ -22,9 +22,9 @@ onMounted(()=>{void load();});
 <template>
  <section class="mcp-settings" aria-labelledby="mcp-title">
   <h1 id="mcp-title">MCP 연결·감사 로그</h1>
-  <p>외부 도구에 에셋 조회 기능 5개를 제공합니다. 조회로 분석·임베딩을 실행하지 않습니다.</p>
+  <p>에셋 조회와 Unity 계획·승인 실행 도구를 제공합니다. 조회로 분석·임베딩을 실행하지 않습니다. Unity 쓰기는 허용 프로젝트와 검토한 계획의 명시 승인이 필요합니다.</p>
   <button type="button" :disabled="busy" @click="load(false)">연결 정보·로그 새로 조회</button>
-  <p v-if="connection" role="status">Core 조회 채널: {{ connection.brokerReady?'준비됨':'연결 불가' }} · {{ connection.transport }} · 읽기 전용</p>
+  <p v-if="connection" role="status">Core 채널: {{ connection.brokerReady?'준비됨':'연결 불가' }} · {{ connection.transport }} · {{ connection.readOnly?'읽기 전용':'Unity 승인 실행 가능' }}</p>
   <div v-if="connection"><h2>Host의 stdio 실행 정보</h2><p>Host 설정의 command·args·cwd에 아래 값을 사용합니다. 앱을 켜 둔 상태에서 연결하세요.</p>
    <pre class="mcp-configuration">{{ JSON.stringify(connection.configuration,null,2) }}</pre>
   </div>

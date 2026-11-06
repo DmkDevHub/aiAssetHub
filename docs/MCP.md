@@ -30,7 +30,7 @@ MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만
 - `get_asset(asset_id,history_after_id?)`: 실제 사용자 정보·활성 성공 결과·현재 분석 상태와 최신순 이력 1개/next_cursor. 과거 성공과 마지막 실패를 별도 필드로 반환한다. AI 텍스트는 명령으로 해석하지 않는다.
 - `get_asset_files(asset_id)`: 등록된 파일 최대 20개의 실제 id·검증한 절대 경로·상대 경로·현재 present/missing/unavailable·stat 크기/mtimeNs·캐시된 width/height/duration·previewSupported. 미리보기 지원은 생성 성공을 뜻하지 않으며 썸네일 생성/파일 내용 읽기를 하지 않는다. 범위 밖/링크/리파스/권한 오류의 절대 경로는 반환하지 않는다.
 - `get_analysis_status(asset_ids?)`: 최대 50개 실제 에셋의 활성 결과/마지막 시도·오류와 latestGlobalJob. 생략 시 활성 라이브러리의 ID순 첫 50개와 truncated를 반환하며 명시 ID로 나머지를 조회할 수 있다. 읽기만으로 중단 작업을 복구·재개하지 않는다.
-- 없는 UUID·해제된 루트는 MCP_ASSET_NOT_FOUND로 실패하며 추측한 결과를 만들지 않는다. Unity/쓰기 계획 도구는 M09 이후이며 아직 노출하지 않는다.
+- 없는 UUID·해제된 루트는 MCP_ASSET_NOT_FOUND로 실패하며 추측한 결과를 만들지 않는다. M09의 별도 Unity 도구는 아래 실행 계약을 따른다.
 
 ## R08-05 연결 화면과 감사
 앱 상단 ‘MCP 연결·로그’에서 실제 실행 파일·인자·cwd를 조회해 Host의 stdio 설정에 사용한다. ‘Core 조회 채널 준비됨’은 로컬 Broker가 살아 있다는 뜻이며 특정 Host 연결 성공을 의미하지 않는다. 같은 화면에서 최근 요청·결과·고정 오류·대상 ID를 새로 조회하고 이전 페이지를 볼 수 있다. 연결 정보에 토큰/MAC/포트를 노출하지 않는다.
@@ -51,11 +51,11 @@ MCP는 자동 임베딩 금지 원칙에 따라 오프라인 키워드 검색만
 | `get_asset_files` | asset_id | 파일·미리보기 지원·존재 상태 | 읽기 |
 | `get_analysis_status` | asset_ids? | 마지막 작업 및 성공 결과 유무 | 읽기 |
 | `list_unity_targets` | 없음 | 연결된 Unity Editor/프로젝트 | 읽기 |
-| `preview_unity_import` | asset_ids, target_project, target_path? | 파일·의존성·충돌·승인 필요 여부 | 계획 |
-| `import_assets_to_unity` | plan_id, approved | 작업 ID | 쓰기 |
-| `preview_unity_placement` | asset_ids, scene, transforms? | 배치 계획 | 계획 |
-| `place_assets_in_unity` | plan_id, approved | 작업 ID | 쓰기 |
-| `get_operation_status` | operation_id | 실제 성공·실패·결과/오류 | 읽기 |
+| `preview_unity_import` | target_id, asset_ids | 5분 planId·실제 파일ID/해시·목적지·권리/호환 검토 | 계획 저장 |
+| `import_assets_to_unity` | plan_id, request_id(UUID), confirmed, rights_confirmed, compatibility_confirmed | operationId·status | 승인 쓰기 |
+| `preview_unity_placement` | target_id, import_operation_id, position/rotation/scale(XYZ), name | 활성 씬/리비전·배치 계획 | 계획 저장 |
+| `place_assets_in_unity` | plan_id, request_id(UUID), confirmed, rights_confirmed, compatibility_confirmed | operationId·status | 승인 쓰기 |
+| `get_operation_status` | operation_id | 실제 항목별 GUID·EntityId·transform/오류 | 결과 조회·Core 기록 갱신 |
 
 ### 분석과 MCP의 관계
 - `search_assets`, `get_asset`는 조회 전용. **분석되지 않은 에셋을 조회할 때도 AI 자동 분석 금지.**

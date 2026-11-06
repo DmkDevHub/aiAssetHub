@@ -1991,7 +1991,7 @@ test('MCP connection and audit page renders actual read data and escapes asset t
  app.unmount();globalThis.isTauri=true;const calls=[];
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);if(command==='mcp_connection')return {ok:true,data:{brokerReady:true,transport:'stdio',readOnly:true,configuration:{command:'C:/fixture/core.exe',args:['--mcp'],cwd:'C:/fixture'}}};return {ok:true,data:{items:[{id:'audit-1',host:'reference-host',hostFingerprint:'hash',tool:'<img src=x onerror=alert(1)>',outcome:'succeeded',createdAt:'fixture-time',requestId:'request-1',targetIds:['asset-1'],targetCount:1,errorCode:null,durationMs:2}],next_cursor:null}};}};
  app=createApp(components.McpView);app.config.errorHandler=e=>errors.push(e);app.mount('#app');await new Promise(r=>setImmediate(r));await nextTick();
- assert.deepEqual(calls.map(c=>c[0]),['mcp_connection','mcp_audit']);assert.match(document.body.textContent,/Core 조회 채널: 준비됨/);assert.match(document.querySelector('.mcp-audit').textContent,/request-1/);assert.match(document.querySelector('.mcp-audit').textContent,/asset-1/);assert.equal(document.querySelector('.mcp-audit img'),null);assert.doesNotMatch(document.querySelector('.mcp-configuration').textContent,/token|mac|port/);
+ assert.deepEqual(calls.map(c=>c[0]),['mcp_connection','mcp_audit']);assert.match(document.body.textContent,/Core 채널: 준비됨/);assert.match(document.querySelector('.mcp-audit').textContent,/request-1/);assert.match(document.querySelector('.mcp-audit').textContent,/asset-1/);assert.equal(document.querySelector('.mcp-audit img'),null);assert.doesNotMatch(document.querySelector('.mcp-configuration').textContent,/token|mac|port/);
 });
 
 test('MCP audit page retries a failed read and pages with the actual cursor',async()=>{
@@ -2344,4 +2344,22 @@ test('Unity targets require explicit registration and removal and render untrust
  assert.match(document.querySelector('.unity-settings').textContent,/연결됨/);assert.equal(document.querySelector('script'),null);
  dispatch(metaButton('프로젝트 접근 해제'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
  assert.match(document.querySelector('.unity-settings').textContent,/허용한 Unity 프로젝트가 없습니다/);assert.equal(calls.length,5);
+});
+
+test('Unity import executes only after preview and both reviews and exposes actual status',async()=>{
+ const calls=[];const plan={planId:'plan',targetId:'target',action:'import',projectPath:'owned',expiresAt:Date.now()/1000+300,items:[{assetId:'asset',fileId:'file',targetRelativePath:'Assets/AIAssetHub/file.png',sha256:'hash'}],issues:[]};
+ await mountMetadataComponent('UnityTransfer',{assetIds:['asset']},async(command,args)=>{calls.push(args);if(args.method==='unity.targets')return {ok:true,data:{items:[{id:'target',projectPath:'owned',connected:true}]}};if(args.method==='unity.preview_import')return {ok:true,data:plan};if(args.method==='unity.import'){assert.equal(args.params.confirmed,true);assert.equal(args.params.rights_confirmed,true);return {ok:true,data:{operationId:'actual-operation',targetId:'target',action:'import',status:'succeeded',result:{items:[{guid:'actual-guid'}]}}};}throw new Error('unexpected');});
+ assert.equal(calls.length,0);dispatch(metaButton('Unity 대상 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();await metaField('Unity 대상','target');
+ dispatch(metaButton('PNG 임포트 미리보기'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(calls.length,2);assert.equal(metaButton('검토한 임포트 실행').disabled,true);
+ for(const checkbox of document.querySelectorAll('.unity-plan input[type="checkbox"]')){checkbox.checked=true;dispatch(checkbox,new Event('change',{bubbles:true}));}await nextTick();
+ dispatch(metaButton('검토한 임포트 실행'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.match(document.querySelector('.unity-transfer [role="status"]').textContent,/actual-guid/);assert.equal(calls.length,3);
+});
+
+test('Unity stale preview is discarded when asset selection changes and failures cannot show success',async()=>{
+ let finish;const calls=[];const props=ref({assetIds:['old']});
+ await mountMetadataComponent('UnityTransfer',props,async(command,args)=>{calls.push(args);if(args.method==='unity.targets')return {ok:true,data:{items:[{id:'target',projectPath:'owned',connected:true}]}};if(args.method==='unity.preview_import')return new Promise(resolve=>finish=resolve);throw new Error('unexpected');});
+ dispatch(metaButton('Unity 대상 조회'),new dom.window.MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();await metaField('Unity 대상','target');dispatch(metaButton('PNG 임포트 미리보기'),new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();
+ props.value={assetIds:['new']};await nextTick();finish({ok:true,data:{planId:'OLD',items:[],action:'import',expiresAt:Date.now()/1000+300}});await new Promise(r=>setImmediate(r));await nextTick();
+ assert.equal(document.querySelector('.unity-plan'),null);assert.equal(metaButton('검토한 임포트 실행'),undefined);assert.equal(calls.length,2);
 });

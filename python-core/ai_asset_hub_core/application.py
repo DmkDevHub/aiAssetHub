@@ -104,12 +104,11 @@ class CoreApplication:
             method = request.get("method")
             if not isinstance(method, str) or not method:
                 return self.error(request_id, "INVALID_REQUEST", "명령 형식이 올바르지 않습니다.")
-            if method in ('unity.targets','unity.target.save','unity.target.remove'):
-                from .unity_targets import UnityTargets
+            if method.startswith('unity.'):
+                from .unity_api import dispatch
                 from .libraries import LibraryError,ERROR_MESSAGES
                 try:
-                    service=UnityTargets(self.database)
-                    data={'unity.targets':service.list,'unity.target.save':service.save,'unity.target.remove':service.remove}[method](request.get('params',{}))
+                    data=dispatch(self.database,method,request.get('params',{}))
                     return self._response(request_id,data=data)
                 except LibraryError as error:
                     code=str(error) if str(error) in ERROR_MESSAGES else 'INVALID_PARAMS'
