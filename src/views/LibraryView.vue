@@ -1,22 +1,20 @@
 <script setup lang="ts">
 import { computed, toRef, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { RouterLink } from 'vue-router';
 import SmartGroups from '../components/SmartGroups.vue';
 import {smartUi} from '../stores/smartGroups';
 import AdvancedFilters from '../components/AdvancedFilters.vue';
 import {catalogFilters} from '../stores/catalogFilters';
-import CatalogManager from '../components/CatalogManager.vue';
 import CatalogNavigation from '../components/CatalogNavigation.vue';
 import {navigation} from '../stores/navigation';
 import {metadata} from '../services/metadata';
 import {collectionUi} from '../stores/collections';
-import PackageManager from '../components/PackageManager.vue';
 import LibraryTreePanel from "../components/LibraryTreePanel.vue";
 import AssetGallery from "../components/AssetGallery.vue";
 import AssetDetailsPanel from "../components/AssetDetailsPanel.vue";
 import { libraryUi, selectLibraryFolder } from "../stores/libraryUi";
 import type { AssetSummary } from "../types/assets";
 import { useWorkspaceLayout } from "../composables/useWorkspaceLayout";
-import LibraryManagement from '../components/LibraryManagement.vue';
 import { libraries, refreshLibraries } from '../stores/libraries';
 import { assets, refreshAssets, resetAssets } from '../stores/assets';
 import { workspace as searchState } from '../stores/workspace';
@@ -25,7 +23,12 @@ import { coreSearch } from '../services/coreSearch';
 import { keywordFilter, stateFilter } from '../services/assetSearch';
 import { folderNodes, filterFolder, type FolderNode } from '../services/assetFolders';
 
-onMounted(() => { void refreshLibraries().then((ok)=>{ if(ok){if(libraries.roots.length)void refreshAssets();else resetAssets();} }); });
+const desktop = isTauri();
+onMounted(async () => {
+  if (!await refreshLibraries()) return;
+  if (libraries.roots.length && !assets.error) void refreshAssets();
+  if (!libraries.roots.length && !assets.busy) resetAssets();
+});
 const emptyMessage = computed(() => libraries.loading ? '등록 폴더를 불러오는 중입니다.'
   : libraries.error ? '등록 폴더를 확인하지 못했습니다.' : '등록된 폴더가 없습니다.');
 
@@ -129,6 +132,17 @@ watch(nodes,(roots)=>{
 });
 const selectedId = ref<string | null>(null);
 const selectedAsset = computed(() => items.value.find((item) => item.id === selectedId.value) ?? null);
+const needsFolder = computed(() => desktop && libraries.loaded && !libraries.loading && !libraries.error && !libraries.roots.length);
+const emptyDescription = computed(() => {
+  if (libraries.loading || assets.busy) return '파일 목록을 확인하는 중입니다.';
+  if (libraries.error || assets.error) return '등록 폴더 또는 파일 목록의 상태를 확인하세요.';
+  if (needsFolder.value) return '설정에서 폴더를 등록하고 파일 스캔을 실행하면 여기에 에셋이 표시됩니다.';
+  if (searching.value || ordering.value) return '검색 결과를 불러오는 중입니다.';
+  if (searchMode.value !== 'keyword' && searchState.searchQuery.trim() && !semanticResults.value) return '로컬 검색을 실행해 결과를 확인하세요.';
+  if (searchState.searchQuery.trim() || tag.value || kind.value || analysis.value || catalogFilters.active || smartUi.groupId) return '현재 검색어와 필터에 맞는 에셋이 없습니다.';
+  if (libraryUi.selectedFolderId || navigation.mode !== 'folders') return '현재 탐색 범위에 표시할 에셋이 없습니다.';
+  return '라이브러리가 비어 있습니다.';
+});
 watch(selectedAsset, (asset) => { if (!asset) selectedId.value = null; });
 const workspace = ref<HTMLElement>();
 const layout = useWorkspaceLayout(workspace);
@@ -163,10 +177,19 @@ function moveRegion(event: KeyboardEvent) {
   }">
     <LibraryTreePanel :show-folders="navigation.mode==='folders'" :nodes="nodes" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
       :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
-      <template #management><CatalogNavigation /><CatalogManager /><LibraryManagement v-show="navigation.mode==='folders'" /><PackageManager v-show="navigation.mode==='packages'" /></template>
+      <template #navigation><CatalogNavigation /></template>
     </LibraryTreePanel>
-    <AssetGallery :ordered-by-core="coreOrdered || searchMode!=='keyword' && semanticResults!==null" :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" @select="selectedId = $event">
-      <template #filters><SmartGroups :query="searchState.searchQuery" :criteria="searchCriteria()" /><AdvancedFilters /><p v-if="collectionUi.groupId">그룹 필터: {{ collectionUi.groupId }}</p><label>검색 방식 <select v-model="searchMode" :disabled="!!smartUi.groupId" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
+    <AssetGallery :ordered-by-core="coreOrdered || searchMode!=='keyword' && semanticResults!==null" :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" :empty-description="emptyDescription" @select="selectedId = $event">
+      <template #empty-action>
+        <RouterLink v-if="needsFolder || (desktop && !assets.busy && !assets.error && !sourceItems.length && libraries.roots.length)" class="workspace-link" to="/settings/folders">
+          {{ needsFolder ? '등록 폴더 설정 열기' : '폴더 스캔 관리' }}
+        </RouterLink>
+      </template>
+      <template #status>
+        <p v-if="assets.notice" class="workspace-notice" role="status">{{ assets.notice }}</p>
+        <p v-if="assets.error || libraries.error" class="workspace-notice" role="alert">{{ assets.error || libraries.error }}</p>
+      </template>
+      <template #filters><SmartGroups :query="searchState.searchQuery" :criteria="searchCriteria()" /><AdvancedFilters /><p v-if="smartUi.groupId">스마트 그룹 조건 적용 중</p><label>검색 방식 <select v-model="searchMode" :disabled="!!smartUi.groupId" aria-label="검색 방식"><option value="keyword">키워드</option><option value="semantic">의미 검색</option><option value="hybrid">키워드+의미 혼합</option></select></label>
       <button v-if="searchMode!=='keyword'" type="button" :disabled="searching || !searchState.searchQuery.trim()" @click="semanticSearch">로컬 검색 실행</button>
       <p v-if="ordering" role="status">검색 결과 정렬 중…</p><p v-if="orderError" role="alert">{{ orderError }}</p>
       <button v-if="searchError && searchMode==='keyword'" type="button" :disabled="searching" @click="refreshSearch(false)">검색·정렬 다시 조회</button>

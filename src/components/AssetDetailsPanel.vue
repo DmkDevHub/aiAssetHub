@@ -42,12 +42,14 @@ async function navigateTabs(event: KeyboardEvent, index: number) {
 
 <template>
   <div class="detail-shell" :class="{ 'is-collapsed': libraryUi.detailsCollapsed }">
-    <button type="button" class="detail-toggle" aria-controls="asset-details"
-      :aria-expanded="!libraryUi.detailsCollapsed" @click="setDetailsCollapsed(!libraryUi.detailsCollapsed)">
-      {{ libraryUi.detailsCollapsed ? '상세 펼치기' : '상세 접기' }}
-    </button>
+    <header class="detail-header">
+      <h2 v-show="!libraryUi.detailsCollapsed" id="detail-title">에셋 상세</h2>
+      <button type="button" class="detail-toggle" aria-controls="asset-details"
+        :aria-expanded="!libraryUi.detailsCollapsed" @click="setDetailsCollapsed(!libraryUi.detailsCollapsed)">
+        {{ libraryUi.detailsCollapsed ? '상세 펼치기' : '상세 접기' }}
+      </button>
+    </header>
     <aside id="asset-details" :hidden="libraryUi.detailsCollapsed" aria-labelledby="detail-title">
-      <h2 id="detail-title">에셋 상세</h2>
       <p v-if="!asset" class="detail-empty">에셋을 선택하면 상세 정보가 표시됩니다.</p>
       <template v-else>
         <p class="detail-asset-name">{{ asset.name }}</p>

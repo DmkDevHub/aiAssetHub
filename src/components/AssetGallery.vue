@@ -8,15 +8,20 @@ import EmbeddingTools from './EmbeddingTools.vue';
 import ManualAnalysis from './ManualAnalysis.vue';
 import BulkMetadata from './BulkMetadata.vue';
 import MetadataExchange from './MetadataExchange.vue';
-import MetadataImport from './MetadataImport.vue';
 import DuplicateCandidates from './DuplicateCandidates.vue';
 import UnityTransfer from './UnityTransfer.vue';
 import AssetThumbnail from './AssetThumbnail.vue';
 import { computed, ref, toRef, watch } from 'vue';
 import {catalogFilters} from '../stores/catalogFilters';
 
-const props = withDefaults(defineProps<{ items?: readonly AssetSummary[]; ranked?: boolean; orderedByCore?: boolean; selectedId?: string | null }>(), {
-  items: () => [], selectedId: null,
+const props = withDefaults(defineProps<{
+  items?: readonly AssetSummary[];
+  ranked?: boolean;
+  orderedByCore?: boolean;
+  selectedId?: string | null;
+  emptyDescription?: string;
+}>(), {
+  items: () => [], selectedId: null, emptyDescription: '라이브러리가 비어 있습니다.',
 });
 const emit = defineEmits<{ select: [id: string | null] }>();
 const sort = toRef(catalogFilters,'sort');
@@ -68,11 +73,9 @@ function moveAssetFocus(event: KeyboardEvent) {
 
 <template>
   <section class="page asset-gallery" aria-labelledby="library-title">
-    <DuplicateCandidates :asset-ids="[...selection]" /><MetadataImport /><ManualAnalysis :selected-ids="[...selection]" :folder-id="libraryUi.selectedFolderId" />
-    <EmbeddingTools :selected="items.filter(i=>selection.has(i.id) && i.activeResultId).map(i=>({asset_id:i.id,result_id:i.activeResultId!}))" />
-    <slot name="filters" />
     <header class="gallery-header">
       <div>
+        <p class="section-label">에셋 작업 공간</p>
         <h1 id="library-title">라이브러리</h1>
         <p class="gallery-count">{{ items.length }}개 에셋</p>
       </div>
@@ -83,20 +86,37 @@ function moveAssetFocus(event: KeyboardEvent) {
           @click="changeView('list')">목록</button>
       </div>
     </header>
-    <div class="gallery-tools">
-      <label>정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">{{ ranked?'관련도순':'기본순' }}</option><option value="relevance">관련도순</option><option value="name">이름순</option><option value="kind">유형순</option><option value="size">크기 작은순</option><option value="size_desc">크기 큰순</option><option value="registered">등록일 최신순</option><option value="registered_asc">등록일 오래된순</option><option value="modified">수정일 최신순</option><option value="creator">제작사 이름순</option><option value="analysis">분석일 최신순</option></select></label>
-      <p>크기는 가용한 고유 구성 파일 합계입니다. 누락만 있거나 값이 미확인인 항목은 마지막에 표시합니다. 정렬 변경은 선택을 유지하고 첫 페이지를 표시합니다.</p>
+    <div class="gallery-tools" aria-label="검색·필터·정렬">
+      <slot name="filters" />
+      <label title="크기는 가용한 고유 구성 파일의 합계입니다. 미확인 항목은 마지막에 표시합니다.">정렬 <select v-model="sort" aria-label="에셋 정렬"><option value="source">{{ ranked?'관련도순':'기본순' }}</option><option value="relevance">관련도순</option><option value="name">이름순</option><option value="kind">유형순</option><option value="size">크기 작은순</option><option value="size_desc">크기 큰순</option><option value="registered">등록일 최신순</option><option value="registered_asc">등록일 오래된순</option><option value="modified">수정일 최신순</option><option value="creator">제작사 이름순</option><option value="analysis">분석일 최신순</option></select></label>
+    </div>
+    <slot name="status" />
+    <div class="gallery-actions">
       <span class="selection-count">{{ selection.size }}개 선택</span>
       <button v-if="selection.size" type="button" @click="selection.clear();emit('select',null)">선택 해제</button>
-      <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
+      <ManualAnalysis :selected-ids="[...selection]" :folder-id="libraryUi.selectedFolderId" />
+      <details class="gallery-more">
+        <summary>에셋 작업</summary>
+        <div class="gallery-action-panel">
+          <p>Ctrl로 추가 선택 · Shift로 범위 선택</p>
+          <DuplicateCandidates :asset-ids="[...selection]" />
+          <EmbeddingTools scope="selection" :selected="items.filter(i=>selection.has(i.id) && i.activeResultId).map(i=>({asset_id:i.id,result_id:i.activeResultId!}))" />
+          <template v-if="selection.size">
+            <MetadataExchange :asset-ids="[...selection]" />
+            <BulkMetadata :asset-ids="[...selection]" />
+            <UnityTransfer :asset-ids="[...selection]" />
+          </template>
+        </div>
+      </details>
     </div>
 
-    <MetadataExchange v-if="selection.size" :asset-ids="[...selection]" /><BulkMetadata v-if="selection.size" :asset-ids="[...selection]" /><UnityTransfer v-if="selection.size" :asset-ids="[...selection]" />
-
     <div v-if="items.length === 0" class="gallery-empty" role="status">
-      <span class="gallery-empty-mark" aria-hidden="true">◇</span>
+      <svg class="gallery-empty-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <path d="m24 8 16 9v15l-16 9-16-9V17l16-9ZM8 17l16 9 16-9M24 26v15M16 12.5l16 9" />
+      </svg>
       <h2>표시할 에셋이 없습니다.</h2>
-      <p>라이브러리가 비어 있습니다.</p>
+      <p>{{ emptyDescription }}</p>
+      <slot name="empty-action" />
     </div>
     <ul v-else-if="libraryUi.galleryViewMode === 'grid'" class="asset-grid" aria-label="에셋 그리드" @keydown="moveAssetFocus">
       <li v-for="item in visible" :key="item.id" class="asset-card" :data-asset-id="item.id"
@@ -105,8 +125,8 @@ function moveAssetFocus(event: KeyboardEvent) {
         <button type="button" class="asset-name asset-select" :title="item.name"
           :aria-pressed="selection.has(item.id)" @click="choose($event,item.id)">{{ item.name }}</button>
         <p class="asset-kind">{{ item.kind }}</p>
-        <p v-if="item.searchScore!==undefined">관련도 {{ item.searchScore.toFixed(3) }} · {{ item.matchReason==='hybrid'?'키워드+의미':item.matchReason==='keyword'?'키워드':'의미' }}</p>
-        <p class="asset-analysis-state">{{ item.hasActiveResult ? '분석 완료' : '미분석' }}{{ item.lastAttemptState==='failed' ? ' · 마지막 시도 실패' : '' }}{{ item.analysisStale ? ' · 원본 재확인 필요' : '' }}</p>
+        <p v-if="item.searchScore!==undefined" class="asset-kind">관련도 {{ item.searchScore.toFixed(3) }} · {{ item.matchReason==='hybrid'?'키워드+의미':item.matchReason==='keyword'?'키워드':'의미' }}</p>
+        <p class="asset-analysis-state" :data-ready="!!item.hasActiveResult">{{ item.hasActiveResult ? '분석 완료' : '미분석' }}{{ item.lastAttemptState==='failed' ? ' · 마지막 시도 실패' : '' }}{{ item.analysisStale ? ' · 원본 재확인 필요' : '' }}</p>
         <p v-if="item.userTags?.length" class="asset-tags">{{ item.userTags.join(", ") }}</p>
         <p v-if="item.scanChange && item.scanChange!=='unchanged'" class="asset-kind">{{ item.scanChange==='new'?'신규':item.scanChange==='changed'?'변경':item.scanChange==='missing'?'누락':'' }}</p>
       </li>

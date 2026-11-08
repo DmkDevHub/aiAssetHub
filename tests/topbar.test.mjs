@@ -166,7 +166,8 @@ test("top bar renders a labelled search field and current route breadcrumb", () 
   assert.equal(currentLocation().textContent, "라이브러리");
   assert.equal(document.title, "라이브러리 · AI Asset Hub");
   assert.equal(clearButton(), null);
-  assert.equal(document.querySelector('[aria-label="주 메뉴"] a').textContent, "화면 설정");
+  assert.equal(document.querySelector('[aria-label="주 메뉴"] a').textContent.trim(), "설정");
+  assert.deepEqual([...document.querySelectorAll('.app-topbar a[href^="/settings"]')].map(link => link.getAttribute('href')), ['/settings']);
 });
 
 test("Unicode and HTML-like query text stays literal and form submission makes no request", async () => {
@@ -226,11 +227,35 @@ test("settings and breadcrumb links change real routes while retaining the query
   assert.equal(document.querySelector("h1").textContent, "화면 설정");
   assert.equal(currentLocation().textContent, "화면 설정");
   assert.equal(document.title, "화면 설정 · AI Asset Hub");
+  assert.equal(searchInput().closest('form').style.display, 'none');
   assert.equal(searchInput().value, "붉은 지붕");
   await activateLink(".breadcrumbs a");
   assert.equal(router.currentRoute.value.path, "/library");
   assert.equal(currentLocation().textContent, "라이브러리");
   assert.equal(searchInput().value, "붉은 지붕");
+});
+
+test('settings deep links activate a single tab and keep workspace actions on the dashboard', async () => {
+  await activateLink('[aria-label="주 메뉴"] a');
+  const tabs = [...document.querySelectorAll('[aria-label="설정 탭"] a')];
+  assert.equal(tabs.length, 10);
+  for (const tab of tabs) {
+    const path = tab.getAttribute('href');
+    await activateLink(`.settings-tabs a[href="${path}"]`);
+    assert.equal(router.currentRoute.value.path, path);
+    assert.deepEqual([...document.querySelectorAll('.settings-tabs [aria-current="page"]')], [tab]);
+    assert.ok(document.querySelector('.settings-content h1'));
+    assert.equal(document.querySelector('.library-workspace'), null);
+  }
+  await router.push('/settings/search');
+  assert.ok(document.querySelector('.embedding-tools form'));
+  assert.doesNotMatch(document.querySelector('.embedding-tools').textContent, /선택 결과 임베딩 생성/);
+  await router.push('/library');
+  assert.equal(document.querySelector('.settings-tabs'), null);
+  assert.equal(document.querySelector('.metadata-import, .catalog-manager, .library-management'), null);
+  assert.ok(document.querySelector('.analysis-open'));
+  assert.equal(document.querySelector('.embedding-tools form'), null);
+  assert.doesNotMatch(document.querySelector('.embedding-tools').textContent, /전체 재구축/);
 });
 
 test("skip link focuses the main content without turning the anchor into a route", async () => {
@@ -582,6 +607,7 @@ async function mountWorkspace(items) {
   app = createApp({ render: () => h(components.LibraryView, { items: data.value }) });
   app.config.errorHandler = (error) => errors.push(error);
   app.config.warnHandler = (message) => errors.push(new Error(message));
+  app.use(router);
   app.mount("#app");
   mounted = true;
   await nextTick();
@@ -1174,7 +1200,7 @@ test('invalid picker responses cannot replace a valid selection', async () => {
   }
 });
 
-test('actual workspace keeps an unregistered choice across routes without contacting Core on pick', async () => {
+test('folder settings keeps an unregistered choice across routes and opens only the picker on request', async () => {
   app.unmount();
   const commands = [];
   globalThis.isTauri = true;
@@ -1191,13 +1217,16 @@ test('actual workspace keeps an unregistered choice across routes without contac
   app.mount('#app');
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();
+  assert.equal(document.querySelector('.pick-folder'), null);
+  assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
+  assert.equal(document.querySelector('.gallery-count').textContent, '0개 에셋');
+  await activateLink('.gallery-empty a');
+  assert.equal(router.currentRoute.value.path, '/settings/folders');
   commands.length = 0;
   await clickFolderPicker();
   assert.deepEqual(commands, ['select_library_folder']);
-  assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
-  assert.equal(document.querySelector('.gallery-count').textContent, '0개 에셋');
-  await activateLink('[aria-label="주 메뉴"] a');
   await activateLink('.breadcrumbs a');
+  await activateLink('.gallery-empty a');
   assert.equal(document.querySelector('.picked-folder-path').textContent, 'D:\\fixture\\selected');
   assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
 });
@@ -1216,7 +1245,7 @@ test('gallery Ctrl and Shift selection persists across layouts and can clear', a
   assert.equal(document.querySelector('.selection-count').textContent,'2개 선택');
   await changeGalleryMode('목록');
   assert.equal(document.querySelectorAll('.asset-select[aria-pressed="true"]').length,2);
-  const clear=[...document.querySelectorAll('.gallery-tools button')][0];
+  const clear=[...document.querySelectorAll('.gallery-actions button')].find(button => button.textContent === '선택 해제');
   dispatch(clear,new dom.window.MouseEvent('click',{bubbles:true}));await nextTick();
   assert.equal(document.querySelector('.selection-count').textContent,'0개 선택');
   assert.ok(document.querySelector('.detail-empty'));
@@ -1298,6 +1327,30 @@ async function mountLibraryWorkspace(invoke) {
   await nextTick();
 }
 
+async function mountFolderSettings(invoke) {
+  app.unmount();
+  globalThis.isTauri = true;
+  dom.window.__TAURI_INTERNALS__ = {
+    invoke: (command, args) => command === 'core_health' ? Promise.resolve(fixtureHealth())
+      : command === 'list_assets' ? Promise.resolve(libraryEnvelope({ items: [], next_cursor: null })) : invoke(command, args),
+  };
+  await router.push('/settings/folders');
+  app = createApp(components.App);
+  app.config.errorHandler = (error) => errors.push(error);
+  app.config.warnHandler = (message) => errors.push(new Error(message));
+  app.use(router);
+  app.mount('#app');
+  await new Promise(resolve => setImmediate(resolve));
+  await nextTick();
+}
+
+async function chooseManagedFolder(id) {
+  const select = document.querySelector('.manage-folder-picker select');
+  select.value = id;
+  dispatch(select, new Event('change', { bubbles: true }));
+  await nextTick();
+}
+
 test('persisted library list renders supplied roots and no pretend scanned assets', async () => {
   const commands = [];
   await mountLibraryWorkspace(async (command, args) => {
@@ -1311,19 +1364,22 @@ test('persisted library list renders supplied roots and no pretend scanned asset
   assert.equal(document.querySelector('.library-empty'), null);
 });
 
-test('explicit registration and unregister update the real tree selection without scanning', async () => {
+test('settings registration and unregister update the real tree without scanning', async () => {
   const commands = [];
   let registered = false;
-  await mountLibraryWorkspace(async (command, args) => {
+  await mountFolderSettings(async (command, args) => {
     commands.push([command, args]);
-    if (command === 'list_libraries') return libraryEnvelope({ libraries: [], next_cursor: null });
+    if (command === 'list_libraries') return libraryEnvelope({ libraries: registered ? [libraryFixture[1]] : [], next_cursor: null });
     if (command === 'select_library_folder') return { path: libraryFixture[1].path };
     if (command === 'register_library') {
       const created = !registered;
       registered = true;
       return libraryEnvelope({ library: libraryFixture[1], created });
     }
-    if (command === 'unregister_library') return libraryEnvelope({ library_id: args.libraryId, enabled: false });
+    if (command === 'unregister_library') {
+      registered = false;
+      return libraryEnvelope({ library_id: args.libraryId, enabled: false });
+    }
     return rejectTransport();
   });
   await clickFolderPicker();
@@ -1331,25 +1387,30 @@ test('explicit registration and unregister update the real tree selection withou
   await clickElement('.register-library');
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();
-  assert.equal(document.querySelector('[data-folder-id]').dataset.folderId, libraryFixture[1].id);
+  assert.equal(document.querySelectorAll('.manage-folder-picker option').length, 2);
   await clickElement('.register-library');
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();
-  assert.equal(document.querySelectorAll('[data-folder-id]').length, 1);
+  await activateLink('.breadcrumbs a');
+  assert.equal(document.querySelector('[data-folder-id]').dataset.folderId, libraryFixture[1].id);
   await clickElement('[data-folder-id]');
   assert.equal(components.libraryUi.selectedFolderId, libraryFixture[1].id);
+  await activateLink('[aria-label="주 메뉴"] a');
+  await activateLink('.settings-tabs a[href="/settings/folders"]');
+  assert.equal(document.querySelector('.manage-folder-picker select').value, libraryFixture[1].id);
   await clickElement('.unregister-library');
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();
+  assert.match(document.querySelector('.library-management').textContent, /원본 파일은 유지됩니다/);
+  await activateLink('.breadcrumbs a');
   assert.equal(components.libraryUi.selectedFolderId, null);
   assert.equal(document.querySelector('[data-folder-id]'), null);
-  assert.match(document.querySelector('.library-management').textContent, /원본 파일은 유지됩니다/);
-  assert.deepEqual(commands.map(([command]) => command), ['list_libraries', 'select_library_folder', 'register_library', 'register_library', 'unregister_library']);
+  assert.deepEqual(commands.map(([command]) => command), ['list_libraries', 'select_library_folder', 'register_library', 'register_library', 'list_libraries', 'unregister_library', 'list_libraries']);
   assert.deepEqual(commands[2][1], { path: libraryFixture[1].path });
 });
 
 test('failed writes keep the last confirmed library and redact raw transport failures', async () => {
-  await mountLibraryWorkspace(async (command) => {
+  await mountFolderSettings(async (command) => {
     if (command === 'list_libraries') return libraryEnvelope({ libraries: [libraryFixture[0]], next_cursor: null });
     if (command === 'register_library') return { ok: false, data: null, error: { code: 'LIBRARY_OVERLAP' } };
     if (command === 'unregister_library') throw new Error('fixture-secret-db-path');
@@ -1358,14 +1419,38 @@ test('failed writes keep the last confirmed library and redact raw transport fai
   assert.equal(await components.registerLibrary(libraryFixture[1].path), false);
   await nextTick();
   assert.match(document.querySelector('.library-management [role="alert"]').textContent, /범위가 겹칩니다/);
-  await clickElement('[data-folder-id]');
+  await chooseManagedFolder(libraryFixture[0].id);
   await clickElement('.unregister-library');
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();
-  assert.ok(document.querySelector('[data-folder-id]'));
-  assert.equal(components.libraryUi.selectedFolderId, libraryFixture[0].id);
+  assert.equal(document.querySelector('.manage-folder-picker select').value, libraryFixture[0].id);
+  assert.equal(components.libraryUi.selectedFolderId, null);
   assert.equal(document.body.textContent.includes('fixture-secret-db-path'), false);
   assert.match(document.querySelector('.library-management [role="alert"]').textContent, /처리 결과를 확인하지 못했습니다/);
+});
+
+test('folder settings scans only after explicit activation and displays the measured result', async () => {
+  const commands = [];
+  await mountFolderSettings(async (command, args) => {
+    commands.push([command, args]);
+    if (command === 'list_libraries') return libraryEnvelope({ libraries: libraryFixture, next_cursor: null });
+    if (command === 'scan_library') return libraryEnvelope({ jobId: 'fixture-scan' });
+    if (command === 'metadata_request') return libraryEnvelope({
+      status: 'completed', result: { processed: 3, complete: true, new: 2, changed: 1, missing: 0, errors: 0 },
+    });
+    return rejectTransport();
+  });
+  assert.equal(document.querySelector('.scan-library'), null);
+  await chooseManagedFolder(libraryFixture[1].id);
+  assert.deepEqual(commands.map(([command]) => command), ['list_libraries']);
+  await clickElement('.scan-library');
+  await new Promise(resolve => setImmediate(resolve));
+  await nextTick();
+  assert.deepEqual(commands.slice(1), [
+    ['scan_library', { libraryId: libraryFixture[1].id }],
+    ['metadata_request', { method: 'library.scan.status', params: { job_id: 'fixture-scan' } }],
+  ]);
+  assert.match(document.querySelector('.library-management [role="status"]').textContent, /3개 파일 확인 · 신규 2 · 변경 1/);
 });
 
 test('list failures do not claim an empty database and preserve confirmed roots on refresh failure', async () => {
@@ -1382,7 +1467,7 @@ test('list failures do not claim an empty database and preserve confirmed roots 
   assert.equal(await components.refreshLibraries(), false);
   await nextTick();
   assert.ok(document.querySelector('[data-folder-id]'));
-  assert.match(document.querySelector('.library-management [role="alert"]').textContent, /DB를 사용할 수 없습니다/);
+  assert.match(document.querySelector('.workspace-notice[role="alert"]').textContent, /DB를 사용할 수 없습니다/);
 });
 
 test('library pages merge once and malformed cursors cannot publish partial or duplicate roots', async () => {
@@ -1957,7 +2042,7 @@ test('unsupported preview reports limits and cannot start an all-audio scope',as
 });
 
 test('embedding profile configuration is explicit metadata only',async()=>{
- await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ await router.push('/settings/search');globalThis.isTauri=true;const calls=[];
  dom.window.__TAURI_INTERNALS__={invoke:async(command,args)=>{calls.push([command,args]);return {ok:true,data:{profile:{modelName:'fixture',dimension:3,version:'fixture-version'},readyCount:0}};}};
  const form=document.querySelector('.embedding-tools form'),input=form.querySelector('input');input.value='fixture';dispatch(input,new Event('input',{bubbles:true}));await nextTick();assert.equal(calls.length,0);
  dispatch(form,new Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.deepEqual(calls.map(c=>c[0]),['embedding_configure','embedding_status']);assert.match(document.querySelector('.embedding-tools').textContent,/3차원/);
@@ -1980,7 +2065,7 @@ test('hybrid query sends combined filters before server ranking',async()=>{
 });
 
 test('whole embedding rebuild requires a separate explicit approval',async()=>{
- await mountGallery([]);globalThis.isTauri=true;const calls=[];
+ await router.push('/settings/search');globalThis.isTauri=true;const calls=[];
  dom.window.__TAURI_INTERNALS__={invoke:async(command)=>{calls.push(command);if(command==='embedding_status')return {ok:true,data:{profile:{modelName:'fixture',dimension:3,version:'v'},readyCount:0}};if(command==='embedding_rebuild')return {ok:true,data:{jobId:'fixture-rebuild'}};return {ok:true,data:{status:'completed',processed:1,total:1,failed:0}};}};
  const button=[...document.querySelectorAll('.embedding-tools button')].find(b=>b.textContent==='현재 버전 전체 재구축');assert.equal(button.disabled,true);
  dispatch([...document.querySelectorAll('.embedding-tools button')].find(b=>b.textContent==='임베딩 준비 상태 확인'),new MouseEvent('click',{bubbles:true}));await new Promise(r=>setImmediate(r));await nextTick();assert.equal(button.disabled,true);

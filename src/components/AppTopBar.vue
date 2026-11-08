@@ -5,6 +5,7 @@ import { workspace, setSearchQuery } from "../stores/workspace";
 
 const route = useRoute();
 const currentLocation = computed(() => String(route.meta.title ?? "라이브러리"));
+const inSettings = computed(() => route.matched.some(record => record.path === '/settings'));
 const query = computed({ get: () => workspace.searchQuery, set: setSearchQuery });
 const searchInput = ref<HTMLInputElement | null>(null);
 
@@ -21,14 +22,12 @@ function handleEscape(event: KeyboardEvent) {
 <template>
   <header class="app-topbar">
     <RouterLink class="brand" to="/library" aria-label="AI Asset Hub 홈">
-      AI Asset Hub
+      <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path d="m16 6 9 5v10l-9 5-9-5V11l9-5Zm-9 5 9 5 9-5m-9 5v10" />
+      </svg>
+      <span>AI Asset Hub</span>
     </RouterLink>
 
-    <RouterLink to="/settings/models">모델 관리</RouterLink>
-    <RouterLink to="/settings/mcp">MCP 연결·로그</RouterLink>
-    <RouterLink to="/settings/unity">Unity 연결</RouterLink>
-    <RouterLink to="/settings/diagnostics">진단·비용 감사</RouterLink>
-    <RouterLink to="/settings/maintenance">DB 백업·복구</RouterLink>
     <nav class="breadcrumbs" aria-label="현재 위치">
       <ol>
         <li><RouterLink to="/library" aria-current-value="false">작업 공간</RouterLink></li>
@@ -36,14 +35,14 @@ function handleEscape(event: KeyboardEvent) {
       </ol>
     </nav>
 
-    <form class="topbar-search" role="search" aria-label="에셋 검색어 입력" @submit.prevent>
+    <form v-show="!inSettings" class="topbar-search" role="search" aria-label="에셋 검색어 입력" @submit.prevent>
       <label class="visually-hidden" for="asset-search">에셋 검색어</label>
       <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="m15.5 15.5 5 5" />
       </svg>
       <input id="asset-search" ref="searchInput" v-model="query"
-        type="search" placeholder="검색어 입력" autocomplete="off" :spellcheck="false"
+        type="search" placeholder="에셋 검색" autocomplete="off" :spellcheck="false"
         @keydown.esc="handleEscape" />
       <button v-if="query" class="clear-search" type="button"
         aria-label="검색어 지우기" @click="clearSearch">
@@ -54,7 +53,11 @@ function handleEscape(event: KeyboardEvent) {
     </form>
 
     <nav class="topbar-actions" aria-label="주 메뉴">
-      <RouterLink to="/settings/appearance">화면 설정</RouterLink>
+      <RouterLink to="/settings" :class="{ 'is-active': inSettings }">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2.5" /><circle cx="15" cy="17" r="2.5" />
+        </svg>설정
+      </RouterLink>
     </nav>
   </header>
 </template>

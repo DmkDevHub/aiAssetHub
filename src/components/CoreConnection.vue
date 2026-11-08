@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { RouterLink } from 'vue-router';
 import { validCoreHealth, coreErrorMessage } from '../services/coreHealth';
 
 const desktop = isTauri();
+withDefaults(defineProps<{ showActions?: boolean }>(), { showActions: true });
 const state = ref<'checking' | 'connected' | 'degraded' | 'failed'>('checking');
 const busy = ref(false);
 const database = ref('');
@@ -46,11 +48,12 @@ onBeforeUnmount(() => { active = false; if (timer !== undefined) clearInterval(t
 </script>
 
 <template>
-  <section v-if="desktop" class="core-connection" aria-label="Core 연결">
+  <section v-if="desktop" class="core-connection" :data-state="state" aria-label="Core 연결">
     <p role="status">{{ state === 'checking' ? 'Core 연결 확인 중' : state !== 'failed' ? `Core 연결됨 · ${version} · ${database}` : 'Core 연결 끊김' }}</p>
     <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
-    <button type="button" :disabled="busy" @click="check(state === 'failed' || state === 'degraded')">
+    <button v-if="showActions" type="button" :disabled="busy" @click="check(state === 'failed' || state === 'degraded')">
       {{ state === 'failed' || state === 'degraded' ? '다시 연결' : '연결 확인' }}
     </button>
+    <RouterLink v-else-if="errorMessage" to="/settings/diagnostics">연결 진단</RouterLink>
   </section>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, watch } from "vue";
-import { RouterView } from "vue-router";
+import { RouterView, useRoute } from "vue-router";
 import AppTopBar from "./components/AppTopBar.vue";
 import AppStatusBar from "./components/AppStatusBar.vue";
 import CoreConnection from "./components/CoreConnection.vue";
@@ -8,6 +8,7 @@ import { appearance } from "./stores/appearance";
 import { resetLibrarySession } from './stores/libraries';
 import { resetAssets } from './stores/assets';
 
+const route = useRoute();
 onBeforeUnmount(resetLibrarySession);
 onBeforeUnmount(resetAssets);
 
@@ -27,7 +28,9 @@ function focusMainContent() {
     <main id="main-content" tabindex="-1">
       <RouterView />
     </main>
-    <AppStatusBar />
-    <CoreConnection />
+    <footer class="app-footer">
+      <AppStatusBar />
+      <CoreConnection :show-actions="route.path === '/settings/diagnostics'" />
+    </footer>
   </div>
 </template>
