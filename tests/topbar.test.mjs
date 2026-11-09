@@ -238,7 +238,8 @@ test("settings and breadcrumb links change real routes while retaining the query
 test('settings deep links activate a single tab and keep workspace actions on the dashboard', async () => {
   await activateLink('[aria-label="주 메뉴"] a');
   const tabs = [...document.querySelectorAll('[aria-label="설정 탭"] a')];
-  assert.equal(tabs.length, 10);
+  assert.equal(tabs.length, 8);
+  assert.ok(tabs.every(tab => !['/settings/folders', '/settings/catalog'].includes(tab.getAttribute('href'))));
   for (const tab of tabs) {
     const path = tab.getAttribute('href');
     await activateLink(`.settings-tabs a[href="${path}"]`);
@@ -252,7 +253,8 @@ test('settings deep links activate a single tab and keep workspace actions on th
   assert.doesNotMatch(document.querySelector('.embedding-tools').textContent, /선택 결과 임베딩 생성/);
   await router.push('/library');
   assert.equal(document.querySelector('.settings-tabs'), null);
-  assert.equal(document.querySelector('.metadata-import, .catalog-manager, .library-management'), null);
+  assert.equal(document.querySelector('.metadata-import, .library-management'), null);
+  assert.ok(document.querySelector('.workspace-inspector .catalog-manager'));
   assert.ok(document.querySelector('.analysis-open'));
   assert.equal(document.querySelector('.embedding-tools form'), null);
   assert.doesNotMatch(document.querySelector('.embedding-tools').textContent, /전체 재구축/);
@@ -620,6 +622,7 @@ async function clickElement(selector) {
 }
 
 test("production details start empty and collapse control has a real target", async () => {
+  await clickElement('.inspector-details-button');
   assert.match(document.querySelector('.detail-empty').textContent, /에셋을 선택/);
   assert.equal(document.querySelector('[role="tablist"]'), null);
   assert.equal(document.querySelector('.detail-toggle').getAttribute('aria-controls'), 'asset-details');
@@ -641,6 +644,37 @@ test("supplied gallery selection drives details in both grid and list", async ()
   await clickElement('tbody tr:last-child .asset-select');
   assert.equal(document.querySelector('.detail-asset-name').textContent, '돌 모델.fbx');
   assert.equal(document.querySelectorAll('.asset-select[aria-pressed="true"]').length, 1);
+});
+
+test('right panel starts on the catalog and preserves the selected asset while switching views', async () => {
+  await mountWorkspace(galleryFixture);
+  const catalog = document.querySelector('#workspace-catalog');
+  const details = document.querySelector('#workspace-details');
+  const tree = document.querySelector('.library-panel [role="tree"]');
+  assert.ok(catalog.closest('.workspace-inspector'));
+  assert.ok(catalog.querySelector('.catalog-manager'));
+  assert.ok(catalog.querySelector('.catalog-packages'));
+  assert.equal(catalog.style.display, '');
+  assert.equal(details.style.display, 'none');
+
+  await clickElement('.catalog-modes button');
+  assert.equal(components.navigation.mode, 'groups');
+  assert.equal(tree.querySelector('[aria-selected="true"]'), null);
+  await clickElement('.library-panel [role="treeitem"]');
+  assert.equal(components.navigation.mode, 'folders');
+  assert.ok(tree.querySelector('[aria-selected="true"]'));
+
+  await clickElement('.asset-select');
+  await clickElement('#detail-tab-analysis');
+  assert.equal(catalog.style.display, 'none');
+  await router.push('/settings/catalog');
+  await nextTick();
+  assert.equal(router.currentRoute.value.fullPath, '/library?panel=catalog');
+  assert.equal(catalog.style.display, '');
+  assert.equal(details.style.display, 'none');
+  await clickElement('.inspector-details-button');
+  assert.equal(document.querySelector('.detail-asset-name').textContent, '나무.png');
+  assert.equal(document.querySelector('#detail-tab-analysis').getAttribute('aria-selected'), 'true');
 });
 
 test("detail tabs support seven linked panels and roving keyboard activation", async () => {
@@ -678,9 +712,11 @@ test("collapsed details retain selection and tab while data updates remain curre
 });
 
 test("details collapse preference survives actual route navigation", async () => {
+  await clickElement('.inspector-details-button');
   await clickElement('.detail-toggle');
   await activateLink('[aria-label="주 메뉴"] a');
   await activateLink('.breadcrumbs a');
+  await clickElement('.inspector-details-button');
   assert.equal(document.querySelector('#asset-details').hidden, true);
   assert.equal(document.querySelector('.detail-toggle').textContent, '상세 펼치기');
 });
@@ -764,13 +800,13 @@ test("F6 cycles actual workspace regions and Shift F6 reverses without trapping 
   await key(tree, 'F6');
   assert.equal(document.activeElement, galleryButton('그리드'));
   await key(document.activeElement, 'F6');
-  assert.equal(document.activeElement, document.querySelector('.detail-toggle'));
+  assert.equal(document.activeElement, document.querySelector('.inspector-catalog-button'));
   await key(document.activeElement, 'F6');
   assert.equal(document.activeElement, tree);
   const reverse = new dom.window.KeyboardEvent('keydown', { key: 'F6', shiftKey: true, bubbles: true, cancelable: true });
   dispatch(tree, reverse);
   await nextTick();
-  assert.equal(document.activeElement, document.querySelector('.detail-toggle'));
+  assert.equal(document.activeElement, document.querySelector('.inspector-catalog-button'));
   const tab = new dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
   dispatch(document.activeElement, tab);
   assert.equal(tab.defaultPrevented, false);
@@ -1200,7 +1236,7 @@ test('invalid picker responses cannot replace a valid selection', async () => {
   }
 });
 
-test('folder settings keeps an unregistered choice across routes and opens only the picker on request', async () => {
+test('dashboard folder controls keep an unregistered choice across routes and open only the picker on request', async () => {
   app.unmount();
   const commands = [];
   globalThis.isTauri = true;
@@ -1217,16 +1253,22 @@ test('folder settings keeps an unregistered choice across routes and opens only 
   app.mount('#app');
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();
-  assert.equal(document.querySelector('.pick-folder'), null);
+  assert.equal(document.querySelector('.workspace-folder-management').open, false);
+  assert.ok(document.querySelector('.library-panel .pick-folder'));
   assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
   assert.equal(document.querySelector('.gallery-count').textContent, '0개 에셋');
-  await activateLink('.gallery-empty a');
-  assert.equal(router.currentRoute.value.path, '/settings/folders');
+  await clickElement('.gallery-empty .workspace-link');
+  assert.equal(router.currentRoute.value.path, '/library');
+  assert.equal(document.querySelector('.workspace-folder-management').open, true);
+  assert.equal(document.activeElement, document.querySelector('.workspace-folder-management summary'));
   commands.length = 0;
   await clickFolderPicker();
   assert.deepEqual(commands, ['select_library_folder']);
-  await activateLink('.breadcrumbs a');
-  await activateLink('.gallery-empty a');
+  await activateLink('[aria-label="주 메뉴"] a');
+  await router.push('/settings/folders');
+  await nextTick();
+  assert.equal(router.currentRoute.value.fullPath, '/library?panel=folders');
+  assert.equal(document.querySelector('.workspace-folder-management').open, true);
   assert.equal(document.querySelector('.picked-folder-path').textContent, 'D:\\fixture\\selected');
   assert.equal(document.querySelectorAll('[data-folder-id]').length, 0);
 });
@@ -1327,14 +1369,14 @@ async function mountLibraryWorkspace(invoke) {
   await nextTick();
 }
 
-async function mountFolderSettings(invoke) {
+async function mountFolderDashboard(invoke) {
   app.unmount();
   globalThis.isTauri = true;
   dom.window.__TAURI_INTERNALS__ = {
     invoke: (command, args) => command === 'core_health' ? Promise.resolve(fixtureHealth())
       : command === 'list_assets' ? Promise.resolve(libraryEnvelope({ items: [], next_cursor: null })) : invoke(command, args),
   };
-  await router.push('/settings/folders');
+  await router.push('/library?panel=folders');
   app = createApp(components.App);
   app.config.errorHandler = (error) => errors.push(error);
   app.config.warnHandler = (message) => errors.push(new Error(message));
@@ -1364,10 +1406,10 @@ test('persisted library list renders supplied roots and no pretend scanned asset
   assert.equal(document.querySelector('.library-empty'), null);
 });
 
-test('settings registration and unregister update the real tree without scanning', async () => {
+test('left panel registration and unregister update the real tree without scanning', async () => {
   const commands = [];
   let registered = false;
-  await mountFolderSettings(async (command, args) => {
+  await mountFolderDashboard(async (command, args) => {
     commands.push([command, args]);
     if (command === 'list_libraries') return libraryEnvelope({ libraries: registered ? [libraryFixture[1]] : [], next_cursor: null });
     if (command === 'select_library_folder') return { path: libraryFixture[1].path };
@@ -1391,26 +1433,22 @@ test('settings registration and unregister update the real tree without scanning
   await clickElement('.register-library');
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();
-  await activateLink('.breadcrumbs a');
   assert.equal(document.querySelector('[data-folder-id]').dataset.folderId, libraryFixture[1].id);
   await clickElement('[data-folder-id]');
   assert.equal(components.libraryUi.selectedFolderId, libraryFixture[1].id);
-  await activateLink('[aria-label="주 메뉴"] a');
-  await activateLink('.settings-tabs a[href="/settings/folders"]');
   assert.equal(document.querySelector('.manage-folder-picker select').value, libraryFixture[1].id);
   await clickElement('.unregister-library');
   await new Promise((resolve) => setImmediate(resolve));
   await nextTick();
   assert.match(document.querySelector('.library-management').textContent, /원본 파일은 유지됩니다/);
-  await activateLink('.breadcrumbs a');
   assert.equal(components.libraryUi.selectedFolderId, null);
   assert.equal(document.querySelector('[data-folder-id]'), null);
-  assert.deepEqual(commands.map(([command]) => command), ['list_libraries', 'select_library_folder', 'register_library', 'register_library', 'list_libraries', 'unregister_library', 'list_libraries']);
+  assert.deepEqual(commands.map(([command]) => command), ['list_libraries', 'select_library_folder', 'register_library', 'register_library', 'unregister_library']);
   assert.deepEqual(commands[2][1], { path: libraryFixture[1].path });
 });
 
 test('failed writes keep the last confirmed library and redact raw transport failures', async () => {
-  await mountFolderSettings(async (command) => {
+  await mountFolderDashboard(async (command) => {
     if (command === 'list_libraries') return libraryEnvelope({ libraries: [libraryFixture[0]], next_cursor: null });
     if (command === 'register_library') return { ok: false, data: null, error: { code: 'LIBRARY_OVERLAP' } };
     if (command === 'unregister_library') throw new Error('fixture-secret-db-path');
@@ -1429,9 +1467,9 @@ test('failed writes keep the last confirmed library and redact raw transport fai
   assert.match(document.querySelector('.library-management [role="alert"]').textContent, /처리 결과를 확인하지 못했습니다/);
 });
 
-test('folder settings scans only after explicit activation and displays the measured result', async () => {
+test('left panel scans only after explicit activation and displays the measured result', async () => {
   const commands = [];
-  await mountFolderSettings(async (command, args) => {
+  await mountFolderDashboard(async (command, args) => {
     commands.push([command, args]);
     if (command === 'list_libraries') return libraryEnvelope({ libraries: libraryFixture, next_cursor: null });
     if (command === 'scan_library') return libraryEnvelope({ jobId: 'fixture-scan' });

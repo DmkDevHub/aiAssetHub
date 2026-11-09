@@ -250,13 +250,13 @@ body {
   max-height: 220px;
 }
 
-.library-workspace[data-layout="medium"] .detail-shell {
+.library-workspace[data-layout="medium"] .workspace-inspector {
   grid-column: 1 / -1;
   margin-top: 10px;
 }
 
-.library-workspace[data-layout="medium"] .detail-shell,
-.library-workspace[data-layout="compact"] .detail-shell {
+.library-workspace[data-layout="medium"] .workspace-inspector,
+.library-workspace[data-layout="compact"] .workspace-inspector {
   margin-left: 0;
 }
 
@@ -560,15 +560,34 @@ h1 {
   color: var(--accent);
 }
 
-.detail-shell {
+.detail-shell, .workspace-inspector {
   min-width: 0;
-  margin-left: 10px;
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
   overflow-wrap: anywhere;
   box-shadow: var(--shadow);
+}
+
+.workspace-inspector { margin-left: 10px; }
+.workspace-inspector.is-collapsed { padding: 8px; }
+.workspace-inspector .detail-shell { margin: 0; padding: 0; border: 0; box-shadow: none; }
+.library-workspace[data-layout="wide"] .workspace-inspector:not(.is-collapsed) { min-height: 380px; }
+.inspector-switch {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--background);
+}
+.inspector-switch button { flex: 1; }
+.workspace-inspector.is-collapsed .inspector-switch { flex-direction: column; }
+.library-workspace .inspector-switch button[aria-pressed="true"] {
+  border-color: var(--border);
+  background: var(--active);
+  color: var(--accent);
 }
 
 .detail-toggle,
@@ -585,7 +604,6 @@ h1 {
 
 .detail-header { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .detail-shell h2 { margin: 0; font-size: 16px; }
-.library-workspace[data-layout="wide"] .detail-shell:not(.is-collapsed) { min-height: 380px; }
 .detail-empty { padding: 14px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); line-height: 1.6; font-size: 13px; }
 .detail-asset-name { font-weight: 600; }
 .detail-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -731,15 +749,16 @@ input[type="radio"] {
   letter-spacing: .05em;
 }
 
-.library-panel [aria-label="탐색 영역"] {
+.catalog-navigation {
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
 
-.library-panel [aria-label="탐색 종류"] {
+.catalog-navigation p { color: var(--muted); font-size: 13px; }
+.catalog-modes {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 3px;
   margin-bottom: 8px;
   padding: 3px;
@@ -747,7 +766,7 @@ input[type="radio"] {
   background: var(--background);
 }
 
-.library-panel [aria-label="탐색 종류"] button {
+.catalog-modes button {
   padding: 6px 2px;
   border: 1px solid transparent;
   border-radius: 5px;
@@ -758,16 +777,29 @@ input[type="radio"] {
   cursor: pointer;
 }
 
-.library-panel [aria-label="탐색 종류"] button:hover,
-.library-panel [aria-label="탐색 종류"] button[aria-pressed="true"] {
+.catalog-modes button:hover,
+.catalog-modes button[aria-pressed="true"] {
   border-color: var(--border);
   background: var(--active);
   color: var(--accent);
 }
 
-.library-panel [aria-label="논리 탐색"] { padding: 0; list-style: none; }
-.library-panel [aria-label="논리 탐색"] button { width: 100%; text-align: start; overflow-wrap: anywhere; }
-.library-panel [aria-label="논리 탐색"] [aria-selected="true"] button { background: var(--active); color: var(--accent); }
+.catalog-navigation [role="tree"] { padding: 0; list-style: none; }
+.catalog-navigation [role="tree"] button { width: 100%; text-align: start; overflow-wrap: anywhere; }
+.catalog-navigation [aria-selected="true"] button { background: var(--active); color: var(--accent); }
+
+.workspace-folder-management, #workspace-catalog > details { margin-bottom: 8px; }
+.workspace-folder-management > summary, #workspace-catalog > details > summary {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--raised);
+  font-size: 13px;
+  font-weight: 600;
+}
+.workspace-folder-management > :is(.folder-selection, .library-management) { margin: 8px 0; }
+#workspace-catalog :is(form, label, pre) { max-width: 100%; }
+#workspace-catalog pre { overflow: auto; }
 
 .workspace-link, .app-footer a { color: var(--accent); }
 .workspace-link { margin-top: 14px; }
@@ -865,7 +897,7 @@ input[type="radio"] {
 
 .settings-content :is(button, select, textarea, input:not([type="checkbox"], [type="radio"])),
 .library-workspace :is(select, textarea, input:not([type="checkbox"], [type="radio"])),
-.library-workspace button:not(.asset-select, .tree-toggle, .gallery-view-controls button, [aria-label="탐색 종류"] button) {
+.library-workspace button:not(.asset-select, .tree-toggle, .gallery-view-controls button, .catalog-modes button) {
   max-width: 100%;
   padding: 6px 9px;
   border: 1px solid var(--border);

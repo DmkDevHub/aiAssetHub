@@ -9,11 +9,13 @@ const desktop = isTauri();
 const selectedId = ref(libraryUi.selectedFolderId ?? '');
 const selected = computed(() => libraries.roots.find((item) => item.id === selectedId.value));
 watch(() => libraries.roots, () => { if (!selected.value) selectedId.value = ''; });
+watch(() => libraryUi.selectedFolderId, (id) => {
+  if (id && libraries.roots.some(root => root.id === id)) selectedId.value = id;
+});
 </script>
 
 <template>
   <section v-if="desktop" class="library-management" aria-label="등록 폴더 관리">
-    <h2>등록된 폴더 관리</h2>
     <button type="button" class="refresh-libraries" :disabled="libraries.loading || libraries.mutating" @click="refreshLibraries">
       등록 폴더 새로고침
     </button>

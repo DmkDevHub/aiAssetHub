@@ -7,15 +7,11 @@ import UnityView from './views/UnityView.vue';
 import DiagnosticsView from './views/DiagnosticsView.vue';
 import MaintenanceView from './views/MaintenanceView.vue';
 import SettingsView from './views/SettingsView.vue';
-import FolderSettingsView from './views/FolderSettingsView.vue';
-import CatalogSettingsView from './views/CatalogSettingsView.vue';
 import SearchSettingsView from './views/SearchSettingsView.vue';
 import ImportSettingsView from './views/ImportSettingsView.vue';
 
 const settingsTabs = [
   { path: 'appearance', title: '화면 설정', component: AppearanceView },
-  { path: 'folders', title: '등록 폴더', component: FolderSettingsView },
-  { path: 'catalog', title: '카탈로그', component: CatalogSettingsView },
   { path: 'models', title: '모델 관리', component: ModelsView },
   { path: 'search', title: '검색 인덱스', component: SearchSettingsView },
   { path: 'mcp', title: 'MCP 연결·로그', component: McpView },
@@ -31,6 +27,8 @@ export function createAppRouter(history: RouterHistory = createWebHashHistory())
     routes: [
       { path: "/", redirect: "/library" },
       { path: "/library", component: LibraryView, meta: { title: "라이브러리" } },
+      { path: "/settings/folders", redirect: { path: "/library", query: { panel: "folders" } } },
+      { path: "/settings/catalog", redirect: { path: "/library", query: { panel: "catalog" } } },
       {
         path: "/settings",
         component: SettingsView,

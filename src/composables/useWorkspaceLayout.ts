@@ -8,7 +8,7 @@ export function workspaceLayout(width: number, panelWidth: number, detailsCollap
   return "wide";
 }
 
-export function useWorkspaceLayout(element: Ref<HTMLElement | undefined>) {
+export function useWorkspaceLayout(element: Ref<HTMLElement | undefined>, inspectorCollapsed: Readonly<Ref<boolean>>) {
   const width = ref(0);
   let observer: ResizeObserver | undefined;
   function measure() {
@@ -28,5 +28,5 @@ export function useWorkspaceLayout(element: Ref<HTMLElement | undefined>) {
     observer?.disconnect();
     window.removeEventListener("resize", measure);
   });
-  return computed(() => workspaceLayout(width.value, libraryUi.panelWidth, libraryUi.detailsCollapsed));
+  return computed(() => workspaceLayout(width.value, libraryUi.panelWidth, inspectorCollapsed.value));
 }

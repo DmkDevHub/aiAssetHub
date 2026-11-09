@@ -12,9 +12,9 @@ const props = withDefaults(defineProps<{
   nodes?: readonly LibraryFolderNode[];
   selectedId: string | null;
   resizable?: boolean;
-  showFolders?: boolean;
+  active?: boolean;
   emptyMessage?: string;
-}>(), { nodes: () => [], resizable: true, showFolders: true, emptyMessage: '등록된 폴더가 없습니다.' });
+}>(), { nodes: () => [], resizable: true, active: true, emptyMessage: '등록된 폴더가 없습니다.' });
 const emit = defineEmits<{ select: [id: string | null] }>();
 
 const expanded = ref(new Set<string>());
@@ -95,7 +95,7 @@ function renderFolder(node: LibraryFolderNode, level: number): VNode {
     role: "treeitem",
     "aria-label": node.name,
     "aria-level": level,
-    "aria-selected": props.selectedId === node.id,
+    "aria-selected": props.active && props.selectedId === node.id,
     "aria-expanded": hasChildren ? isExpanded : undefined,
     "data-folder-id": node.id,
     tabindex: focusedId.value === node.id ? 0 : -1,
@@ -180,17 +180,17 @@ watch(() => props.resizable, (enabled) => { if (!enabled) stopResize(); });
 
 <template>
   <aside id="library-navigation" class="library-panel" aria-labelledby="library-panel-title">
-    <h2 id="library-panel-title">탐색</h2>
-    <slot name="navigation" />
-    <ul v-if="showFolders" class="library-tree" role="tree" aria-label="라이브러리 폴더">
+    <h2 id="library-panel-title">등록 폴더</h2>
+    <slot name="management" />
+    <ul class="library-tree" role="tree" aria-label="라이브러리 폴더">
       <li :ref="(element) => registerElement(null, element)" role="treeitem" aria-label="전체 에셋"
-        :aria-selected="selectedId === null" :tabindex="focusedId === null ? 0 : -1"
+        :aria-selected="active && selectedId === null" :tabindex="focusedId === null ? 0 : -1"
         @focus="focusedId = null" @click="choose(null)" @keydown="handleTreeKey($event, null)">
         <div class="tree-row all-assets">전체 에셋</div>
       </li>
       <FolderNodes />
     </ul>
-    <p v-if="showFolders && nodes.length === 0" class="library-empty">{{ emptyMessage }}</p>
+    <p v-if="nodes.length === 0" class="library-empty">{{ emptyMessage }}</p>
   </aside>
   <div v-if="resizable" class="library-splitter" :class="{ 'is-resizing': resizing }" role="separator" tabindex="0"
     aria-orientation="vertical" aria-label="라이브러리 패널 너비" aria-controls="library-navigation"

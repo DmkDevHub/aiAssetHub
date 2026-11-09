@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed, toRef, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { RouterLink } from 'vue-router';
+import { useRoute } from 'vue-router';
 import SmartGroups from '../components/SmartGroups.vue';
 import {smartUi} from '../stores/smartGroups';
 import AdvancedFilters from '../components/AdvancedFilters.vue';
 import {catalogFilters} from '../stores/catalogFilters';
 import CatalogNavigation from '../components/CatalogNavigation.vue';
-import {navigation} from '../stores/navigation';
+import CatalogManager from '../components/CatalogManager.vue';
+import PackageManager from '../components/PackageManager.vue';
+import FolderSelection from '../components/FolderSelection.vue';
+import LibraryManagement from '../components/LibraryManagement.vue';
+import { navigateMode, navigation } from '../stores/navigation';
 import {metadata} from '../services/metadata';
 import {collectionUi} from '../stores/collections';
 import LibraryTreePanel from "../components/LibraryTreePanel.vue";
@@ -24,6 +28,7 @@ import { keywordFilter, stateFilter } from '../services/assetSearch';
 import { folderNodes, filterFolder, type FolderNode } from '../services/assetFolders';
 
 const desktop = isTauri();
+const route = useRoute();
 onMounted(async () => {
   if (!await refreshLibraries()) return;
   if (libraries.roots.length && !assets.error) void refreshAssets();
@@ -136,7 +141,7 @@ const needsFolder = computed(() => desktop && libraries.loaded && !libraries.loa
 const emptyDescription = computed(() => {
   if (libraries.loading || assets.busy) return '파일 목록을 확인하는 중입니다.';
   if (libraries.error || assets.error) return '등록 폴더 또는 파일 목록의 상태를 확인하세요.';
-  if (needsFolder.value) return '설정에서 폴더를 등록하고 파일 스캔을 실행하면 여기에 에셋이 표시됩니다.';
+  if (needsFolder.value) return '왼쪽 패널에서 폴더를 등록하고 스캔하면 여기에 에셋이 표시됩니다.';
   if (searching.value || ordering.value) return '검색 결과를 불러오는 중입니다.';
   if (searchMode.value !== 'keyword' && searchState.searchQuery.trim() && !semanticResults.value) return '로컬 검색을 실행해 결과를 확인하세요.';
   if (searchState.searchQuery.trim() || tag.value || kind.value || analysis.value || catalogFilters.active || smartUi.groupId) return '현재 검색어와 필터에 맞는 에셋이 없습니다.';
@@ -145,7 +150,34 @@ const emptyDescription = computed(() => {
 });
 watch(selectedAsset, (asset) => { if (!asset) selectedId.value = null; });
 const workspace = ref<HTMLElement>();
-const layout = useWorkspaceLayout(workspace);
+const folderManagement = ref<HTMLDetailsElement>();
+const inspectorView = ref<'catalog' | 'details'>('catalog');
+const inspectorCollapsed = computed(() => inspectorView.value === 'details' && libraryUi.detailsCollapsed);
+const layout = useWorkspaceLayout(workspace, inspectorCollapsed);
+
+function showFolderManagement() {
+  if (!folderManagement.value) return;
+  folderManagement.value.open = true;
+  folderManagement.value.querySelector('summary')?.focus();
+}
+
+watch(() => route.query.panel, async (panel) => {
+  if (panel === 'catalog') inspectorView.value = 'catalog';
+  if (panel === 'folders') {
+    await nextTick();
+    showFolderManagement();
+  }
+}, { immediate: true });
+
+function selectFolder(id: string | null) {
+  if (navigation.mode !== 'folders') navigateMode('folders');
+  selectLibraryFolder(id);
+}
+
+function selectAsset(id: string | null) {
+  selectedId.value = id;
+  if (id) inspectorView.value = 'details';
+}
 watch(layout, async (mode) => {
   if (mode === 'compact' && document.activeElement?.classList.contains('library-splitter')) {
     await nextTick();
@@ -157,14 +189,14 @@ function moveRegion(event: KeyboardEvent) {
   if (event.key !== 'F6' || event.altKey || event.ctrlKey || event.metaKey) return;
   const root = workspace.value;
   if (!root) return;
-  const regions = [root.querySelector('.library-panel'), root.querySelector('.asset-gallery'), root.querySelector('.detail-shell')];
+  const regions = [root.querySelector('.library-panel'), root.querySelector('.asset-gallery'), root.querySelector('.workspace-inspector')];
   const current = regions.findIndex((region) => region?.contains(document.activeElement));
   const index = current < 0 ? (event.shiftKey ? 2 : 0) : (current + (event.shiftKey ? 2 : 1)) % 3;
   const selectors = ['[role="treeitem"][tabindex="0"]', '.asset-select[aria-pressed="true"], .gallery-view-controls button',
-    libraryUi.detailsCollapsed ? '.detail-toggle' : '[role="tab"][aria-selected="true"], .detail-toggle'];
+    inspectorView.value === 'catalog' ? '.inspector-catalog-button' : '.detail-toggle'];
   // Prefer the selected asset/tab over a toolbar control when one exists.
   const preferred = index === 1 ? regions[index]?.querySelector<HTMLElement>('.asset-select[aria-pressed="true"]')
-    : index === 2 && !libraryUi.detailsCollapsed ? regions[index]?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') : null;
+    : index === 2 && inspectorView.value === 'details' && !libraryUi.detailsCollapsed ? regions[index]?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') : null;
   (preferred ?? regions[index]?.querySelector<HTMLElement>(selectors[index]!))?.focus();
   event.preventDefault();
 }
@@ -173,17 +205,24 @@ function moveRegion(event: KeyboardEvent) {
 <template>
   <div ref="workspace" class="library-workspace" :data-layout="layout" @keydown="moveRegion" :style="{
     '--library-panel-width': `${libraryUi.panelWidth}px`,
-    '--details-panel-width': libraryUi.detailsCollapsed ? 'auto' : '280px',
+    '--details-panel-width': inspectorCollapsed ? '110px' : '280px',
   }">
-    <LibraryTreePanel :show-folders="navigation.mode==='folders'" :nodes="nodes" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
-      :selected-id="libraryUi.selectedFolderId" @select="selectLibraryFolder">
-      <template #navigation><CatalogNavigation /></template>
+    <LibraryTreePanel :active="navigation.mode === 'folders'" :nodes="nodes" :empty-message="emptyMessage" :resizable="layout !== 'compact'"
+      :selected-id="libraryUi.selectedFolderId" @select="selectFolder">
+      <template #management>
+        <details v-if="desktop" ref="folderManagement" class="workspace-folder-management">
+          <summary>폴더 등록·스캔</summary>
+          <FolderSelection />
+          <LibraryManagement />
+        </details>
+      </template>
     </LibraryTreePanel>
-    <AssetGallery :ordered-by-core="coreOrdered || searchMode!=='keyword' && semanticResults!==null" :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" :empty-description="emptyDescription" @select="selectedId = $event">
+    <AssetGallery :ordered-by-core="coreOrdered || searchMode!=='keyword' && semanticResults!==null" :ranked="searchMode!=='keyword' && semanticResults!==null" :items="items" :selected-id="selectedId" :empty-description="emptyDescription" @select="selectAsset">
       <template #empty-action>
-        <RouterLink v-if="needsFolder || (desktop && !assets.busy && !assets.error && !sourceItems.length && libraries.roots.length)" class="workspace-link" to="/settings/folders">
-          {{ needsFolder ? '등록 폴더 설정 열기' : '폴더 스캔 관리' }}
-        </RouterLink>
+        <button v-if="needsFolder || (desktop && !assets.busy && !assets.error && !sourceItems.length && libraries.roots.length)"
+          type="button" class="workspace-link" @click="showFolderManagement">
+          {{ needsFolder ? '폴더 등록 열기' : '폴더 스캔 관리' }}
+        </button>
       </template>
       <template #status>
         <p v-if="assets.notice" class="workspace-notice" role="status">{{ assets.notice }}</p>
@@ -198,6 +237,24 @@ function moveRegion(event: KeyboardEvent) {
       <label class="tag-filter">분석 상태 <select v-model="analysis" aria-label="분석 상태 필터"><option value="">전체 상태</option><option value="unanalyzed">미분석</option><option value="completed">분석 완료</option><option value="failed">마지막 시도 실패</option></select></label>
       </template>
     </AssetGallery>
-    <AssetDetailsPanel :asset="selectedAsset" />
+    <section class="workspace-inspector" :class="{ 'is-collapsed': inspectorCollapsed }" aria-label="카탈로그와 에셋 상세">
+      <div class="inspector-switch" role="group" aria-label="오른쪽 패널 보기">
+        <button type="button" class="inspector-catalog-button" aria-controls="workspace-catalog"
+          :aria-pressed="inspectorView === 'catalog'" @click="inspectorView = 'catalog'">카탈로그</button>
+        <button type="button" class="inspector-details-button" aria-controls="workspace-details"
+          :aria-pressed="inspectorView === 'details'" @click="inspectorView = 'details'">에셋 상세</button>
+      </div>
+      <section v-show="inspectorView === 'catalog'" id="workspace-catalog" aria-label="카탈로그">
+        <CatalogNavigation />
+        <CatalogManager />
+        <details class="catalog-packages">
+          <summary>패키지 관리</summary>
+          <PackageManager />
+        </details>
+      </section>
+      <div v-show="inspectorView === 'details'" id="workspace-details">
+        <AssetDetailsPanel :asset="selectedAsset" />
+      </div>
+    </section>
   </div>
 </template>
